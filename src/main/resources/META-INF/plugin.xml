@@ -77,6 +77,8 @@
         <projectService
             serviceImplementation="com.circleci.idea.job.JobDataService"/>
         <projectService
+            serviceImplementation="com.circleci.idea.job.JobDetailsService"/>
+        <projectService
             serviceImplementation="com.circleci.idea.state.CircleCIStateStore"/>
         <projectService
             serviceImplementation="com.circleci.idea.state.CircleCIStatePersistence"/>

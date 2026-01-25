@@ -271,3 +271,106 @@ data class TriggerPipelineResponse(
     @SerializedName("created_at")
     val createdAt: String
 )
+
+/**
+ * Detailed job information from CircleCI API.
+ */
+data class JobDetailsInfo(
+    @SerializedName("id")
+    val id: String?,
+
+    @SerializedName("job_number")
+    val jobNumber: Long?,
+
+    @SerializedName("name")
+    val name: String?,
+
+    @SerializedName("project_slug")
+    val projectSlug: String?,
+
+    @SerializedName("status")
+    val status: String?,
+
+    @SerializedName("type")
+    val type: String?,
+
+    @SerializedName("started_at")
+    val startedAt: String?,
+
+    @SerializedName("stopped_at")
+    val stoppedAt: String?,
+
+    @SerializedName("duration")
+    val duration: Long?,
+
+    @SerializedName("executor")
+    val executor: ExecutorInfo? = null,
+
+    @SerializedName("parallelism")
+    val parallelism: Int? = null,
+
+    @SerializedName("steps")
+    val steps: List<JobStepInfo>? = null,
+
+    @SerializedName("ssh")
+    val ssh: SshInfo? = null,
+
+    @SerializedName("web_url")
+    val webUrl: String?
+)
+
+data class ExecutorInfo(
+    @SerializedName("type")
+    val type: String?,
+
+    @SerializedName("resource_class")
+    val resourceClass: String?
+)
+
+data class JobStepInfo(
+    @SerializedName("name")
+    val name: String?,
+
+    @SerializedName("actions")
+    val actions: List<JobActionInfo>? = null
+)
+
+data class JobActionInfo(
+    @SerializedName("name")
+    val name: String?,
+
+    @SerializedName("status")
+    val status: String?,
+
+    @SerializedName("start_time")
+    val startTime: String?,
+
+    @SerializedName("end_time")
+    val endTime: String?,
+
+    @SerializedName("run_time_millis")
+    val runTimeMillis: Long?,
+
+    @SerializedName("output_url")
+    val outputUrl: String?,
+
+    @SerializedName("step")
+    val step: Int?,
+
+    @SerializedName("index")
+    val index: Int?
+)
+
+data class SshInfo(
+    @SerializedName("enabled")
+    val enabled: Boolean = false,
+
+    @SerializedName("host")
+    val host: String? = null,
+
+    @SerializedName("port")
+    val port: Int? = null,
+
+    @SerializedName("user")
+    val user: String? = null
+)

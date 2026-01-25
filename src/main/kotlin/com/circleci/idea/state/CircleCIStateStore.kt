@@ -34,6 +34,9 @@ class CircleCIStateStore(private val project: Project) : CircleCIState {
     private val _ui = MutableStateFlow(UIState())
     override val ui: StateFlow<UIState> = _ui.asStateFlow()
 
+    private val _jobDetails = MutableStateFlow(JobDetailsState())
+    override val jobDetails: StateFlow<JobDetailsState> = _jobDetails.asStateFlow()
+
     init {
         // Load persisted state on initialization
         hydrate()
@@ -79,6 +82,57 @@ class CircleCIStateStore(private val project: Project) : CircleCIState {
      */
     fun updateUI(update: (UIState) -> UIState) {
         _ui.value = update(_ui.value)
+    }
+
+    /**
+     * Update job details state.
+     */
+    fun updateJobDetails(update: (JobDetailsState) -> JobDetailsState) {
+        _jobDetails.value = update(_jobDetails.value)
+    }
+
+    /**
+     * Select a job and prepare to load its details.
+     */
+    fun selectJob(jobId: String, jobNumber: Long?, projectSlug: String) {
+        _jobDetails.value = JobDetailsState(
+            selectedJobId = jobId,
+            selectedJobNumber = jobNumber,
+            selectedProjectSlug = projectSlug,
+            isLoading = true
+        )
+    }
+
+    /**
+     * Set job details after fetching.
+     */
+    fun setJobDetails(jobDetails: JobDetails) {
+        updateJobDetails { state ->
+            state.copy(
+                jobDetails = jobDetails,
+                isLoading = false,
+                error = null
+            )
+        }
+    }
+
+    /**
+     * Set job details error.
+     */
+    fun setJobDetailsError(error: String) {
+        updateJobDetails { state ->
+            state.copy(
+                isLoading = false,
+                error = error
+            )
+        }
+    }
+
+    /**
+     * Clear selected job.
+     */
+    fun clearJobDetails() {
+        _jobDetails.value = JobDetailsState()
     }
 
     /**

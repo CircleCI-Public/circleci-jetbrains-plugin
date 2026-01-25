@@ -13,6 +13,7 @@ interface CircleCIState {
     val config: StateFlow<ConfigState>
     val filters: StateFlow<FiltersState>
     val ui: StateFlow<UIState>
+    val jobDetails: StateFlow<JobDetailsState>
 }
 
 /**
@@ -169,4 +170,52 @@ data class NotificationPreferences(
     val enabled: Boolean = true,
     val myPipelinesOnly: Boolean = false,
     val statusFilter: Set<String> = setOf("failed", "failing", "canceled", "on_hold", "error", "unauthorized")
+)
+
+/**
+ * Job details state - selected job and its details.
+ */
+data class JobDetailsState(
+    val selectedJobId: String? = null,
+    val selectedJobNumber: Long? = null,
+    val selectedProjectSlug: String? = null,
+    val jobDetails: JobDetails? = null,
+    val isLoading: Boolean = false,
+    val error: String? = null
+)
+
+data class JobDetails(
+    val id: String?,
+    val jobNumber: Long?,
+    val name: String?,
+    val projectSlug: String?,
+    val status: String?,
+    val type: String?,
+    val startedAt: String?,
+    val stoppedAt: String?,
+    val duration: Long?,
+    val resourceClass: String?,
+    val parallelism: Int?,
+    val steps: List<JobStep> = emptyList(),
+    val sshEnabled: Boolean = false,
+    val sshHost: String? = null,
+    val sshPort: Int? = null,
+    val sshUser: String? = null,
+    val webUrl: String?
+)
+
+data class JobStep(
+    val name: String?,
+    val actions: List<JobAction> = emptyList()
+)
+
+data class JobAction(
+    val name: String?,
+    val status: String?,
+    val startTime: String?,
+    val endTime: String?,
+    val runTimeMillis: Long?,
+    val outputUrl: String?,
+    val step: Int?,
+    val index: Int?
 )

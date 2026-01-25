@@ -112,6 +112,22 @@ class CircleCIApiService {
     }
 
     /**
+     * Get detailed job information.
+     */
+    fun getJobDetails(projectSlug: String, jobNumber: Long): Result<JobDetailsInfo> {
+        return executeRequest("/api/v2/project/$projectSlug/job/$jobNumber") { data ->
+            gson.fromJson(data.toString(), JobDetailsInfo::class.java)
+        }
+    }
+
+    /**
+     * Rerun a job with SSH enabled.
+     */
+    fun rerunJobWithSsh(workflowId: String, jobId: String): Result<Unit> {
+        return executePostRequest("/api/v2/workflow/$workflowId/rerun") { Unit }
+    }
+
+    /**
      * Get followed projects.
      */
     fun getFollowedProjects(): Result<List<ProjectInfo>> {
