@@ -1,0 +1,150 @@
+<idea-plugin>
+    <id>com.circleci.idea</id>
+    <name>CircleCI</name>
+    <vendor email="support@circleci.com" url="https://circleci.com">CircleCI</vendor>
+
+    <description><![CDATA[
+    <p>CircleCI integration for JetBrains IDEs</p>
+
+    <p>Monitor, manage, and debug CircleCI pipelines directly within your IDE. This extension provides:</p>
+    <ul>
+      <li>Real-time pipeline, workflow, and job status monitoring</li>
+      <li>Pipeline management (rerun, cancel, approve workflows)</li>
+      <li>SSH debugging support for failed jobs</li>
+      <li>CircleCI YAML configuration validation and IntelliSense</li>
+      <li>Local configuration testing (unversioned config runs)</li>
+      <li>Test results and artifact viewing</li>
+      <li>Desktop notifications for pipeline status changes</li>
+    </ul>
+
+    <p>Features include:</p>
+    <ul>
+      <li><strong>Pipeline Monitoring:</strong> View pipelines, workflows, and jobs in a hierarchical tree view</li>
+      <li><strong>Real-time Updates:</strong> Get instant notifications when pipeline status changes</li>
+      <li><strong>Workflow Actions:</strong> Rerun workflows from start or from failed jobs, cancel running workflows, approve on-hold jobs</li>
+      <li><strong>SSH Debugging:</strong> Rerun failed jobs with SSH enabled and connect directly from the IDE</li>
+      <li><strong>Config Validation:</strong> Validate CircleCI YAML configuration files before committing</li>
+      <li><strong>Test Run:</strong> Test configuration changes locally without committing to version control</li>
+    </ul>
+    ]]></description>
+
+    <change-notes><![CDATA[
+    <h3>1.0.0</h3>
+    <ul>
+      <li>Initial release</li>
+      <li>Pipeline, workflow, and job monitoring</li>
+      <li>Basic workflow and job actions</li>
+      <li>CircleCI configuration file support</li>
+    </ul>
+    ]]></change-notes>
+
+    <!-- Product and plugin compatibility requirements -->
+    <depends>com.intellij.modules.platform</depends>
+    <depends optional="true" config-file="git-support.xml">Git4Idea</depends>
+    <depends optional="true" config-file="terminal-support.xml">org.jetbrains.plugins.terminal</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Tool Window -->
+        <toolWindow id="CircleCI"
+                    secondary="false"
+                    icon="/icons/circleci.svg"
+                    anchor="right"
+                    factoryClass="com.circleci.idea.toolwindow.CircleCIToolWindowFactory"/>
+
+        <!-- Settings/Configuration -->
+        <applicationConfigurable
+            parentId="tools"
+            instance="com.circleci.idea.settings.CircleCIConfigurable"
+            id="com.circleci.idea.settings.CircleCIConfigurable"
+            displayName="CircleCI"/>
+
+        <applicationService
+            serviceImplementation="com.circleci.idea.settings.CircleCISettings"/>
+        <applicationService
+            serviceImplementation="com.circleci.idea.api.CircleCIApiService"/>
+        <applicationService
+            serviceImplementation="com.circleci.idea.websocket.CircleCIWebSocketService"/>
+
+        <!-- Project Services -->
+        <projectService
+            serviceImplementation="com.circleci.idea.services.CircleCIProjectService"/>
+        <projectService
+            serviceImplementation="com.circleci.idea.project.CircleCIProjectService"/>
+        <projectService
+            serviceImplementation="com.circleci.idea.pipeline.PipelineDataService"/>
+        <projectService
+            serviceImplementation="com.circleci.idea.workflow.WorkflowDataService"/>
+        <projectService
+            serviceImplementation="com.circleci.idea.job.JobDataService"/>
+        <projectService
+            serviceImplementation="com.circleci.idea.state.CircleCIStateStore"/>
+        <projectService
+            serviceImplementation="com.circleci.idea.state.CircleCIStatePersistence"/>
+        <projectService
+            serviceImplementation="com.circleci.idea.auth.CircleCIAuthService"/>
+        <projectService
+            serviceImplementation="com.circleci.idea.toolwindow.CircleCIToolWindowService"/>
+
+        <!-- Status Bar Widget -->
+        <statusBarWidgetFactory
+            id="CircleCIStatusBar"
+            implementation="com.circleci.idea.statusbar.CircleCIStatusBarWidgetFactory"
+            order="after memoryUsageWidget"/>
+
+        <!-- Notification Group -->
+        <notificationGroup
+            id="CircleCI Notifications"
+            displayType="BALLOON"
+            isLogByDefault="true"/>
+    </extensions>
+
+    <actions>
+        <!-- Main Menu Actions -->
+        <group id="CircleCI.MainMenu" text="CircleCI" description="CircleCI actions" popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+
+            <action id="CircleCI.Login"
+                    class="com.circleci.idea.actions.LoginAction"
+                    text="Login to CircleCI"
+                    description="Authenticate with CircleCI"/>
+
+            <action id="CircleCI.Logout"
+                    class="com.circleci.idea.actions.LogoutAction"
+                    text="Logout from CircleCI"
+                    description="Sign out and clear credentials"/>
+
+            <action id="CircleCI.RefreshPipelines"
+                    class="com.circleci.idea.actions.RefreshPipelinesAction"
+                    text="Refresh Pipelines"
+                    description="Refresh pipeline list"
+                    icon="AllIcons.Actions.Refresh"/>
+
+            <separator/>
+
+            <action id="CircleCI.ValidateConfig"
+                    class="com.circleci.idea.actions.ValidateConfigAction"
+                    text="Validate CircleCI Config"
+                    description="Validate .circleci/config.yml"/>
+
+            <action id="CircleCI.TestRun"
+                    class="com.circleci.idea.actions.TestRunAction"
+                    text="Test Run Configuration"
+                    description="Run pipeline with local configuration"/>
+
+            <separator/>
+
+            <action id="CircleCI.OpenSettings"
+                    class="com.circleci.idea.actions.OpenSettingsAction"
+                    text="Settings..."
+                    description="Open CircleCI settings"/>
+        </group>
+
+        <!-- Editor Context Menu for CircleCI Config Files -->
+        <group id="CircleCI.EditorPopupMenu">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <separator/>
+            <reference ref="CircleCI.ValidateConfig"/>
+            <reference ref="CircleCI.TestRun"/>
+        </group>
+    </actions>
+</idea-plugin>

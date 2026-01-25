@@ -1,0 +1,39 @@
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.idea_modules/
+
+# Gradle
+.gradle/
+build/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+local.properties
+secrets.properties
+
+# Logs
+*.log
+
+# Build artifacts
+dist/
+*.zip
+
+# Testing
+test-output/
+coverage/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
