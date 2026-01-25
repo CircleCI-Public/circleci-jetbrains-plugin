@@ -1,6 +1,7 @@
 package com.circleci.idea.toolwindow
 
 import com.circleci.idea.auth.CircleCIAuthService
+import com.circleci.idea.job.JobDetailsService
 import com.circleci.idea.project.CircleCIProjectService
 import com.circleci.idea.toolwindow.tree.*
 import com.intellij.openapi.Disposable
@@ -35,13 +36,16 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
     private val tree = Tree(treeModel)
     private val projectService = project.getService(CircleCIProjectService::class.java)
     private val authService = CircleCIAuthService.getInstance(project)
+    private val jobDetailsService = project.getService(JobDetailsService::class.java)
 
     init {
         setupTree()
         setupToolbar()
 
-        // Register tree model with service so RefreshAction can access it
-        project.getService(CircleCIToolWindowService::class.java).setTreeModel(treeModel)
+        // Register tree and tree model with service
+        val toolWindowService = project.getService(CircleCIToolWindowService::class.java)
+        toolWindowService.setTreeModel(treeModel)
+        toolWindowService.setTree(tree)
 
         // Restore authentication and initialize API client
         authService.restoreAuthentication()
@@ -119,6 +123,18 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
                     handleSingleClick()
                 }
             }
+
+            override fun mousePressed(e: MouseEvent) {
+                if (e.isPopupTrigger) {
+                    showContextMenu(e)
+                }
+            }
+
+            override fun mouseReleased(e: MouseEvent) {
+                if (e.isPopupTrigger) {
+                    showContextMenu(e)
+                }
+            }
         })
 
         // Add tree to panel
@@ -163,10 +179,71 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
                 // Future: Open workflow in browser or details panel
             }
             is JobNode -> {
-                // Future: Open job details panel
+                handleJobDoubleClick(node)
             }
             else -> {}
         }
+    }
+
+    private fun handleJobDoubleClick(jobNode: JobNode) {
+        val job = jobNode.job
+        scope.launch {
+            jobDetailsService.selectAndFetchJobDetails(
+                jobId = job.id,
+                jobNumber = job.jobNumber,
+                projectSlug = job.projectSlug
+            )
+        }
+
+        // Show job details panel in tool window service
+        project.getService(CircleCIToolWindowService::class.java).showJobDetailsPanel()
+    }
+
+    private fun showContextMenu(e: MouseEvent) {
+        // Select the node under the mouse
+        val path = tree.getPathForLocation(e.x, e.y) ?: return
+        tree.selectionPath = path
+
+        val node = path.lastPathComponent as? CircleCITreeNode ?: return
+
+        // Create context menu based on node type
+        val actionGroup = DefaultActionGroup()
+
+        when (node) {
+            is WorkflowNode -> {
+                actionGroup.add(com.circleci.idea.toolwindow.actions.RerunWorkflowAction())
+                actionGroup.add(com.circleci.idea.toolwindow.actions.RerunWorkflowFromFailedAction())
+                actionGroup.add(com.circleci.idea.toolwindow.actions.CancelWorkflowAction())
+                actionGroup.addSeparator()
+                actionGroup.add(com.circleci.idea.toolwindow.actions.ApproveWorkflowAction())
+                actionGroup.addSeparator()
+                actionGroup.add(com.circleci.idea.toolwindow.actions.OpenWorkflowInBrowserAction())
+            }
+            is JobNode -> {
+                actionGroup.add(com.circleci.idea.toolwindow.actions.OpenJobDetailsAction())
+                actionGroup.addSeparator()
+                actionGroup.add(com.circleci.idea.toolwindow.actions.RerunWorkflowFromJobAction())
+                actionGroup.add(com.circleci.idea.toolwindow.actions.RerunJobWithSshAction())
+                actionGroup.add(com.circleci.idea.toolwindow.actions.CancelJobAction())
+                actionGroup.addSeparator()
+                actionGroup.add(com.circleci.idea.toolwindow.actions.CopyJobNumberAction())
+                actionGroup.add(com.circleci.idea.toolwindow.actions.OpenJobInBrowserAction())
+            }
+            is PipelineNode -> {
+                // Future: Add pipeline actions
+            }
+            else -> {
+                // No context menu for other node types
+                return
+            }
+        }
+
+        // Show popup menu
+        val popupMenu = ActionManager.getInstance().createActionPopupMenu(
+            ActionPlaces.TOOLWINDOW_POPUP,
+            actionGroup
+        )
+        popupMenu.component.show(e.component, e.x, e.y)
     }
 
     fun getContent(): JComponent {
