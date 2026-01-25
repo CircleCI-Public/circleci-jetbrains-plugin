@@ -146,9 +146,15 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
     private fun setupToolbar() {
         val actionGroup = DefaultActionGroup()
 
-        // Add actions
+        // Project management actions
         actionGroup.add(com.circleci.idea.toolwindow.actions.AddProjectAction())
         actionGroup.add(com.circleci.idea.toolwindow.actions.RefreshAction())
+        actionGroup.addSeparator()
+
+        // Filter actions
+        actionGroup.add(com.circleci.idea.toolwindow.actions.BranchFilterAction())
+        actionGroup.add(com.circleci.idea.toolwindow.actions.StatusFilterAction())
+        actionGroup.add(com.circleci.idea.toolwindow.actions.MyPipelinesOnlyAction())
 
         val toolbar = ActionManager.getInstance().createActionToolbar(
             ActionPlaces.TOOLBAR,

@@ -2,6 +2,7 @@ package com.circleci.idea.toolwindow.tree
 
 import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.auth.CircleCIAuthService
+import com.circleci.idea.filter.PipelineFilterService
 import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.project.CircleCIProjectService
 import com.circleci.idea.settings.CircleCISettings
@@ -27,6 +28,7 @@ class CircleCITreeModel(
     private val apiService = CircleCIApiService.getInstance()
     private val authService = CircleCIAuthService.getInstance(project)
     private val settings = CircleCISettings.getInstance()
+    private val filterService = PipelineFilterService.getInstance(project)
 
     init {
         // Listen to project changes and reload root
@@ -170,22 +172,40 @@ class CircleCITreeModel(
                 }
 
                 logger.info("Loading pipelines for project: ${projectNode.project.slug}")
+
+                // Get branch filter
+                val branchFilter = filterService.getBranchForFilter(projectNode.project.slug)
+                logger.info("Using branch filter: $branchFilter")
+
                 val result = apiService.getPipelines(
                     projectSlug = projectNode.project.slug,
-                    branch = null,
+                    branch = branchFilter,
                     pageToken = null
                 )
 
                 result.fold(
                     onSuccess = { response ->
                         logger.info("Successfully loaded ${response.items.size} pipelines for ${projectNode.project.slug}")
+
+                        // Get current user login for filtering
+                        val currentUserLogin = getUserLoginForFiltering()
+
+                        // Apply client-side filters
+                        val filteredPipelines = filterService.filterPipelines(response.items, currentUserLogin)
+                        logger.info("Filtered to ${filteredPipelines.size} pipelines")
+
                         withContext(Dispatchers.Main) {
                             projectNode.removeAllChildren()
 
-                            if (response.items.isEmpty()) {
-                                projectNode.add(EmptyNode("No pipelines found"))
+                            if (filteredPipelines.isEmpty()) {
+                                val message = if (filterService.hasActiveFilters()) {
+                                    "No pipelines match current filters"
+                                } else {
+                                    "No pipelines found"
+                                }
+                                projectNode.add(EmptyNode(message))
                             } else {
-                                response.items.forEach { pipeline ->
+                                filteredPipelines.forEach { pipeline ->
                                     projectNode.add(PipelineNode(pipeline))
                                 }
 
@@ -229,21 +249,30 @@ class CircleCITreeModel(
 
         scope.launch {
             try {
+                // Get branch filter
+                val branchFilter = filterService.getBranchForFilter(projectNode.project.slug)
+
                 val result = apiService.getPipelines(
                     projectSlug = projectNode.project.slug,
-                    branch = null,
+                    branch = branchFilter,
                     pageToken = loadMoreNode.nextPageToken
                 )
 
                 result.fold(
                     onSuccess = { response ->
+                        // Get current user login for filtering
+                        val currentUserLogin = getUserLoginForFiltering()
+
+                        // Apply client-side filters
+                        val filteredPipelines = filterService.filterPipelines(response.items, currentUserLogin)
+
                         withContext(Dispatchers.Main) {
                             // Remove loading indicator
                             projectNode.children().toList().filterIsInstance<LoadingNode>().forEach {
                                 projectNode.remove(it)
                             }
 
-                            response.items.forEach { pipeline ->
+                            filteredPipelines.forEach { pipeline ->
                                 projectNode.add(PipelineNode(pipeline))
                             }
 
@@ -403,5 +432,21 @@ class CircleCITreeModel(
     private fun loadMoreJobs(workflowNode: WorkflowNode, loadMoreNode: LoadMoreNode) {
         // Jobs don't support pagination via the API service, so this is a no-op
         logger.debug("Load more jobs not supported")
+    }
+
+    /**
+     * Get current user login for filtering pipelines.
+     * Attempts to fetch from API if not available.
+     */
+    private suspend fun getUserLoginForFiltering(): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val userInfo = apiService.getCurrentUser()
+                userInfo.getOrNull()?.login
+            } catch (e: Exception) {
+                logger.warn("Failed to get current user for filtering: ${e.message}")
+                null
+            }
+        }
     }
 }
