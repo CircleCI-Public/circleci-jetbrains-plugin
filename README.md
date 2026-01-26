@@ -154,6 +154,19 @@ To debug the plugin:
 2. Attach your debugger to port 5005
 3. Set breakpoints in your code
 
+## Local testing
+
+### Build from source
+1. Run `task build` note the location of the built zip file
+2. Go to intellij -> settings -> plugins -> gear icon -> install from disk
+
+### Download a release
+1. Run: ```gh release download \
+     --repo circleci-petri/circleci-idea-plugin \
+     --pattern "circleci-idea-plugin-*.zip" \
+   --output ~/Downloads/circleci-idea-plugin.zip```
+2. Go to intellij -> settings -> plugins -> gear icon -> install from disk
+
 ## Release Process
 
 1. Update version in `build.gradle.kts`

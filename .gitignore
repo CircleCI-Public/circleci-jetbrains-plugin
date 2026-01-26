@@ -32,6 +32,8 @@ dist/
 test-output/
 coverage/
 
+# Task
+.task/
 # Temporary files
 *.tmp
 *.bak
