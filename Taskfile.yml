@@ -1,0 +1,195 @@
+version: '3'
+
+vars:
+  PLUGIN_NAME: CircleCI
+  PLUGIN_ID: com.circleci.idea
+  GITHUB_ORG: "{{.GITHUB_ORG | default \"your-org\"}}"
+  GITHUB_REPO: "{{.GITHUB_REPO | default \"circleci-idea-plugin\"}}"
+  VERSION:
+    sh: grep '^version = ' build.gradle.kts | sed 's/version = "\(.*\)"/\1/'
+  BUILD_DIR: build/distributions
+  PLUGIN_ZIP: "{{.BUILD_DIR}}/{{.PLUGIN_NAME}}-{{.VERSION}}.zip"
+  DOCS_DIR: docs
+  UPDATE_XML: "{{.DOCS_DIR}}/updatePlugins.xml"
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - ./gradlew clean
+      - rm -rf {{.DOCS_DIR}}
+
+  build:
+    desc: Build the plugin distribution
+    cmds:
+      - ./gradlew buildPlugin
+      - echo "Plugin built at {{.PLUGIN_ZIP}}"
+    sources:
+      - src/**/*.kt
+      - src/**/*.java
+      - src/**/*.xml
+      - build.gradle.kts
+    generates:
+      - "{{.PLUGIN_ZIP}}"
+
+  test:
+    desc: Run tests
+    cmds:
+      - ./gradlew test verifyPlugin
+
+  verify:
+    desc: Verify plugin compatibility
+    cmds:
+      - ./gradlew verifyPlugin
+
+  generate-update-xml:
+    desc: Generate updatePlugins.xml for custom repository
+    deps:
+      - build
+    cmds:
+      - mkdir -p {{.DOCS_DIR}}
+      - |
+        cat > {{.UPDATE_XML}} << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plugins>
+          <plugin id="{{.PLUGIN_ID}}" url="https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/releases/download/v{{.VERSION}}/{{.PLUGIN_NAME}}-{{.VERSION}}.zip" version="{{.VERSION}}">
+            <name>{{.PLUGIN_NAME}}</name>
+            <description><![CDATA[
+              CircleCI integration for JetBrains IDEs.
+              Monitor, manage, and debug CircleCI pipelines directly within your IDE.
+            ]]></description>
+            <vendor email="support@circleci.com" url="https://circleci.com">CircleCI</vendor>
+            <idea-version since-build="232" until-build="241.*"/>
+            <change-notes><![CDATA[
+              See https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/releases/tag/v{{.VERSION}} for release notes.
+            ]]></change-notes>
+          </plugin>
+        </plugins>
+        EOF
+      - echo "Generated {{.UPDATE_XML}}"
+
+  validate-version:
+    desc: Validate that version matches git tag
+    cmds:
+      - |
+        if [ -n "$CIRCLE_TAG" ]; then
+          TAG_VERSION=$(echo $CIRCLE_TAG | sed 's/^v//')
+          if [ "{{.VERSION}}" != "$TAG_VERSION" ]; then
+            echo "Error: build.gradle.kts version ({{.VERSION}}) does not match git tag ($TAG_VERSION)"
+            exit 1
+          fi
+          echo "Version validated: {{.VERSION}}"
+        else
+          echo "No git tag found, skipping validation"
+        fi
+
+  create-release:
+    desc: Create GitHub release and upload plugin
+    deps:
+      - build
+      - generate-update-xml
+    vars:
+      RELEASE_TAG: "v{{.VERSION}}"
+      RELEASE_NAME: "{{.PLUGIN_NAME}} v{{.VERSION}}"
+    cmds:
+      - |
+        # Check if gh CLI is installed
+        if ! command -v gh &> /dev/null; then
+          echo "Error: GitHub CLI (gh) is not installed"
+          exit 1
+        fi
+      - |
+        # Check if release already exists
+        if gh release view {{.RELEASE_TAG}} &> /dev/null; then
+          echo "Release {{.RELEASE_TAG}} already exists, deleting..."
+          gh release delete {{.RELEASE_TAG}} -y
+        fi
+      - |
+        # Create release with plugin ZIP
+        gh release create {{.RELEASE_TAG}} \
+          --title "{{.RELEASE_NAME}}" \
+          --notes-file CHANGELOG.md \
+          {{.PLUGIN_ZIP}}
+      - echo "Created release {{.RELEASE_TAG}}"
+
+  update-repository:
+    desc: Update the custom plugin repository (GitHub Pages)
+    deps:
+      - generate-update-xml
+    cmds:
+      - |
+        # Ensure we're on main branch
+        git checkout main
+      - |
+        # Add and commit the updatePlugins.xml
+        git add {{.UPDATE_XML}}
+        if git diff --cached --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Update plugin repository for v{{.VERSION}}"
+          git push origin main
+        fi
+      - echo "Updated plugin repository"
+
+  release:
+    desc: Full release process (build, test, create release, update repository)
+    cmds:
+      - task: clean
+      - task: test
+      - task: verify
+      - task: validate-version
+      - task: create-release
+      - task: update-repository
+      - echo "Release v{{.VERSION}} completed successfully!"
+      - echo "Users can install from https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/blob/main/{{.UPDATE_XML}}"
+
+  setup-pages:
+    desc: Setup GitHub Pages for the custom plugin repository
+    cmds:
+      - mkdir -p {{.DOCS_DIR}}
+      - |
+        cat > {{.DOCS_DIR}}/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>CircleCI IntelliJ Plugin Repository</title>
+          <style>
+            body { font-family: system-ui; max-width: 800px; margin: 50px auto; padding: 20px; }
+            code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; }
+            pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
+          </style>
+        </head>
+        <body>
+          <h1>CircleCI IntelliJ Plugin Repository</h1>
+          <p>Private plugin repository for the CircleCI IntelliJ IDEA plugin.</p>
+
+          <h2>Installation</h2>
+          <ol>
+            <li>Open IntelliJ IDEA</li>
+            <li>Go to <code>Settings → Plugins → ⚙️ (gear icon) → Manage Plugin Repositories</code></li>
+            <li>Add this repository URL:
+              <pre>https://{{.GITHUB_ORG}}.github.io/{{.GITHUB_REPO}}/updatePlugins.xml</pre>
+            </li>
+            <li>Search for "CircleCI" in the Marketplace tab</li>
+            <li>Click Install</li>
+          </ol>
+
+          <h2>Releases</h2>
+          <p>See <a href="https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/releases">GitHub Releases</a> for version history.</p>
+        </body>
+        </html>
+        EOF
+      - git add {{.DOCS_DIR}}/index.html
+      - echo "Created GitHub Pages index"
+      - echo ""
+      - echo "Next steps:"
+      - echo "1. Commit and push the docs/index.html file"
+      - echo "2. Go to repository Settings → Pages"
+      - echo "3. Set Source to 'main branch /docs folder'"
+      - echo "4. Save and wait for deployment"
+      - echo "5. Your repository will be available at https://{{.GITHUB_ORG}}.github.io/{{.GITHUB_REPO}}/updatePlugins.xml"
