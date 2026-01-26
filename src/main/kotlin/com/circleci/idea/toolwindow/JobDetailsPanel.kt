@@ -70,7 +70,10 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
     private val testResultsTable = JBTable(testResultsTableModel)
     private val testResultsScrollPane = JBScrollPane(testResultsTable)
 
-    // Tabs for output and tests
+    // Artifacts panel
+    private val artifactsPanel = ArtifactsPanel(project)
+
+    // Tabs for output, tests, and artifacts
     private val rightTabbedPane = JBTabbedPane()
 
     // Split pane for steps and output/tests
@@ -196,6 +199,7 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
         // Setup tabbed pane
         rightTabbedPane.addTab("Output", outputScrollPane)
         rightTabbedPane.addTab("Tests", testResultsScrollPane)
+        rightTabbedPane.addTab("Artifacts", artifactsPanel)
 
         // Setup split pane
         splitPane.leftComponent = stepsScrollPane
@@ -273,6 +277,9 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
         loadingLabel.isVisible = false
         emptyLabel.isVisible = true
 
+        // Clear artifacts
+        artifactsPanel.clear()
+
         mainPanel.removeAll()
         mainPanel.add(emptyLabel, BorderLayout.CENTER)
         mainPanel.revalidate()
@@ -324,6 +331,7 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
         // Load test results if available
         if (jobDetails.projectSlug != null && jobDetails.jobNumber != null) {
             loadTestResults(jobDetails.projectSlug, jobDetails.jobNumber)
+            artifactsPanel.loadArtifacts(jobDetails.projectSlug, jobDetails.jobNumber)
         }
 
         // Clear output when switching jobs

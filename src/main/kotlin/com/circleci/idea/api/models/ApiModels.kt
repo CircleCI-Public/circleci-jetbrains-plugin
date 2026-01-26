@@ -425,3 +425,31 @@ data class StepOutputResponse(
     @SerializedName("type")
     val type: String?
 )
+
+/**
+ * Artifacts response
+ */
+data class ArtifactsResponse(
+    @SerializedName("items")
+    val items: List<ArtifactInfo>?,
+
+    @SerializedName("next_page_token")
+    val nextPageToken: String?
+)
+
+/**
+ * Individual artifact information
+ */
+data class ArtifactInfo(
+    @SerializedName("path")
+    val path: String?,
+
+    @SerializedName("node_index")
+    val nodeIndex: Int?,
+
+    @SerializedName("url")
+    val url: String?,
+
+    @SerializedName("pretty_path")
+    val prettyPath: String?
+)

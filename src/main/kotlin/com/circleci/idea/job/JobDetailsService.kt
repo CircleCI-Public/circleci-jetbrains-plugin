@@ -241,4 +241,22 @@ class JobDetailsService(private val project: Project) {
             }
         }
     }
+
+    /**
+     * Fetch artifacts for a job.
+     */
+    suspend fun fetchArtifacts(projectSlug: String, jobNumber: Long): Result<List<com.circleci.idea.state.Artifact>> {
+        logger.info("Fetching artifacts for job $jobNumber")
+
+        return apiService.getArtifacts(projectSlug, jobNumber).map { response ->
+            response.items?.map { artifact ->
+                com.circleci.idea.state.Artifact(
+                    path = artifact.path,
+                    nodeIndex = artifact.nodeIndex,
+                    url = artifact.url,
+                    prettyPath = artifact.prettyPath
+                )
+            } ?: emptyList()
+        }
+    }
 }

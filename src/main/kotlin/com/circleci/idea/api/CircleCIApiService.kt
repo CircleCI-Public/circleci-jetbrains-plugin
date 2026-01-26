@@ -155,6 +155,15 @@ class CircleCIApiService {
     }
 
     /**
+     * Get artifacts for a job.
+     */
+    fun getArtifacts(projectSlug: String, jobNumber: Long): Result<ArtifactsResponse> {
+        return executeRequest("/api/v2/project/$projectSlug/$jobNumber/artifacts") { data ->
+            gson.fromJson(data.toString(), ArtifactsResponse::class.java)
+        }
+    }
+
+    /**
      * Get followed projects.
      */
     fun getFollowedProjects(): Result<List<ProjectInfo>> {

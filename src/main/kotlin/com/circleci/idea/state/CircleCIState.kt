@@ -241,3 +241,13 @@ data class StepOutput(
     val message: String?,
     val type: String?
 )
+
+/**
+ * Artifact information
+ */
+data class Artifact(
+    val path: String?,
+    val nodeIndex: Int?,
+    val url: String?,
+    val prettyPath: String?
+)
