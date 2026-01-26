@@ -88,6 +88,8 @@
             serviceImplementation="com.circleci.idea.toolwindow.CircleCIToolWindowService"/>
         <projectService
             serviceImplementation="com.circleci.idea.notifications.CircleCINotificationService"/>
+        <projectService
+            serviceImplementation="com.circleci.idea.ssh.CircleCISshService"/>
 
         <!-- Startup Activity -->
         <postStartupActivity implementation="com.circleci.idea.CircleCIStartupActivity"/>

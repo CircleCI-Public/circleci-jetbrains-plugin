@@ -2,13 +2,18 @@ package com.circleci.idea.toolwindow
 
 import com.circleci.idea.icons.CircleCIIcons
 import com.circleci.idea.job.JobDetailsService
+import com.circleci.idea.ssh.CircleCISshService
+import com.circleci.idea.ssh.SshValidationResult
 import com.circleci.idea.state.CircleCIStateStore
 import com.circleci.idea.state.JobAction
 import com.circleci.idea.state.JobDetails
 import com.circleci.idea.state.JobStep
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.Disposer
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.*
@@ -39,6 +44,7 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val stateStore = CircleCIStateStore.getInstance(project)
     private val jobDetailsService = project.getService(JobDetailsService::class.java)
+    private val sshService = CircleCISshService.getInstance(project)
 
     // UI Components
     private val mainPanel = JBPanel<JBPanel<*>>(BorderLayout())
@@ -83,6 +89,7 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
     private val rerunButton = JButton("Rerun")
     private val rerunWithSshButton = JButton("Rerun with SSH")
     private val cancelButton = JButton("Cancel")
+    private val connectSshButton = JButton("Connect SSH")
     private val copySshButton = JButton("Copy SSH Command")
     private val openInBrowserButton = JButton("Open in Browser")
 
@@ -162,6 +169,7 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
         buttonPanel.add(rerunButton)
         buttonPanel.add(rerunWithSshButton)
         buttonPanel.add(cancelButton)
+        buttonPanel.add(connectSshButton)
         buttonPanel.add(copySshButton)
         buttonPanel.add(openInBrowserButton)
         headerPanel.add(buttonPanel, gbc)
@@ -212,16 +220,46 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
 
     private fun setupActionButtons() {
         rerunButton.addActionListener {
-            // TODO: Implement rerun action
+            scope.launch {
+                val state = stateStore.jobDetails.value
+                val jobDetails = state.jobDetails
+                if (jobDetails != null) {
+                    // Note: Rerun requires workflow ID which we don't have in JobDetails
+                    // For now, show a message to use the workflow rerun action
+                    Messages.showInfoMessage(
+                        project,
+                        "To rerun a job, use the 'Rerun Workflow' action from the pipelines tree",
+                        "Rerun Job"
+                    )
+                }
+            }
         }
 
         rerunWithSshButton.addActionListener {
             scope.launch {
                 val state = stateStore.jobDetails.value
                 val jobDetails = state.jobDetails
-                if (jobDetails?.id != null) {
-                    // TODO: Need workflow ID to rerun with SSH
-                    // jobDetailsService.rerunJobWithSsh(workflowId, jobDetails.id)
+                if (jobDetails != null) {
+                    // Validate SSH availability
+                    val validation = sshService.validateSshDetails(jobDetails)
+                    when (validation) {
+                        is SshValidationResult.NotSupported -> {
+                            Messages.showWarningDialog(
+                                project,
+                                "SSH is not available for GitHub App or GitLab projects",
+                                "SSH Not Supported"
+                            )
+                        }
+                        else -> {
+                            // Note: Rerun with SSH requires workflow ID
+                            Messages.showInfoMessage(
+                                project,
+                                "To rerun a job with SSH, use the 'Rerun Workflow with SSH' action from the pipelines tree.\n\n" +
+                                "Once the job is running with SSH enabled, use the 'Connect SSH' button to open a terminal session.",
+                                "Rerun with SSH"
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -237,13 +275,76 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
             }
         }
 
+        connectSshButton.addActionListener {
+            val state = stateStore.jobDetails.value
+            val jobDetails = state.jobDetails
+            if (jobDetails != null) {
+                // Validate SSH details
+                val validation = sshService.validateSshDetails(jobDetails)
+                when (validation) {
+                    is SshValidationResult.Valid -> {
+                        val sshCommand = sshService.openSshSession(jobDetails)
+                        if (sshCommand != null) {
+                            Messages.showInfoMessage(
+                                project,
+                                "Opening terminal with SSH command:\n\n$sshCommand\n\n" +
+                                "If the terminal doesn't open automatically, copy the SSH command using the 'Copy SSH Command' button.",
+                                "SSH Connection"
+                            )
+                        } else {
+                            Messages.showErrorDialog(
+                                project,
+                                "Failed to build SSH command. Check that SSH is enabled for this job.",
+                                "SSH Connection Error"
+                            )
+                        }
+                    }
+                    is SshValidationResult.NotEnabled -> {
+                        Messages.showWarningDialog(
+                            project,
+                            "SSH is not enabled for this job. Use 'Rerun with SSH' to enable it.",
+                            "SSH Not Enabled"
+                        )
+                    }
+                    is SshValidationResult.MissingHost -> {
+                        Messages.showErrorDialog(
+                            project,
+                            "SSH host information is not available for this job",
+                            "SSH Connection Error"
+                        )
+                    }
+                    is SshValidationResult.NotSupported -> {
+                        Messages.showWarningDialog(
+                            project,
+                            "SSH is not available for GitHub App or GitLab projects",
+                            "SSH Not Supported"
+                        )
+                    }
+                }
+            }
+        }
+
         copySshButton.addActionListener {
             val state = stateStore.jobDetails.value
             val jobDetails = state.jobDetails
             if (jobDetails != null) {
-                val sshCommand = jobDetailsService.getSshCommand(jobDetails)
+                val sshCommand = sshService.buildSshCommand(jobDetails)
                 if (sshCommand != null) {
                     CopyPasteManager.getInstance().setContents(StringSelection(sshCommand))
+                    NotificationGroupManager.getInstance()
+                        .getNotificationGroup("CircleCI Notifications")
+                        .createNotification(
+                            "SSH Command Copied",
+                            "SSH command copied to clipboard",
+                            NotificationType.INFORMATION
+                        )
+                        .notify(project)
+                } else {
+                    Messages.showWarningDialog(
+                        project,
+                        "SSH is not enabled for this job",
+                        "SSH Not Available"
+                    )
                 }
             }
         }
@@ -383,6 +484,7 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
         rerunButton.isEnabled = isComplete
         rerunWithSshButton.isEnabled = isComplete
         cancelButton.isEnabled = isRunning
+        connectSshButton.isEnabled = jobDetails.sshEnabled && isRunning
         copySshButton.isEnabled = jobDetails.sshEnabled
         openInBrowserButton.isEnabled = jobDetails.webUrl != null
     }

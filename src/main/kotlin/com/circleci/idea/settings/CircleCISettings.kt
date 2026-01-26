@@ -19,6 +19,7 @@ class CircleCISettings : PersistentStateComponent<CircleCISettings> {
     var myPipelinesOnly: Boolean = false
     var branchFilter: String = "current"
     var logLevel: String = "info"
+    var sshKeyPath: String = "" // Path to SSH private key (auto-detected if empty)
 
     override fun getState(): CircleCISettings {
         return this
