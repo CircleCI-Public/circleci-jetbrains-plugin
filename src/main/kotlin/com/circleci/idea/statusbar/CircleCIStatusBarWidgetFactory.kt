@@ -7,21 +7,29 @@ import com.intellij.openapi.wm.StatusBarWidgetFactory
 
 /**
  * Factory for creating the CircleCI status bar widget.
+ * Creates and manages the lifecycle of the status bar widget.
  */
 class CircleCIStatusBarWidgetFactory : StatusBarWidgetFactory {
+
     override fun getId(): String = "CircleCIStatusBar"
 
     override fun getDisplayName(): String = "CircleCI"
 
-    override fun isAvailable(project: Project): Boolean = true
+    override fun isAvailable(project: Project): Boolean {
+        // Widget is available for all projects
+        return true
+    }
 
     override fun createWidget(project: Project): StatusBarWidget {
         return CircleCIStatusBarWidget(project)
     }
 
     override fun disposeWidget(widget: StatusBarWidget) {
-        // Cleanup if needed
+        widget.dispose()
     }
 
-    override fun canBeEnabledOn(statusBar: StatusBar): Boolean = true
+    override fun canBeEnabledOn(statusBar: StatusBar): Boolean {
+        // Can be enabled on any status bar
+        return true
+    }
 }

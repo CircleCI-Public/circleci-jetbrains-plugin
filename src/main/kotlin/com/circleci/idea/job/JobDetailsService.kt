@@ -203,4 +203,42 @@ class JobDetailsService(private val project: Project) {
             else -> String.format("%ds", seconds)
         }
     }
+
+    /**
+     * Fetch test results for a job.
+     */
+    suspend fun fetchTestResults(projectSlug: String, jobNumber: Long): Result<List<com.circleci.idea.state.TestResult>> {
+        logger.info("Fetching test results for job $jobNumber")
+
+        return apiService.getTestResults(projectSlug, jobNumber).map { response ->
+            response.items?.map { testInfo ->
+                com.circleci.idea.state.TestResult(
+                    name = testInfo.name,
+                    classname = testInfo.classname,
+                    file = testInfo.file,
+                    result = testInfo.result,
+                    message = testInfo.message,
+                    source = testInfo.source,
+                    runTime = testInfo.runTime,
+                    flaky = testInfo.flaky
+                )
+            } ?: emptyList()
+        }
+    }
+
+    /**
+     * Fetch step output from output URL.
+     */
+    suspend fun fetchStepOutput(outputUrl: String): Result<List<com.circleci.idea.state.StepOutput>> {
+        logger.info("Fetching step output from $outputUrl")
+
+        return apiService.getStepOutput(outputUrl).map { outputList ->
+            outputList.map { output ->
+                com.circleci.idea.state.StepOutput(
+                    message = output.message,
+                    type = output.type
+                )
+            }
+        }
+    }
 }

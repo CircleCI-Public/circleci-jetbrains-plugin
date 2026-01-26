@@ -374,3 +374,54 @@ data class SshInfo(
     @SerializedName("user")
     val user: String? = null
 )
+
+/**
+ * Test results response
+ */
+data class TestResultsResponse(
+    @SerializedName("items")
+    val items: List<TestInfo>?,
+
+    @SerializedName("next_page_token")
+    val nextPageToken: String?
+)
+
+/**
+ * Individual test result information
+ */
+data class TestInfo(
+    @SerializedName("name")
+    val name: String?,
+
+    @SerializedName("classname")
+    val classname: String?,
+
+    @SerializedName("file")
+    val file: String?,
+
+    @SerializedName("result")
+    val result: String?, // "success", "failure", "skipped"
+
+    @SerializedName("message")
+    val message: String?,
+
+    @SerializedName("source")
+    val source: String?,
+
+    @SerializedName("run_time")
+    val runTime: Double?,
+
+    @SerializedName("flaky")
+    val flaky: Boolean?
+)
+
+/**
+ * Step output response (from output_url)
+ */
+data class StepOutputResponse(
+    @SerializedName("message")
+    val message: String?,
+
+    @SerializedName("type")
+    val type: String?
+)

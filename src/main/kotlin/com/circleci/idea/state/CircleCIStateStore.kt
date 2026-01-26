@@ -214,6 +214,24 @@ class CircleCIStateStore(private val project: Project) : CircleCIState {
     }
 
     /**
+     * Update notification preferences.
+     */
+    fun updateNotificationPreferences(
+        enabled: Boolean? = null,
+        myPipelinesOnly: Boolean? = null,
+        statusFilter: Set<String>? = null
+    ) {
+        _ui.value = _ui.value.copy(
+            notificationPreferences = _ui.value.notificationPreferences.copy(
+                enabled = enabled ?: _ui.value.notificationPreferences.enabled,
+                myPipelinesOnly = myPipelinesOnly ?: _ui.value.notificationPreferences.myPipelinesOnly,
+                statusFilter = statusFilter ?: _ui.value.notificationPreferences.statusFilter
+            )
+        )
+        persist()
+    }
+
+    /**
      * Clear all pipeline data (e.g., on logout).
      */
     fun clearAllData() {

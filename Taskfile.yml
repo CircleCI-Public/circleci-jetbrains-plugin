@@ -47,6 +47,11 @@ tasks:
     cmds:
       - ./gradlew verifyPlugin
 
+  run:
+    desc: Launch IDE with plugin installed for testing
+    cmds:
+      - ./gradlew runIde
+
   generate-update-xml:
     desc: Generate updatePlugins.xml for custom repository
     deps:

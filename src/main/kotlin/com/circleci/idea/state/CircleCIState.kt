@@ -219,3 +219,25 @@ data class JobAction(
     val step: Int?,
     val index: Int?
 )
+
+/**
+ * Test result information
+ */
+data class TestResult(
+    val name: String?,
+    val classname: String?,
+    val file: String?,
+    val result: String?, // "success", "failure", "skipped"
+    val message: String?,
+    val source: String?,
+    val runTime: Double?,
+    val flaky: Boolean?
+)
+
+/**
+ * Step output line
+ */
+data class StepOutput(
+    val message: String?,
+    val type: String?
+)

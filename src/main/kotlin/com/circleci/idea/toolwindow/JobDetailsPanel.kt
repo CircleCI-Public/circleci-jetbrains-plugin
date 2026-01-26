@@ -13,7 +13,9 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.*
 import com.intellij.ui.treeStructure.Tree
+import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 import java.awt.BorderLayout
@@ -23,9 +25,11 @@ import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.datatransfer.StringSelection
 import javax.swing.*
+import javax.swing.table.DefaultTableModel
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreeSelectionModel
+import javax.swing.event.TreeSelectionListener
 
 /**
  * Panel for displaying job details including metadata, steps, and output.
@@ -53,6 +57,24 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
 
     // Steps tree
     private val stepsTree = Tree(DefaultTreeModel(DefaultMutableTreeNode("Steps")))
+
+    // Output viewer
+    private val outputTextArea = JBTextArea()
+    private val outputScrollPane = JBScrollPane(outputTextArea)
+
+    // Test results table
+    private val testResultsTableModel = DefaultTableModel(
+        arrayOf("Name", "Status", "Duration", "File"),
+        0
+    )
+    private val testResultsTable = JBTable(testResultsTableModel)
+    private val testResultsScrollPane = JBScrollPane(testResultsTable)
+
+    // Tabs for output and tests
+    private val rightTabbedPane = JBTabbedPane()
+
+    // Split pane for steps and output/tests
+    private val splitPane = JSplitPane(JSplitPane.HORIZONTAL_SPLIT)
 
     // Action buttons
     private val rerunButton = JButton("Rerun")
@@ -151,10 +173,37 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
         stepsTree.selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
         stepsTree.cellRenderer = JobStepTreeCellRenderer()
 
-        val scrollPane = JBScrollPane(stepsTree)
-        scrollPane.preferredSize = Dimension(400, 300)
+        // Add tree selection listener to load step output
+        stepsTree.addTreeSelectionListener(TreeSelectionListener { e ->
+            val selectedNode = stepsTree.lastSelectedPathComponent as? DefaultMutableTreeNode
+            selectedNode?.let { handleStepSelection(it) }
+        })
 
-        contentPanel.add(scrollPane, BorderLayout.CENTER)
+        val stepsScrollPane = JBScrollPane(stepsTree)
+        stepsScrollPane.preferredSize = Dimension(400, 300)
+
+        // Configure output text area
+        outputTextArea.isEditable = false
+        outputTextArea.lineWrap = false
+        outputTextArea.wrapStyleWord = false
+        outputTextArea.font = java.awt.Font("Monospaced", java.awt.Font.PLAIN, 12)
+        outputTextArea.border = JBUI.Borders.empty(5)
+
+        // Configure test results table
+        testResultsTable.fillsViewportHeight = true
+        testResultsTable.autoCreateRowSorter = true
+
+        // Setup tabbed pane
+        rightTabbedPane.addTab("Output", outputScrollPane)
+        rightTabbedPane.addTab("Tests", testResultsScrollPane)
+
+        // Setup split pane
+        splitPane.leftComponent = stepsScrollPane
+        splitPane.rightComponent = rightTabbedPane
+        splitPane.dividerLocation = 400
+        splitPane.resizeWeight = 0.4
+
+        contentPanel.add(splitPane, BorderLayout.CENTER)
     }
 
     private fun setupActionButtons() {
@@ -272,6 +321,14 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
         updateStepsTree(jobDetails.steps)
         updateActionButtons(jobDetails)
 
+        // Load test results if available
+        if (jobDetails.projectSlug != null && jobDetails.jobNumber != null) {
+            loadTestResults(jobDetails.projectSlug, jobDetails.jobNumber)
+        }
+
+        // Clear output when switching jobs
+        outputTextArea.text = "Select a step action to view output"
+
         mainPanel.revalidate()
         mainPanel.repaint()
     }
@@ -339,6 +396,96 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
             "running" -> JBColor.BLUE
             "canceled" -> JBColor.GRAY
             else -> JBColor.BLACK
+        }
+    }
+
+    private fun handleStepSelection(node: DefaultMutableTreeNode) {
+        val userObject = node.userObject
+
+        when (userObject) {
+            is ActionNodeData -> {
+                val action = userObject.action
+                if (action.outputUrl != null) {
+                    loadStepOutput(action.outputUrl)
+                } else {
+                    outputTextArea.text = "No output available for this step"
+                }
+            }
+            else -> {
+                outputTextArea.text = "Select a step action to view output"
+            }
+        }
+    }
+
+    private fun loadStepOutput(outputUrl: String) {
+        outputTextArea.text = "Loading output..."
+
+        scope.launch {
+            try {
+                val result = jobDetailsService.fetchStepOutput(outputUrl)
+                result.fold(
+                    onSuccess = { outputLines ->
+                        val outputText = outputLines.joinToString("\n") { it.message ?: "" }
+                        outputTextArea.text = outputText.ifEmpty { "No output" }
+                    },
+                    onFailure = { error ->
+                        outputTextArea.text = "Failed to load output: ${error.message}"
+                    }
+                )
+            } catch (e: Exception) {
+                outputTextArea.text = "Error loading output: ${e.message}"
+            }
+        }
+    }
+
+    private fun loadTestResults(projectSlug: String, jobNumber: Long) {
+        scope.launch {
+            try {
+                val result = jobDetailsService.fetchTestResults(projectSlug, jobNumber)
+                result.fold(
+                    onSuccess = { tests ->
+                        // Clear existing rows
+                        testResultsTableModel.setRowCount(0)
+
+                        // Add test results to table
+                        tests.forEach { test ->
+                            val status = when (test.result?.lowercase()) {
+                                "success" -> "✓ PASSED"
+                                "failure" -> "✗ FAILED"
+                                "skipped" -> "⊘ SKIPPED"
+                                else -> test.result ?: "UNKNOWN"
+                            }
+
+                            val statusWithFlaky = if (test.flaky == true) {
+                                "$status [FLAKY]"
+                            } else {
+                                status
+                            }
+
+                            val duration = test.runTime?.let { String.format("%.2fs", it) } ?: "N/A"
+                            val file = test.file ?: test.classname ?: "N/A"
+
+                            testResultsTableModel.addRow(arrayOf(
+                                test.name ?: "Unknown Test",
+                                statusWithFlaky,
+                                duration,
+                                file
+                            ))
+                        }
+
+                        if (tests.isEmpty()) {
+                            testResultsTableModel.addRow(arrayOf("No tests found", "", "", ""))
+                        }
+                    },
+                    onFailure = { error ->
+                        testResultsTableModel.setRowCount(0)
+                        testResultsTableModel.addRow(arrayOf("Failed to load tests: ${error.message}", "", "", ""))
+                    }
+                )
+            } catch (e: Exception) {
+                testResultsTableModel.setRowCount(0)
+                testResultsTableModel.addRow(arrayOf("Error loading tests: ${e.message}", "", "", ""))
+            }
         }
     }
 

@@ -86,6 +86,11 @@
             serviceImplementation="com.circleci.idea.auth.CircleCIAuthService"/>
         <projectService
             serviceImplementation="com.circleci.idea.toolwindow.CircleCIToolWindowService"/>
+        <projectService
+            serviceImplementation="com.circleci.idea.notifications.CircleCINotificationService"/>
+
+        <!-- Startup Activity -->
+        <postStartupActivity implementation="com.circleci.idea.CircleCIStartupActivity"/>
 
         <!-- Status Bar Widget -->
         <statusBarWidgetFactory

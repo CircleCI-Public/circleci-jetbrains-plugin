@@ -128,6 +128,33 @@ class CircleCIApiService {
     }
 
     /**
+     * Get test results for a job.
+     */
+    fun getTestResults(projectSlug: String, jobNumber: Long): Result<TestResultsResponse> {
+        return executeRequest("/api/v2/project/$projectSlug/$jobNumber/tests") { data ->
+            gson.fromJson(data.toString(), TestResultsResponse::class.java)
+        }
+    }
+
+    /**
+     * Fetch step output from output URL.
+     * Note: This is a different endpoint pattern - the outputUrl is a full URL.
+     */
+    fun getStepOutput(outputUrl: String): Result<List<StepOutputResponse>> {
+        val apiClient = client ?: return Result.failure(IllegalStateException("API client not initialized"))
+
+        // Extract the path from the full URL
+        val path = outputUrl.substringAfter("circleci.com")
+
+        return executeRequest(path) { data ->
+            val itemsArray = data.getAsJsonArray("items") ?: com.google.gson.JsonArray()
+            itemsArray.map {
+                gson.fromJson(it, StepOutputResponse::class.java)
+            }
+        }
+    }
+
+    /**
      * Get followed projects.
      */
     fun getFollowedProjects(): Result<List<ProjectInfo>> {
