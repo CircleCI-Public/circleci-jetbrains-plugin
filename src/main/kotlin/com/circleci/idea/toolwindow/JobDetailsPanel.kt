@@ -2,6 +2,7 @@ package com.circleci.idea.toolwindow
 
 import com.circleci.idea.icons.CircleCIIcons
 import com.circleci.idea.job.JobDetailsService
+import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.ssh.CircleCISshService
 import com.circleci.idea.ssh.SshValidationResult
 import com.circleci.idea.state.CircleCIStateStore
@@ -41,6 +42,7 @@ import javax.swing.event.TreeSelectionListener
  */
 class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(BorderLayout()), Disposable {
 
+    private val logger = CircleCILogger.getInstance()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val stateStore = CircleCIStateStore.getInstance(project)
     private val jobDetailsService = project.getService(JobDetailsService::class.java)
@@ -415,6 +417,8 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
     }
 
     private fun showJobDetails(jobDetails: JobDetails) {
+        logger.info("showJobDetails called for job ${jobDetails.jobNumber}: ${jobDetails.name}, steps=${jobDetails.steps.size}")
+
         loadingLabel.isVisible = false
         errorLabel.isVisible = false
         emptyLabel.isVisible = false
@@ -455,6 +459,11 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
     }
 
     private fun updateStepsTree(steps: List<JobStep>) {
+        logger.info("updateStepsTree called with ${steps.size} steps")
+        steps.forEachIndexed { index, step ->
+            logger.info("  Step $index: name=${step.name}, actions=${step.actions.size}")
+        }
+
         val root = DefaultMutableTreeNode("Steps (${steps.size})")
 
         for ((stepIndex, step) in steps.withIndex()) {
@@ -469,6 +478,7 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
         }
 
         stepsTree.model = DefaultTreeModel(root)
+        logger.info("Steps tree updated with ${root.childCount} step nodes")
 
         // Expand all nodes
         for (i in 0 until stepsTree.rowCount) {

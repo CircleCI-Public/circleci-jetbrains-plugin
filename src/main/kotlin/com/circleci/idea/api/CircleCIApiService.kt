@@ -113,10 +113,27 @@ class CircleCIApiService {
 
     /**
      * Get detailed job information.
+     * Uses v1.1 API to get steps data since v2 doesn't include steps.
      */
     fun getJobDetails(projectSlug: String, jobNumber: Long): Result<JobDetailsInfo> {
-        return executeRequest("/api/v2/project/$projectSlug/job/$jobNumber") { data ->
-            gson.fromJson(data.toString(), JobDetailsInfo::class.java)
+        val logger = com.circleci.idea.logging.CircleCILogger.getInstance()
+
+        // Parse project slug: format is "vcs-slug/org/project" (e.g., "gh/username/repo")
+        val parts = projectSlug.split("/")
+        if (parts.size < 3) {
+            return Result.failure(Exception("Invalid project slug format: $projectSlug"))
+        }
+
+        val vcsType = parts[0] // "gh", "bb", etc.
+        val username = parts[1]
+        val project = parts[2]
+
+        // Use v1.1 API to get job details with steps
+        return executeRequest("/api/v1.1/project/$vcsType/$username/$project/$jobNumber") { data ->
+            logger.info("Raw v1.1 API response for job $jobNumber: ${data.toString().take(500)}...")
+            val jobDetails = gson.fromJson(data.toString(), JobDetailsInfo::class.java)
+            logger.info("Parsed JobDetailsInfo: id=${jobDetails.id}, name=${jobDetails.name}, steps=${jobDetails.steps?.size ?: 0}")
+            jobDetails
         }
     }
 

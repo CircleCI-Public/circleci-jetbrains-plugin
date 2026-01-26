@@ -5,7 +5,11 @@
       "Bash(./gradlew test:*)",
       "Bash(./gradlew build:*)",
       "Bash(./gradlew compileKotlin:*)",
-      "Bash(./gradlew runIde:*)"
+      "Bash(./gradlew runIde:*)",
+      "Bash(./gradlew:*)",
+      "Bash(./gradlew classes:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

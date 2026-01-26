@@ -72,7 +72,21 @@ class JobDetailsService(private val project: Project) {
 
         result.fold(
             onSuccess = { jobDetailsInfo ->
+                logger.info("Raw API response for job $jobNumber: steps=${jobDetailsInfo.steps?.size ?: 0}")
+                if (jobDetailsInfo.steps != null) {
+                    jobDetailsInfo.steps.forEachIndexed { index, step ->
+                        logger.info("  Step $index: name=${step.name}, actions=${step.actions?.size ?: 0}")
+                    }
+                } else {
+                    logger.warn("No steps data in API response for job $jobNumber")
+                }
+
                 val jobDetails = convertToJobDetails(jobDetailsInfo, jobNumber)
+                logger.info("Converted JobDetails: steps=${jobDetails.steps.size}")
+                jobDetails.steps.forEachIndexed { index, step ->
+                    logger.info("  Converted Step $index: name=${step.name}, actions=${step.actions.size}")
+                }
+
                 stateStore.setJobDetails(jobDetails)
                 logger.info("Successfully fetched job details for job $jobNumber")
             },
