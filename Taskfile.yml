@@ -3,12 +3,12 @@ version: '3'
 vars:
   PLUGIN_NAME: CircleCI
   PLUGIN_ID: com.circleci.idea
-  GITHUB_ORG: "{{.GITHUB_ORG | default \"your-org\"}}"
+  GITHUB_ORG: "{{.GITHUB_ORG | default \"circleci-petri\"}}"
   GITHUB_REPO: "{{.GITHUB_REPO | default \"circleci-idea-plugin\"}}"
   VERSION:
     sh: grep '^version = ' build.gradle.kts | sed 's/version = "\(.*\)"/\1/'
   BUILD_DIR: build/distributions
-  PLUGIN_ZIP: "{{.BUILD_DIR}}/{{.PLUGIN_NAME}}-{{.VERSION}}.zip"
+  PLUGIN_ZIP: "{{.BUILD_DIR}}/circleci-idea-plugin-{{.VERSION}}.zip"
   DOCS_DIR: docs
   UPDATE_XML: "{{.DOCS_DIR}}/updatePlugins.xml"
 
@@ -115,7 +115,7 @@ tasks:
         cat > {{.UPDATE_XML}} << 'EOF'
         <?xml version="1.0" encoding="UTF-8"?>
         <plugins>
-          <plugin id="{{.PLUGIN_ID}}" url="https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/releases/download/v{{.VERSION}}/{{.PLUGIN_NAME}}-{{.VERSION}}.zip" version="{{.VERSION}}">
+          <plugin id="{{.PLUGIN_ID}}" url="https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/releases/download/v{{.VERSION}}/circleci-idea-plugin-{{.VERSION}}.zip" version="{{.VERSION}}">
             <name>{{.PLUGIN_NAME}}</name>
             <description><![CDATA[
               CircleCI integration for JetBrains IDEs.
@@ -184,8 +184,8 @@ tasks:
         # Ensure we're on main branch
         git checkout main
       - |
-        # Add and commit the updatePlugins.xml
-        git add {{.UPDATE_XML}}
+        # Add and commit the docs
+        git add {{.DOCS_DIR}}
         if git diff --cached --quiet; then
           echo "No changes to commit"
         else
@@ -193,6 +193,43 @@ tasks:
           git push origin main
         fi
       - echo "Updated plugin repository"
+
+  release-quick:
+    desc: Quick release - build, create GitHub release, and update repository
+    cmds:
+      - echo "Starting release process for v{{.VERSION}}..."
+      - task: build
+      - task: generate-update-xml
+      - |
+        # Create GitHub release
+        echo "Creating GitHub release v{{.VERSION}}..."
+        if gh release view v{{.VERSION}} &> /dev/null; then
+          echo "Release v{{.VERSION}} already exists, deleting..."
+          gh release delete v{{.VERSION}} -y
+        fi
+        gh release create v{{.VERSION}} \
+          --title "{{.PLUGIN_NAME}} v{{.VERSION}}" \
+          --notes-file CHANGELOG.md \
+          {{.PLUGIN_ZIP}}
+      - |
+        # Commit and push docs
+        echo "Updating plugin repository..."
+        git add {{.DOCS_DIR}}
+        if ! git diff --cached --quiet; then
+          git commit -m "Update plugin repository for v{{.VERSION}}"
+          git push origin main
+        fi
+      - echo ""
+      - echo "✅ Release v{{.VERSION}} completed successfully!"
+      - echo ""
+      - echo "📦 Release: https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/releases/tag/v{{.VERSION}}"
+      - echo "🔗 Plugin Repository: https://{{.GITHUB_ORG}}.github.io/{{.GITHUB_REPO}}/updatePlugins.xml"
+      - echo ""
+      - echo "To enable GitHub Pages (if not already done):"
+      - echo "1. Go to https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/settings/pages"
+      - echo "2. Set Source to 'Deploy from a branch'"
+      - echo "3. Select 'main' branch and '/docs' folder"
+      - echo "4. Click Save"
 
   release:
     desc: Full release process (build, test, create release, update repository)
