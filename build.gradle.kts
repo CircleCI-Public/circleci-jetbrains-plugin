@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.circleci"
-version = "1.0.0"
+version = "1.0.1"
 
 repositories {
     mavenCentral()
@@ -52,7 +52,7 @@ tasks {
 
     patchPluginXml {
         sinceBuild.set("232")
-        untilBuild.set("241.*")
+        untilBuild.set("253.*")
     }
 
     signPlugin {
