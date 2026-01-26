@@ -52,6 +52,59 @@ tasks:
     cmds:
       - ./gradlew runIde
 
+  run-with-logs:
+    desc: Launch IDE and monitor logs in real-time
+    cmds:
+      - |
+        # Kill any existing sandbox IDE instances
+        pkill -f "build/idea-sandbox" 2>/dev/null || true
+        sleep 2
+
+        # Create log directory
+        LOG_DIR=/tmp/circleci-idea-plugin-logs
+        mkdir -p $LOG_DIR
+        LOG_FILE=$LOG_DIR/ide-$(date +%Y%m%d-%H%M%S).log
+
+        echo "Starting IDE with logging to $LOG_FILE"
+        echo "Press Ctrl+C to stop monitoring (IDE will continue running)"
+        echo ""
+
+        # Start IDE in background
+        ./gradlew runIde > $LOG_FILE 2>&1 &
+        GRADLE_PID=$!
+
+        # Wait for IDE to start
+        echo "Waiting for IDE to start..."
+        sleep 15
+
+        # Monitor logs
+        echo "Monitoring logs (filtering for CircleCI events)..."
+        echo "Full log: $LOG_FILE"
+        echo ""
+        tail -f $LOG_FILE | grep --line-buffered -E "CircleCI|Error|Exception|WARN.*CircleCI" || tail -f $LOG_FILE
+
+  logs:
+    desc: Monitor the most recent IDE log file
+    cmds:
+      - |
+        # Find the most recent IDE log from sandbox
+        SANDBOX_LOG="$HOME/Library/Logs/JetBrains/IdeaIC*/idea.log"
+
+        # Find the most recent temp log
+        TEMP_LOG=$(ls -t /tmp/circleci-idea-plugin-logs/ide-*.log 2>/dev/null | head -1)
+
+        if [ -f "$TEMP_LOG" ]; then
+          echo "Monitoring: $TEMP_LOG"
+          tail -f "$TEMP_LOG" | grep --line-buffered -E "CircleCI|Error|Exception|WARN.*CircleCI" || tail -f "$TEMP_LOG"
+        elif ls $SANDBOX_LOG 2>/dev/null; then
+          LATEST_LOG=$(ls -t $SANDBOX_LOG | head -1)
+          echo "Monitoring: $LATEST_LOG"
+          tail -f "$LATEST_LOG" | grep --line-buffered -E "CircleCI|Error|Exception|WARN.*CircleCI" || tail -f "$LATEST_LOG"
+        else
+          echo "No log files found"
+          echo "Start the IDE with 'task run-with-logs' first"
+        fi
+
   generate-update-xml:
     desc: Generate updatePlugins.xml for custom repository
     deps:
