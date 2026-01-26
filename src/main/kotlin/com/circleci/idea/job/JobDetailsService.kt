@@ -72,7 +72,7 @@ class JobDetailsService(private val project: Project) {
 
         result.fold(
             onSuccess = { jobDetailsInfo ->
-                val jobDetails = convertToJobDetails(jobDetailsInfo)
+                val jobDetails = convertToJobDetails(jobDetailsInfo, jobNumber)
                 stateStore.setJobDetails(jobDetails)
                 logger.info("Successfully fetched job details for job $jobNumber")
             },
@@ -124,10 +124,10 @@ class JobDetailsService(private val project: Project) {
     /**
      * Convert API JobDetailsInfo to domain JobDetails model.
      */
-    private fun convertToJobDetails(jobDetailsInfo: JobDetailsInfo): JobDetails {
+    private fun convertToJobDetails(jobDetailsInfo: JobDetailsInfo, jobNumber: Long): JobDetails {
         return JobDetails(
             id = jobDetailsInfo.id,
-            jobNumber = jobDetailsInfo.jobNumber,
+            jobNumber = jobDetailsInfo.jobNumber ?: jobNumber,
             name = jobDetailsInfo.name,
             projectSlug = jobDetailsInfo.projectSlug,
             status = jobDetailsInfo.status,
