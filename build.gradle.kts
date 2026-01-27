@@ -32,8 +32,8 @@ dependencies {
 }
 
 intellij {
-    version.set("2023.2.5")
-    type.set("IC") // IntelliJ IDEA Community Edition
+    version.set("2024.3")
+    type.set("IU") // IntelliJ IDEA Ultimate Edition
 
     // Note: git4idea and terminal are bundled plugins, no need to specify them
     // YAML support will be added later

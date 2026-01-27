@@ -21,6 +21,10 @@ class CircleCISettings : PersistentStateComponent<CircleCISettings> {
     var logLevel: String = "info"
     var sshKeyPath: String = "" // Path to SSH private key (auto-detected if empty)
 
+    // Language Server settings
+    var lspEnabled: Boolean = true
+    var lspAutoUpdate: String = "prompt" // "automatic", "prompt", "never"
+
     override fun getState(): CircleCISettings {
         return this
     }
