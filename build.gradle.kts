@@ -47,7 +47,7 @@ intellij {
     // Downloaded from JetBrains Marketplace
     plugins.set(
         listOf(
-            "com.redhat.devtools.lsp4ij:0.9.0",
+            "com.redhat.devtools.lsp4ij:0.19.1",
         ),
     )
 
