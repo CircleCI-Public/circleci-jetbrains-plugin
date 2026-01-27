@@ -20,9 +20,8 @@ import javax.swing.tree.DefaultTreeModel
  */
 class CircleCITreeModel(
     private val project: Project,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
 ) : DefaultTreeModel(RootNode()) {
-
     private val logger = CircleCILogger.getInstance()
     private val projectService = project.getService(CircleCIProjectService::class.java)
     private val apiService = CircleCIApiService.getInstance()
@@ -82,7 +81,10 @@ class CircleCITreeModel(
         }
     }
 
-    private fun dumpTree(node: javax.swing.tree.TreeNode, depth: Int): String {
+    private fun dumpTree(
+        node: javax.swing.tree.TreeNode,
+        depth: Int,
+    ): String {
         val builder = StringBuilder()
         builder.append("  ".repeat(depth))
         builder.append("- ${node::class.simpleName}: ${node}\n")
@@ -177,15 +179,18 @@ class CircleCITreeModel(
                 val branchFilter = filterService.getBranchForFilter(projectNode.project.slug)
                 logger.info("Using branch filter: $branchFilter")
 
-                val result = apiService.getPipelines(
-                    projectSlug = projectNode.project.slug,
-                    branch = branchFilter,
-                    pageToken = null
-                )
+                val result =
+                    apiService.getPipelines(
+                        projectSlug = projectNode.project.slug,
+                        branch = branchFilter,
+                        pageToken = null,
+                    )
 
                 result.fold(
                     onSuccess = { response ->
-                        logger.info("Successfully loaded ${response.items.size} pipelines for ${projectNode.project.slug}")
+                        logger.info(
+                            "Successfully loaded ${response.items.size} pipelines for ${projectNode.project.slug}",
+                        )
 
                         // Get current user login for filtering
                         val currentUserLogin = getUserLoginForFiltering()
@@ -198,11 +203,12 @@ class CircleCITreeModel(
                             projectNode.removeAllChildren()
 
                             if (filteredPipelines.isEmpty()) {
-                                val message = if (filterService.hasActiveFilters()) {
-                                    "No pipelines match current filters"
-                                } else {
-                                    "No pipelines found"
-                                }
+                                val message =
+                                    if (filterService.hasActiveFilters()) {
+                                        "No pipelines match current filters"
+                                    } else {
+                                        "No pipelines found"
+                                    }
                                 projectNode.add(EmptyNode(message))
                             } else {
                                 filteredPipelines.forEach { pipeline ->
@@ -219,13 +225,16 @@ class CircleCITreeModel(
                         }
                     },
                     onFailure = { error ->
-                        logger.error("Failed to load pipelines for ${projectNode.project.slug}: ${error.message}", error)
+                        logger.error(
+                            "Failed to load pipelines for ${projectNode.project.slug}: ${error.message}",
+                            error,
+                        )
                         withContext(Dispatchers.Main) {
                             projectNode.removeAllChildren()
                             projectNode.add(ErrorNode(error.message ?: "Failed to load pipelines"))
                             nodeStructureChanged(projectNode)
                         }
-                    }
+                    },
                 )
             } catch (e: Exception) {
                 logger.error("Exception loading pipelines for ${projectNode.project.slug}", e)
@@ -238,7 +247,10 @@ class CircleCITreeModel(
         }
     }
 
-    private fun loadMorePipelines(projectNode: ProjectNode, loadMoreNode: LoadMoreNode) {
+    private fun loadMorePipelines(
+        projectNode: ProjectNode,
+        loadMoreNode: LoadMoreNode,
+    ) {
         // Replace "Load More" with loading indicator
         SwingUtilities.invokeLater {
             val index = projectNode.getIndex(loadMoreNode)
@@ -252,11 +264,12 @@ class CircleCITreeModel(
                 // Get branch filter
                 val branchFilter = filterService.getBranchForFilter(projectNode.project.slug)
 
-                val result = apiService.getPipelines(
-                    projectSlug = projectNode.project.slug,
-                    branch = branchFilter,
-                    pageToken = loadMoreNode.nextPageToken
-                )
+                val result =
+                    apiService.getPipelines(
+                        projectSlug = projectNode.project.slug,
+                        branch = branchFilter,
+                        pageToken = loadMoreNode.nextPageToken,
+                    )
 
                 result.fold(
                     onSuccess = { response ->
@@ -292,7 +305,7 @@ class CircleCITreeModel(
                             }
                             nodeStructureChanged(projectNode)
                         }
-                    }
+                    },
                 )
             } catch (e: Exception) {
                 logger.error("Failed to load more pipelines", e)
@@ -352,7 +365,7 @@ class CircleCITreeModel(
                             pipelineNode.add(ErrorNode(error.message ?: "Failed to load workflows"))
                             nodeStructureChanged(pipelineNode)
                         }
-                    }
+                    },
                 )
             } catch (e: Exception) {
                 logger.error("Exception loading workflows", e)
@@ -365,7 +378,10 @@ class CircleCITreeModel(
         }
     }
 
-    private fun loadMoreWorkflows(pipelineNode: PipelineNode, loadMoreNode: LoadMoreNode) {
+    private fun loadMoreWorkflows(
+        pipelineNode: PipelineNode,
+        loadMoreNode: LoadMoreNode,
+    ) {
         // Workflows don't support pagination via the API service, so this is a no-op
         logger.debug("Load more workflows not supported")
     }
@@ -416,7 +432,7 @@ class CircleCITreeModel(
                             workflowNode.add(ErrorNode(error.message ?: "Failed to load jobs"))
                             nodeStructureChanged(workflowNode)
                         }
-                    }
+                    },
                 )
             } catch (e: Exception) {
                 logger.error("Exception loading jobs", e)
@@ -429,7 +445,10 @@ class CircleCITreeModel(
         }
     }
 
-    private fun loadMoreJobs(workflowNode: WorkflowNode, loadMoreNode: LoadMoreNode) {
+    private fun loadMoreJobs(
+        workflowNode: WorkflowNode,
+        loadMoreNode: LoadMoreNode,
+    ) {
         // Jobs don't support pagination via the API service, so this is a no-op
         logger.debug("Load more jobs not supported")
     }

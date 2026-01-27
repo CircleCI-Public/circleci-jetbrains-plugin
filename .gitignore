@@ -39,3 +39,7 @@ coverage/
 *.bak
 *.swp
 *~
+
+# Static Analysis
+config/detekt/baseline.xml
+dependency-check-data/

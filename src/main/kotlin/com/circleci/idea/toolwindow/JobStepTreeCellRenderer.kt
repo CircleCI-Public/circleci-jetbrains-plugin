@@ -11,7 +11,6 @@ import javax.swing.tree.DefaultTreeCellRenderer
  * Custom cell renderer for job steps tree.
  */
 class JobStepTreeCellRenderer : DefaultTreeCellRenderer() {
-
     override fun getTreeCellRendererComponent(
         tree: JTree?,
         value: Any?,
@@ -19,7 +18,7 @@ class JobStepTreeCellRenderer : DefaultTreeCellRenderer() {
         expanded: Boolean,
         leaf: Boolean,
         row: Int,
-        hasFocus: Boolean
+        hasFocus: Boolean,
     ): Component {
         super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus)
 
@@ -48,29 +47,32 @@ class JobStepTreeCellRenderer : DefaultTreeCellRenderer() {
     }
 
     private fun buildActionText(action: com.circleci.idea.state.JobAction): String {
-        val duration = if (action.runTimeMillis != null) {
-            val seconds = action.runTimeMillis / 1000
-            " (${seconds}s)"
-        } else {
-            ""
-        }
+        val duration =
+            if (action.runTimeMillis != null) {
+                val seconds = action.runTimeMillis / 1000
+                " (${seconds}s)"
+            } else {
+                ""
+            }
 
         return "${action.name ?: "Unknown Action"}$duration"
     }
 
-    private fun getActionIcon(status: String) = when (status.lowercase()) {
-        "success" -> CircleCIIcons.Status.SUCCESS
-        "failed" -> CircleCIIcons.Status.FAILED
-        "running" -> CircleCIIcons.Status.RUNNING
-        "canceled" -> CircleCIIcons.Status.CANCELED
-        else -> null
-    }
+    private fun getActionIcon(status: String) =
+        when (status.lowercase()) {
+            "success" -> CircleCIIcons.Status.SUCCESS
+            "failed" -> CircleCIIcons.Status.FAILED
+            "running" -> CircleCIIcons.Status.RUNNING
+            "canceled" -> CircleCIIcons.Status.CANCELED
+            else -> null
+        }
 
-    private fun getActionColor(status: String) = when (status.lowercase()) {
-        "success" -> JBColor.GREEN
-        "failed" -> JBColor.RED
-        "running" -> JBColor.BLUE
-        "canceled" -> JBColor.GRAY
-        else -> JBColor.BLACK
-    }
+    private fun getActionColor(status: String) =
+        when (status.lowercase()) {
+            "success" -> JBColor.GREEN
+            "failed" -> JBColor.RED
+            "running" -> JBColor.BLUE
+            "canceled" -> JBColor.GRAY
+            else -> JBColor.BLACK
+        }
 }

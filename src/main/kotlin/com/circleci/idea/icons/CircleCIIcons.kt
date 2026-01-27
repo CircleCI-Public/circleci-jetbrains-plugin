@@ -8,7 +8,6 @@ import javax.swing.Icon
  * Provides access to all plugin icons.
  */
 object CircleCIIcons {
-
     // Main plugin icon
     val PLUGIN_ICON: Icon = load("/icons/circleci.svg")
 

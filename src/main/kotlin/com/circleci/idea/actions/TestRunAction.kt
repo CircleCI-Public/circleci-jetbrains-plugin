@@ -11,7 +11,7 @@ class TestRunAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         Messages.showInfoMessage(
             "Test run functionality coming soon",
-            "CircleCI Test Run"
+            "CircleCI Test Run",
         )
     }
 }

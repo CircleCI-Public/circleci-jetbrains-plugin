@@ -14,7 +14,6 @@ import java.io.File
  */
 @Service(Service.Level.PROJECT)
 class CircleCISshService(private val project: Project) {
-
     private val logger = CircleCILogger.getInstance()
     private val settings = CircleCISettings.getInstance()
 
@@ -39,35 +38,36 @@ class CircleCISshService(private val project: Project) {
         // Launch system terminal with SSH command
         try {
             val runtime = Runtime.getRuntime()
-            val terminalCommand = when {
-                SystemInfo.isMac -> {
-                    // macOS: Open Terminal.app with the SSH command
-                    arrayOf("osascript", "-e", "tell application \"Terminal\" to do script \"$sshCommand\"")
-                }
-                SystemInfo.isLinux -> {
-                    // Linux: Try common terminal emulators
-                    when {
-                        File("/usr/bin/gnome-terminal").exists() ->
-                            arrayOf("gnome-terminal", "--", "bash", "-c", "$sshCommand; exec bash")
-                        File("/usr/bin/konsole").exists() ->
-                            arrayOf("konsole", "-e", "bash", "-c", "$sshCommand; exec bash")
-                        File("/usr/bin/xterm").exists() ->
-                            arrayOf("xterm", "-e", "bash", "-c", "$sshCommand; exec bash")
-                        else ->
-                            arrayOf("x-terminal-emulator", "-e", "bash", "-c", "$sshCommand; exec bash")
+            val terminalCommand =
+                when {
+                    SystemInfo.isMac -> {
+                        // macOS: Open Terminal.app with the SSH command
+                        arrayOf("osascript", "-e", "tell application \"Terminal\" to do script \"$sshCommand\"")
                     }
-                }
-                SystemInfo.isWindows -> {
-                    // Windows: Use Windows Terminal if available, otherwise cmd
-                    val wtPath = File("${System.getenv("LOCALAPPDATA")}\\Microsoft\\WindowsApps\\wt.exe")
-                    if (wtPath.exists()) {
-                        arrayOf("wt.exe", "wsl", "bash", "-c", sshCommand)
-                    } else {
-                        arrayOf("cmd", "/c", "start", "cmd", "/k", sshCommand)
+                    SystemInfo.isLinux -> {
+                        // Linux: Try common terminal emulators
+                        when {
+                            File("/usr/bin/gnome-terminal").exists() ->
+                                arrayOf("gnome-terminal", "--", "bash", "-c", "$sshCommand; exec bash")
+                            File("/usr/bin/konsole").exists() ->
+                                arrayOf("konsole", "-e", "bash", "-c", "$sshCommand; exec bash")
+                            File("/usr/bin/xterm").exists() ->
+                                arrayOf("xterm", "-e", "bash", "-c", "$sshCommand; exec bash")
+                            else ->
+                                arrayOf("x-terminal-emulator", "-e", "bash", "-c", "$sshCommand; exec bash")
+                        }
                     }
+                    SystemInfo.isWindows -> {
+                        // Windows: Use Windows Terminal if available, otherwise cmd
+                        val wtPath = File("${System.getenv("LOCALAPPDATA")}\\Microsoft\\WindowsApps\\wt.exe")
+                        if (wtPath.exists()) {
+                            arrayOf("wt.exe", "wsl", "bash", "-c", sshCommand)
+                        } else {
+                            arrayOf("cmd", "/c", "start", "cmd", "/k", sshCommand)
+                        }
+                    }
+                    else -> null
                 }
-                else -> null
-            }
 
             if (terminalCommand != null) {
                 runtime.exec(terminalCommand)
@@ -129,12 +129,13 @@ class CircleCISshService(private val project: Project) {
         }
 
         // Try common SSH key files in order
-        val commonKeyFiles = listOf(
-            "id_ed25519",
-            "id_rsa",
-            "id_ecdsa",
-            "id_dsa"
-        )
+        val commonKeyFiles =
+            listOf(
+                "id_ed25519",
+                "id_rsa",
+                "id_ecdsa",
+                "id_dsa",
+            )
 
         for (keyFileName in commonKeyFiles) {
             val keyFile = File(sshDir, keyFileName)
@@ -210,7 +211,10 @@ class CircleCISshService(private val project: Project) {
  */
 sealed class SshValidationResult {
     object Valid : SshValidationResult()
+
     object NotEnabled : SshValidationResult()
+
     object MissingHost : SshValidationResult()
+
     object NotSupported : SshValidationResult()
 }

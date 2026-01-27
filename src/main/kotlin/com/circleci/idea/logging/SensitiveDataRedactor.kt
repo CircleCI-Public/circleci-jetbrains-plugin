@@ -5,7 +5,6 @@ package com.circleci.idea.logging
  * Prevents tokens, API keys, and other sensitive information from being logged.
  */
 object SensitiveDataRedactor {
-
     private val TOKEN_PATTERN = Regex("""(?i)(circle[_-]?token)\s*[:=]\s*([^\s,}"']+)""")
     private val AUTHORIZATION_PATTERN = Regex("""(?i)(authorization)\s*:\s*(bearer\s+)?([^\s,}"']+)""")
     private val API_KEY_PATTERN = Regex("""(?i)(api[_-]?key|apikey)\s*[:=]\s*([^\s,}"']+)""")
@@ -22,38 +21,43 @@ object SensitiveDataRedactor {
         var redacted = message
 
         // Redact known patterns
-        redacted = TOKEN_PATTERN.replace(redacted) { matchResult ->
-            val prefix = matchResult.groupValues[1]
-            val token = matchResult.groupValues[2]
-            "$prefix: ${maskToken(token)}"
-        }
-
-        redacted = AUTHORIZATION_PATTERN.replace(redacted) { matchResult ->
-            val prefix = matchResult.groupValues[1]
-            val bearer = matchResult.groupValues[2]
-            val token = matchResult.groupValues[3]
-            if (bearer.isNotBlank()) {
-                "$prefix: ${bearer}${maskToken(token)}"
-            } else {
+        redacted =
+            TOKEN_PATTERN.replace(redacted) { matchResult ->
+                val prefix = matchResult.groupValues[1]
+                val token = matchResult.groupValues[2]
                 "$prefix: ${maskToken(token)}"
             }
-        }
 
-        redacted = API_KEY_PATTERN.replace(redacted) { matchResult ->
-            val prefix = matchResult.groupValues[1]
-            val key = matchResult.groupValues[2]
-            "$prefix: ${maskToken(key)}"
-        }
+        redacted =
+            AUTHORIZATION_PATTERN.replace(redacted) { matchResult ->
+                val prefix = matchResult.groupValues[1]
+                val bearer = matchResult.groupValues[2]
+                val token = matchResult.groupValues[3]
+                if (bearer.isNotBlank()) {
+                    "$prefix: ${bearer}${maskToken(token)}"
+                } else {
+                    "$prefix: ${maskToken(token)}"
+                }
+            }
 
-        redacted = PASSWORD_PATTERN.replace(redacted) { matchResult ->
-            val prefix = matchResult.groupValues[1]
-            "$prefix: **********"
-        }
+        redacted =
+            API_KEY_PATTERN.replace(redacted) { matchResult ->
+                val prefix = matchResult.groupValues[1]
+                val key = matchResult.groupValues[2]
+                "$prefix: ${maskToken(key)}"
+            }
 
-        redacted = HEADER_TOKEN_PATTERN.replace(redacted) { matchResult ->
-            val token = matchResult.groupValues[1]
-            "Circle-Token: ${maskToken(token)}"
-        }
+        redacted =
+            PASSWORD_PATTERN.replace(redacted) { matchResult ->
+                val prefix = matchResult.groupValues[1]
+                "$prefix: **********"
+            }
+
+        redacted =
+            HEADER_TOKEN_PATTERN.replace(redacted) { matchResult ->
+                val token = matchResult.groupValues[1]
+                "Circle-Token: ${maskToken(token)}"
+            }
 
         return redacted
     }
@@ -61,7 +65,10 @@ object SensitiveDataRedactor {
     /**
      * Redact all occurrences of a specific token value.
      */
-    fun redactToken(message: String, token: String?): String {
+    fun redactToken(
+        message: String,
+        token: String?,
+    ): String {
         if (token.isNullOrBlank()) return message
         return message.replace(token, maskToken(token))
     }

@@ -1,7 +1,7 @@
 package com.circleci.idea.websocket
 
-import com.circleci.idea.api.CircleCIApiClient
 import com.circleci.idea.api.ApiResponse
+import com.circleci.idea.api.CircleCIApiClient
 import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.settings.CircleCISettings
 import com.google.gson.Gson
@@ -21,7 +21,6 @@ import kotlin.math.pow
  */
 @Service(Service.Level.APP)
 class CircleCIWebSocketService {
-
     private val logger = CircleCILogger.getInstance()
     private val gson = Gson()
     private val settings = CircleCISettings.getInstance()
@@ -63,20 +62,21 @@ class CircleCIWebSocketService {
             }
 
             // Create WebSocket client
-            client = OkHttpClient.Builder()
-                .build()
+            client =
+                OkHttpClient.Builder()
+                    .build()
 
             // Build WebSocket request
             val url = pusherConfig!!.getWebSocketUrl() + "?protocol=7&client=circleci-plugin&version=1.0.0"
-            val request = Request.Builder()
-                .url(url)
-                .build()
+            val request =
+                Request.Builder()
+                    .url(url)
+                    .build()
 
             // Connect
             webSocket = client!!.newWebSocket(request, PusherWebSocketListener())
 
             logger.info("WebSocket connection initiated")
-
         } catch (e: Exception) {
             logger.error("Failed to connect to WebSocket", e)
             _events.emit(CircleCIWebSocketEvent.Error("Failed to connect: ${e.message}", e))
@@ -120,19 +120,20 @@ class CircleCIWebSocketService {
         }
 
         try {
-            val subscribeMessage = mapOf(
-                "event" to "pusher:subscribe",
-                "data" to mapOf(
-                    "channel" to channel
+            val subscribeMessage =
+                mapOf(
+                    "event" to "pusher:subscribe",
+                    "data" to
+                        mapOf(
+                            "channel" to channel,
+                        ),
                 )
-            )
 
             val json = gson.toJson(subscribeMessage)
             webSocket?.send(json)
 
             subscribedChannels.add(channel)
             logger.debug("Subscribed to channel: $channel")
-
         } catch (e: Exception) {
             logger.error("Failed to subscribe to channel: $channel", e)
         }
@@ -153,19 +154,20 @@ class CircleCIWebSocketService {
         logger.info("Unsubscribing from channel: $channel")
 
         try {
-            val unsubscribeMessage = mapOf(
-                "event" to "pusher:unsubscribe",
-                "data" to mapOf(
-                    "channel" to channel
+            val unsubscribeMessage =
+                mapOf(
+                    "event" to "pusher:unsubscribe",
+                    "data" to
+                        mapOf(
+                            "channel" to channel,
+                        ),
                 )
-            )
 
             val json = gson.toJson(unsubscribeMessage)
             webSocket?.send(json)
 
             subscribedChannels.remove(channel)
             logger.debug("Unsubscribed from channel: $channel")
-
         } catch (e: Exception) {
             logger.error("Failed to unsubscribe from channel: $channel", e)
         }
@@ -177,10 +179,11 @@ class CircleCIWebSocketService {
     private suspend fun fetchPusherConfig(token: String): PusherConfig? {
         return withContext(Dispatchers.IO) {
             try {
-                val apiClient = CircleCIApiClient(
-                    baseUrl = settings.hostUrl,
-                    token = token
-                )
+                val apiClient =
+                    CircleCIApiClient(
+                        baseUrl = settings.hostUrl,
+                        token = token,
+                    )
 
                 val response = apiClient.get("/api/private/pusher/config")
 
@@ -223,19 +226,22 @@ class CircleCIWebSocketService {
 
         logger.info("Scheduling reconnection attempt #$reconnectAttempts in ${delaySeconds}s")
 
-        reconnectJob = GlobalScope.launch {
-            delay(delaySeconds * 1000L)
-            // Reconnect logic would need token - this is simplified
-            logger.info("Attempting to reconnect...")
-        }
+        reconnectJob =
+            GlobalScope.launch {
+                delay(delaySeconds * 1000L)
+                // Reconnect logic would need token - this is simplified
+                logger.info("Attempting to reconnect...")
+            }
     }
 
     /**
      * WebSocket listener for Pusher events.
      */
     private inner class PusherWebSocketListener : WebSocketListener() {
-
-        override fun onOpen(webSocket: WebSocket, response: Response) {
+        override fun onOpen(
+            webSocket: WebSocket,
+            response: Response,
+        ) {
             logger.info("WebSocket connection opened")
             isConnected = true
             reconnectAttempts = 0
@@ -251,7 +257,10 @@ class CircleCIWebSocketService {
             }
         }
 
-        override fun onMessage(webSocket: WebSocket, text: String) {
+        override fun onMessage(
+            webSocket: WebSocket,
+            text: String,
+        ) {
             logger.debug("WebSocket message received")
 
             try {
@@ -284,7 +293,11 @@ class CircleCIWebSocketService {
             }
         }
 
-        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+        override fun onFailure(
+            webSocket: WebSocket,
+            t: Throwable,
+            response: Response?,
+        ) {
             logger.error("WebSocket connection failed", t)
             isConnected = false
 
@@ -295,7 +308,11 @@ class CircleCIWebSocketService {
             scheduleReconnect()
         }
 
-        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+        override fun onClosed(
+            webSocket: WebSocket,
+            code: Int,
+            reason: String,
+        ) {
             logger.info("WebSocket connection closed: code=$code, reason=$reason")
             isConnected = false
 
@@ -319,8 +336,11 @@ class CircleCIWebSocketService {
                 GlobalScope.launch {
                     _events.emit(
                         CircleCIWebSocketEvent.WorkflowCompleted(
-                            workflowId, status, projectSlug, pipelineId
-                        )
+                            workflowId,
+                            status,
+                            projectSlug,
+                            pipelineId,
+                        ),
                     )
                 }
             } catch (e: Exception) {
@@ -343,8 +363,11 @@ class CircleCIWebSocketService {
                 GlobalScope.launch {
                     _events.emit(
                         CircleCIWebSocketEvent.JobStarted(
-                            jobId, jobNumber, workflowId, projectSlug
-                        )
+                            jobId,
+                            jobNumber,
+                            workflowId,
+                            projectSlug,
+                        ),
                     )
                 }
             } catch (e: Exception) {
@@ -368,8 +391,12 @@ class CircleCIWebSocketService {
                 GlobalScope.launch {
                     _events.emit(
                         CircleCIWebSocketEvent.JobCompleted(
-                            jobId, jobNumber, status, workflowId, projectSlug
-                        )
+                            jobId,
+                            jobNumber,
+                            status,
+                            workflowId,
+                            projectSlug,
+                        ),
                     )
                 }
             } catch (e: Exception) {

@@ -4,7 +4,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CircleCIProjectTest {
-
     @Test
     fun `fromSlug should parse valid GitHub slug`() {
         val project = CircleCIProject.fromSlug("gh/circleci/circleci")
@@ -57,41 +56,45 @@ class CircleCIProjectTest {
 
     @Test
     fun `getDisplayName should return org and repo`() {
-        val project = CircleCIProject(
-            slug = "gh/circleci/circleci",
-            vcsType = VcsType.GITHUB,
-            organization = "circleci",
-            repository = "circleci"
-        )
+        val project =
+            CircleCIProject(
+                slug = "gh/circleci/circleci",
+                vcsType = VcsType.GITHUB,
+                organization = "circleci",
+                repository = "circleci",
+            )
 
         assertEquals("circleci/circleci", project.getDisplayName())
     }
 
     @Test
     fun `getFullDisplayName should include VCS type`() {
-        val project = CircleCIProject(
-            slug = "gh/circleci/circleci",
-            vcsType = VcsType.GITHUB,
-            organization = "circleci",
-            repository = "circleci"
-        )
+        val project =
+            CircleCIProject(
+                slug = "gh/circleci/circleci",
+                vcsType = VcsType.GITHUB,
+                organization = "circleci",
+                repository = "circleci",
+            )
 
         assertEquals("GitHub: circleci/circleci", project.getFullDisplayName())
     }
 
     @Test
     fun `copy should preserve data correctly`() {
-        val original = CircleCIProject(
-            slug = "gh/org/repo",
-            vcsType = VcsType.GITHUB,
-            organization = "org",
-            repository = "repo"
-        )
+        val original =
+            CircleCIProject(
+                slug = "gh/org/repo",
+                vcsType = VcsType.GITHUB,
+                organization = "org",
+                repository = "repo",
+            )
 
-        val updated = original.copy(
-            defaultBranch = "main",
-            followed = true
-        )
+        val updated =
+            original.copy(
+                defaultBranch = "main",
+                followed = true,
+            )
 
         assertEquals("main", updated.defaultBranch)
         assertTrue(updated.followed)

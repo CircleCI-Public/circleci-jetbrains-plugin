@@ -9,19 +9,20 @@ data class LogContext(
     val extensionVersion: String,
     val ideVersion: String,
     val platform: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
 ) {
     companion object {
         fun create(extensionVersion: String = "1.0.0"): LogContext {
             val appInfo = ApplicationInfo.getInstance()
             val ideVersion = "${appInfo.versionName} ${appInfo.fullVersion}"
-            val platform = "${System.getProperty("os.name")} ${System.getProperty("os.version")} " +
+            val platform =
+                "${System.getProperty("os.name")} ${System.getProperty("os.version")} " +
                     "(${System.getProperty("os.arch")})"
 
             return LogContext(
                 extensionVersion = extensionVersion,
                 ideVersion = ideVersion,
-                platform = platform
+                platform = platform,
             )
         }
     }
@@ -31,7 +32,7 @@ data class LogContext(
             "extension_version" to extensionVersion,
             "ide_version" to ideVersion,
             "platform" to platform,
-            "timestamp" to timestamp.toString()
+            "timestamp" to timestamp.toString(),
         )
     }
 }

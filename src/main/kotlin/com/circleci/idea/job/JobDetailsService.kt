@@ -18,7 +18,6 @@ import com.intellij.openapi.project.Project
  */
 @Service(Service.Level.PROJECT)
 class JobDetailsService(private val project: Project) {
-
     private val logger = CircleCILogger.getInstance()
     private val stateStore = CircleCIStateStore.getInstance(project)
     private val apiService = CircleCIApiService.getInstance()
@@ -37,7 +36,7 @@ class JobDetailsService(private val project: Project) {
     suspend fun selectAndFetchJobDetails(
         jobId: String,
         jobNumber: Long?,
-        projectSlug: String
+        projectSlug: String,
     ) {
         if (jobNumber == null) {
             logger.warn("Cannot fetch job details without job number")
@@ -64,7 +63,7 @@ class JobDetailsService(private val project: Project) {
      */
     private suspend fun fetchJobDetails(
         projectSlug: String,
-        jobNumber: Long
+        jobNumber: Long,
     ) {
         logger.info("Fetching job details for job $jobNumber")
 
@@ -93,7 +92,7 @@ class JobDetailsService(private val project: Project) {
             onFailure = { error ->
                 logger.error("Failed to fetch job details for job $jobNumber: ${error.message}", error)
                 stateStore.setJobDetailsError(error.message ?: "Unknown error")
-            }
+            },
         )
     }
 
@@ -122,7 +121,10 @@ class JobDetailsService(private val project: Project) {
     /**
      * Rerun job with SSH enabled.
      */
-    suspend fun rerunJobWithSsh(workflowId: String, jobId: String): Result<Unit> {
+    suspend fun rerunJobWithSsh(
+        workflowId: String,
+        jobId: String,
+    ): Result<Unit> {
         logger.info("Rerunning job $jobId with SSH enabled")
         return apiService.rerunJobWithSsh(workflowId, jobId)
     }
@@ -130,7 +132,10 @@ class JobDetailsService(private val project: Project) {
     /**
      * Cancel job.
      */
-    suspend fun cancelJob(projectSlug: String, jobNumber: Long): Result<Unit> {
+    suspend fun cancelJob(
+        projectSlug: String,
+        jobNumber: Long,
+    ): Result<Unit> {
         logger.info("Cancelling job $jobNumber")
         return apiService.cancelJob(projectSlug, jobNumber)
     }
@@ -138,7 +143,10 @@ class JobDetailsService(private val project: Project) {
     /**
      * Convert API JobDetailsInfo to domain JobDetails model.
      */
-    private fun convertToJobDetails(jobDetailsInfo: JobDetailsInfo, jobNumber: Long): JobDetails {
+    private fun convertToJobDetails(
+        jobDetailsInfo: JobDetailsInfo,
+        jobNumber: Long,
+    ): JobDetails {
         return JobDetails(
             id = jobDetailsInfo.id,
             jobNumber = jobDetailsInfo.jobNumber ?: jobNumber,
@@ -156,7 +164,7 @@ class JobDetailsService(private val project: Project) {
             sshHost = jobDetailsInfo.ssh?.host,
             sshPort = jobDetailsInfo.ssh?.port,
             sshUser = jobDetailsInfo.ssh?.user,
-            webUrl = jobDetailsInfo.webUrl
+            webUrl = jobDetailsInfo.webUrl,
         )
     }
 
@@ -166,7 +174,7 @@ class JobDetailsService(private val project: Project) {
     private fun convertToJobStep(stepInfo: JobStepInfo): JobStep {
         return JobStep(
             name = stepInfo.name,
-            actions = stepInfo.actions?.map { convertToJobAction(it) } ?: emptyList()
+            actions = stepInfo.actions?.map { convertToJobAction(it) } ?: emptyList(),
         )
     }
 
@@ -182,7 +190,7 @@ class JobDetailsService(private val project: Project) {
             runTimeMillis = actionInfo.runTimeMillis,
             outputUrl = actionInfo.outputUrl,
             step = actionInfo.step,
-            index = actionInfo.index
+            index = actionInfo.index,
         )
     }
 
@@ -221,7 +229,10 @@ class JobDetailsService(private val project: Project) {
     /**
      * Fetch test results for a job.
      */
-    suspend fun fetchTestResults(projectSlug: String, jobNumber: Long): Result<List<com.circleci.idea.state.TestResult>> {
+    suspend fun fetchTestResults(
+        projectSlug: String,
+        jobNumber: Long,
+    ): Result<List<com.circleci.idea.state.TestResult>> {
         logger.info("Fetching test results for job $jobNumber")
 
         return apiService.getTestResults(projectSlug, jobNumber).map { response ->
@@ -234,7 +245,7 @@ class JobDetailsService(private val project: Project) {
                     message = testInfo.message,
                     source = testInfo.source,
                     runTime = testInfo.runTime,
-                    flaky = testInfo.flaky
+                    flaky = testInfo.flaky,
                 )
             } ?: emptyList()
         }
@@ -250,7 +261,7 @@ class JobDetailsService(private val project: Project) {
             outputList.map { output ->
                 com.circleci.idea.state.StepOutput(
                     message = output.message,
-                    type = output.type
+                    type = output.type,
                 )
             }
         }
@@ -259,7 +270,10 @@ class JobDetailsService(private val project: Project) {
     /**
      * Fetch artifacts for a job.
      */
-    suspend fun fetchArtifacts(projectSlug: String, jobNumber: Long): Result<List<com.circleci.idea.state.Artifact>> {
+    suspend fun fetchArtifacts(
+        projectSlug: String,
+        jobNumber: Long,
+    ): Result<List<com.circleci.idea.state.Artifact>> {
         logger.info("Fetching artifacts for job $jobNumber")
 
         return apiService.getArtifacts(projectSlug, jobNumber).map { response ->
@@ -268,7 +282,7 @@ class JobDetailsService(private val project: Project) {
                     path = artifact.path,
                     nodeIndex = artifact.nodeIndex,
                     url = artifact.url,
-                    prettyPath = artifact.prettyPath
+                    prettyPath = artifact.prettyPath,
                 )
             } ?: emptyList()
         }

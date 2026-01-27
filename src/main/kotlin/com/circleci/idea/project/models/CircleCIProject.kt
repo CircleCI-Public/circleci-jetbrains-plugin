@@ -4,14 +4,14 @@ package com.circleci.idea.project.models
  * Represents a CircleCI project.
  */
 data class CircleCIProject(
-    val slug: String,                    // Format: vcs/org/repo (e.g., "gh/circleci/circleci")
+    val slug: String, // Format: vcs/org/repo (e.g., "gh/circleci/circleci")
     val vcsType: VcsType,
     val organization: String,
     val repository: String,
     val defaultBranch: String? = null,
     val followed: Boolean = false,
     val vcsUrl: String? = null,
-    val localPath: String? = null        // Local workspace path if detected
+    val localPath: String? = null, // Local workspace path if detected
 ) {
     companion object {
         /**
@@ -30,14 +30,18 @@ data class CircleCIProject(
                 slug = slug,
                 vcsType = vcsType,
                 organization = organization,
-                repository = repository
+                repository = repository,
             )
         }
 
         /**
          * Create project slug from components.
          */
-        fun createSlug(vcsType: VcsType, organization: String, repository: String): String {
+        fun createSlug(
+            vcsType: VcsType,
+            organization: String,
+            repository: String,
+        ): String {
             return "${vcsType.shortCode}/$organization/$repository"
         }
     }

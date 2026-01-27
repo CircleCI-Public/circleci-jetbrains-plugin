@@ -8,7 +8,6 @@ import com.circleci.idea.project.models.VcsType
  * Converts between API ProjectInfo and domain CircleCIProject models.
  */
 object ProjectConverter {
-
     /**
      * Convert API ProjectInfo to CircleCIProject.
      */
@@ -20,7 +19,7 @@ object ProjectConverter {
                 return project.copy(
                     defaultBranch = projectInfo.defaultBranch,
                     followed = projectInfo.followed,
-                    vcsUrl = projectInfo.vcsUrl
+                    vcsUrl = projectInfo.vcsUrl,
                 )
             }
         }
@@ -28,13 +27,14 @@ object ProjectConverter {
         // Fallback to extracting from reponame/username
         val reponame = projectInfo.reponame ?: return null
         val username = projectInfo.username ?: return null
-        val vcsType = when (projectInfo.vcsType) {
-            "github" -> VcsType.GITHUB
-            "bitbucket" -> VcsType.BITBUCKET
-            "gitlab" -> VcsType.GITLAB
-            "circleci" -> VcsType.CIRCLECI
-            else -> VcsType.fromUrl(projectInfo.vcsUrl ?: "") ?: return null
-        }
+        val vcsType =
+            when (projectInfo.vcsType) {
+                "github" -> VcsType.GITHUB
+                "bitbucket" -> VcsType.BITBUCKET
+                "gitlab" -> VcsType.GITLAB
+                "circleci" -> VcsType.CIRCLECI
+                else -> VcsType.fromUrl(projectInfo.vcsUrl ?: "") ?: return null
+            }
 
         val slug = CircleCIProject.createSlug(vcsType, username, reponame)
 
@@ -45,7 +45,7 @@ object ProjectConverter {
             repository = reponame,
             defaultBranch = projectInfo.defaultBranch,
             followed = projectInfo.followed,
-            vcsUrl = projectInfo.vcsUrl
+            vcsUrl = projectInfo.vcsUrl,
         )
     }
 

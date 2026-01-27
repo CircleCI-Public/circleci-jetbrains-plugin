@@ -1,10 +1,9 @@
 package com.circleci.idea.utils
 
-import org.junit.Test
 import org.junit.Assert.*
+import org.junit.Test
 
 class DurationFormatterTest {
-
     @Test
     fun testFormatDuration_Null() {
         assertEquals("0s", formatDuration(null))

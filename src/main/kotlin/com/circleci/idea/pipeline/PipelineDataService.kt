@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 @Service(Service.Level.PROJECT)
 class PipelineDataService(private val project: Project) {
-
     private val logger = CircleCILogger.getInstance()
     private val stateStore = project.getService(CircleCIStateStore::class.java)
     private val apiService = CircleCIApiService.getInstance()
@@ -47,7 +46,7 @@ class PipelineDataService(private val project: Project) {
         projectSlug: String,
         branch: String? = null,
         myPipelinesOnly: Boolean = false,
-        useCache: Boolean = true
+        useCache: Boolean = true,
     ): List<Pipeline> {
         logger.info("Fetching pipelines for $projectSlug (branch: ${branch ?: "all"}, mine: $myPipelinesOnly)")
         _isLoading.value = true
@@ -55,14 +54,15 @@ class PipelineDataService(private val project: Project) {
         try {
             val cacheKey = buildCacheKey(projectSlug, branch, myPipelinesOnly)
 
-            val pipelineInfos = if (useCache) {
-                pipelineCache.getOrPut(cacheKey) {
+            val pipelineInfos =
+                if (useCache) {
+                    pipelineCache.getOrPut(cacheKey) {
+                        fetchPipelinesFromApi(projectSlug, branch, myPipelinesOnly, pageDepth = 1)
+                    }
+                } else {
+                    pipelineCache.invalidate(cacheKey)
                     fetchPipelinesFromApi(projectSlug, branch, myPipelinesOnly, pageDepth = 1)
                 }
-            } else {
-                pipelineCache.invalidate(cacheKey)
-                fetchPipelinesFromApi(projectSlug, branch, myPipelinesOnly, pageDepth = 1)
-            }
 
             // Convert to domain model
             val pipelines = pipelineInfos.map { convertToPipeline(it) }
@@ -72,7 +72,6 @@ class PipelineDataService(private val project: Project) {
 
             logger.info("Fetched ${pipelines.size} pipelines for $projectSlug")
             return pipelines
-
         } catch (e: Exception) {
             logger.error("Failed to fetch pipelines for $projectSlug", e)
             return emptyList()
@@ -92,25 +91,25 @@ class PipelineDataService(private val project: Project) {
     suspend fun fetchAllPipelines(
         projectSlug: String,
         branch: String? = null,
-        myPipelinesOnly: Boolean = false
+        myPipelinesOnly: Boolean = false,
     ): List<Pipeline> {
         logger.info("Fetching ALL pipelines for $projectSlug")
         _isLoading.value = true
 
         try {
-            val pipelineInfos = fetchPipelinesFromApi(
-                projectSlug,
-                branch,
-                myPipelinesOnly,
-                fetchAll = true
-            )
+            val pipelineInfos =
+                fetchPipelinesFromApi(
+                    projectSlug,
+                    branch,
+                    myPipelinesOnly,
+                    fetchAll = true,
+                )
 
             val pipelines = pipelineInfos.map { convertToPipeline(it) }
             stateStore.setPipelines(projectSlug, pipelines)
 
             logger.info("Fetched ${pipelines.size} total pipelines for $projectSlug")
             return pipelines
-
         } catch (e: Exception) {
             logger.error("Failed to fetch all pipelines for $projectSlug", e)
             return emptyList()
@@ -130,7 +129,7 @@ class PipelineDataService(private val project: Project) {
     suspend fun loadMorePipelines(
         projectSlug: String,
         branch: String? = null,
-        myPipelinesOnly: Boolean = false
+        myPipelinesOnly: Boolean = false,
     ): List<Pipeline> {
         logger.info("Loading more pipelines for $projectSlug")
 
@@ -145,11 +144,12 @@ class PipelineDataService(private val project: Project) {
             }
 
             // Fetch next page
-            val result = if (myPipelinesOnly) {
-                apiService.getPipelines(projectSlug, branch, pageToken)
-            } else {
-                apiService.getPipelines(projectSlug, branch, pageToken)
-            }
+            val result =
+                if (myPipelinesOnly) {
+                    apiService.getPipelines(projectSlug, branch, pageToken)
+                } else {
+                    apiService.getPipelines(projectSlug, branch, pageToken)
+                }
 
             return result.fold(
                 onSuccess = { response ->
@@ -164,9 +164,8 @@ class PipelineDataService(private val project: Project) {
                 onFailure = { error ->
                     logger.error("Failed to load more pipelines: ${error.message}", error)
                     emptyList()
-                }
+                },
             )
-
         } catch (e: Exception) {
             logger.error("Failed to load more pipelines for $projectSlug", e)
             return emptyList()
@@ -197,7 +196,7 @@ class PipelineDataService(private val project: Project) {
         branch: String?,
         myPipelinesOnly: Boolean,
         pageDepth: Int = 1,
-        fetchAll: Boolean = false
+        fetchAll: Boolean = false,
     ): List<PipelineInfo> {
         val fetcher: suspend (String?) -> Result<com.circleci.idea.api.models.PaginatedResponse<PipelineInfo>> =
             { pageToken ->
@@ -219,8 +218,12 @@ class PipelineDataService(private val project: Project) {
     /**
      * Build cache key.
      */
-    private fun buildCacheKey(projectSlug: String, branch: String?, myPipelinesOnly: Boolean): String {
-        return "${projectSlug}:${branch ?: "all"}:${if (myPipelinesOnly) "mine" else "all"}"
+    private fun buildCacheKey(
+        projectSlug: String,
+        branch: String?,
+        myPipelinesOnly: Boolean,
+    ): String {
+        return "$projectSlug:${branch ?: "all"}:${if (myPipelinesOnly) "mine" else "all"}"
     }
 
     /**
@@ -234,30 +237,34 @@ class PipelineDataService(private val project: Project) {
             state = pipelineInfo.state,
             createdAt = pipelineInfo.createdAt,
             branch = pipelineInfo.vcs?.branch,
-            vcs = pipelineInfo.vcs?.let {
-                com.circleci.idea.state.VcsInfo(
-                    branch = it.branch,
-                    revision = it.revision,
-                    commit = it.commit?.let { commit ->
-                        com.circleci.idea.state.CommitInfo(
-                            subject = commit.subject,
-                            body = commit.body
-                        )
-                    },
-                    providerName = it.providerName
-                )
-            },
-            trigger = pipelineInfo.trigger?.let {
-                com.circleci.idea.state.TriggerInfo(
-                    type = it.type,
-                    actor = it.actor?.let { actor ->
-                        com.circleci.idea.state.Actor(
-                            login = actor.login,
-                            avatarUrl = actor.avatarUrl
-                        )
-                    }
-                )
-            }
+            vcs =
+                pipelineInfo.vcs?.let {
+                    com.circleci.idea.state.VcsInfo(
+                        branch = it.branch,
+                        revision = it.revision,
+                        commit =
+                            it.commit?.let { commit ->
+                                com.circleci.idea.state.CommitInfo(
+                                    subject = commit.subject,
+                                    body = commit.body,
+                                )
+                            },
+                        providerName = it.providerName,
+                    )
+                },
+            trigger =
+                pipelineInfo.trigger?.let {
+                    com.circleci.idea.state.TriggerInfo(
+                        type = it.type,
+                        actor =
+                            it.actor?.let { actor ->
+                                com.circleci.idea.state.Actor(
+                                    login = actor.login,
+                                    avatarUrl = actor.avatarUrl,
+                                )
+                            },
+                    )
+                },
         )
     }
 }

@@ -22,7 +22,6 @@ import java.awt.BorderLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.JComponent
-import javax.swing.tree.TreePath
 import javax.swing.tree.TreeSelectionModel
 
 /**
@@ -101,41 +100,45 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         logger.info("Tree configured: isRootVisible=${tree.isRootVisible}, showsRootHandles=${tree.showsRootHandles}")
 
         // Handle tree expansion
-        tree.addTreeExpansionListener(object : javax.swing.event.TreeExpansionListener {
-            override fun treeExpanded(event: javax.swing.event.TreeExpansionEvent) {
-                val node = event.path.lastPathComponent as? CircleCITreeNode ?: return
-                if (node.canLoadChildren() && !node.childrenLoaded) {
-                    treeModel.loadChildren(node)
+        tree.addTreeExpansionListener(
+            object : javax.swing.event.TreeExpansionListener {
+                override fun treeExpanded(event: javax.swing.event.TreeExpansionEvent) {
+                    val node = event.path.lastPathComponent as? CircleCITreeNode ?: return
+                    if (node.canLoadChildren() && !node.childrenLoaded) {
+                        treeModel.loadChildren(node)
+                    }
                 }
-            }
 
-            override fun treeCollapsed(event: javax.swing.event.TreeExpansionEvent) {
-                // Nothing to do on collapse
-            }
-        })
+                override fun treeCollapsed(event: javax.swing.event.TreeExpansionEvent) {
+                    // Nothing to do on collapse
+                }
+            },
+        )
 
         // Handle double-click and "Load More" click
-        tree.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                if (e.clickCount == 2) {
-                    handleDoubleClick()
-                } else if (e.clickCount == 1) {
-                    handleSingleClick()
+        tree.addMouseListener(
+            object : MouseAdapter() {
+                override fun mouseClicked(e: MouseEvent) {
+                    if (e.clickCount == 2) {
+                        handleDoubleClick()
+                    } else if (e.clickCount == 1) {
+                        handleSingleClick()
+                    }
                 }
-            }
 
-            override fun mousePressed(e: MouseEvent) {
-                if (e.isPopupTrigger) {
-                    showContextMenu(e)
+                override fun mousePressed(e: MouseEvent) {
+                    if (e.isPopupTrigger) {
+                        showContextMenu(e)
+                    }
                 }
-            }
 
-            override fun mouseReleased(e: MouseEvent) {
-                if (e.isPopupTrigger) {
-                    showContextMenu(e)
+                override fun mouseReleased(e: MouseEvent) {
+                    if (e.isPopupTrigger) {
+                        showContextMenu(e)
+                    }
                 }
-            }
-        })
+            },
+        )
 
         // Add tree to panel
         val scrollPane = ScrollPaneFactory.createScrollPane(tree)
@@ -156,11 +159,12 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         actionGroup.add(com.circleci.idea.toolwindow.actions.StatusFilterAction())
         actionGroup.add(com.circleci.idea.toolwindow.actions.MyPipelinesOnlyAction())
 
-        val toolbar = ActionManager.getInstance().createActionToolbar(
-            ActionPlaces.TOOLBAR,
-            actionGroup,
-            true
-        )
+        val toolbar =
+            ActionManager.getInstance().createActionToolbar(
+                ActionPlaces.TOOLBAR,
+                actionGroup,
+                true,
+            )
         toolbar.targetComponent = panel
         panel.add(toolbar.component, BorderLayout.NORTH)
     }
@@ -197,7 +201,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
             jobDetailsService.selectAndFetchJobDetails(
                 jobId = job.id,
                 jobNumber = job.jobNumber,
-                projectSlug = job.projectSlug
+                projectSlug = job.projectSlug,
             )
         }
 
@@ -245,10 +249,11 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         }
 
         // Show popup menu
-        val popupMenu = ActionManager.getInstance().createActionPopupMenu(
-            ActionPlaces.TOOLWINDOW_POPUP,
-            actionGroup
-        )
+        val popupMenu =
+            ActionManager.getInstance().createActionPopupMenu(
+                ActionPlaces.TOOLWINDOW_POPUP,
+                actionGroup,
+            )
         popupMenu.component.show(e.component, e.x, e.y)
     }
 

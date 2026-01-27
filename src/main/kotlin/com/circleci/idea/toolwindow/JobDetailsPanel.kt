@@ -6,7 +6,6 @@ import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.ssh.CircleCISshService
 import com.circleci.idea.ssh.SshValidationResult
 import com.circleci.idea.state.CircleCIStateStore
-import com.circleci.idea.state.JobAction
 import com.circleci.idea.state.JobDetails
 import com.circleci.idea.state.JobStep
 import com.intellij.notification.NotificationGroupManager
@@ -18,10 +17,9 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.Disposer
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.*
-import com.intellij.ui.treeStructure.Tree
 import com.intellij.ui.table.JBTable
+import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.UIUtil
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 import java.awt.BorderLayout
@@ -31,17 +29,16 @@ import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.datatransfer.StringSelection
 import javax.swing.*
+import javax.swing.event.TreeSelectionListener
 import javax.swing.table.DefaultTableModel
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreeSelectionModel
-import javax.swing.event.TreeSelectionListener
 
 /**
  * Panel for displaying job details including metadata, steps, and output.
  */
 class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(BorderLayout()), Disposable {
-
     private val logger = CircleCILogger.getInstance()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val stateStore = CircleCIStateStore.getInstance(project)
@@ -71,10 +68,11 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
     private val outputScrollPane = JBScrollPane(outputTextArea)
 
     // Test results table
-    private val testResultsTableModel = DefaultTableModel(
-        arrayOf("Name", "Status", "Duration", "File"),
-        0
-    )
+    private val testResultsTableModel =
+        DefaultTableModel(
+            arrayOf("Name", "Status", "Duration", "File"),
+            0,
+        )
     private val testResultsTable = JBTable(testResultsTableModel)
     private val testResultsScrollPane = JBScrollPane(testResultsTable)
 
@@ -187,10 +185,12 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
         stepsTree.cellRenderer = JobStepTreeCellRenderer()
 
         // Add tree selection listener to load step output
-        stepsTree.addTreeSelectionListener(TreeSelectionListener { e ->
-            val selectedNode = stepsTree.lastSelectedPathComponent as? DefaultMutableTreeNode
-            selectedNode?.let { handleStepSelection(it) }
-        })
+        stepsTree.addTreeSelectionListener(
+            TreeSelectionListener { e ->
+                val selectedNode = stepsTree.lastSelectedPathComponent as? DefaultMutableTreeNode
+                selectedNode?.let { handleStepSelection(it) }
+            },
+        )
 
         val stepsScrollPane = JBScrollPane(stepsTree)
         stepsScrollPane.preferredSize = Dimension(400, 300)
@@ -231,7 +231,7 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
                     Messages.showInfoMessage(
                         project,
                         "To rerun a job, use the 'Rerun Workflow' action from the pipelines tree",
-                        "Rerun Job"
+                        "Rerun Job",
                     )
                 }
             }
@@ -249,7 +249,7 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
                             Messages.showWarningDialog(
                                 project,
                                 "SSH is not available for GitHub App or GitLab projects",
-                                "SSH Not Supported"
+                                "SSH Not Supported",
                             )
                         }
                         else -> {
@@ -257,8 +257,8 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
                             Messages.showInfoMessage(
                                 project,
                                 "To rerun a job with SSH, use the 'Rerun Workflow with SSH' action from the pipelines tree.\n\n" +
-                                "Once the job is running with SSH enabled, use the 'Connect SSH' button to open a terminal session.",
-                                "Rerun with SSH"
+                                    "Once the job is running with SSH enabled, use the 'Connect SSH' button to open a terminal session.",
+                                "Rerun with SSH",
                             )
                         }
                     }
@@ -290,14 +290,14 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
                             Messages.showInfoMessage(
                                 project,
                                 "Opening terminal with SSH command:\n\n$sshCommand\n\n" +
-                                "If the terminal doesn't open automatically, copy the SSH command using the 'Copy SSH Command' button.",
-                                "SSH Connection"
+                                    "If the terminal doesn't open automatically, copy the SSH command using the 'Copy SSH Command' button.",
+                                "SSH Connection",
                             )
                         } else {
                             Messages.showErrorDialog(
                                 project,
                                 "Failed to build SSH command. Check that SSH is enabled for this job.",
-                                "SSH Connection Error"
+                                "SSH Connection Error",
                             )
                         }
                     }
@@ -305,21 +305,21 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
                         Messages.showWarningDialog(
                             project,
                             "SSH is not enabled for this job. Use 'Rerun with SSH' to enable it.",
-                            "SSH Not Enabled"
+                            "SSH Not Enabled",
                         )
                     }
                     is SshValidationResult.MissingHost -> {
                         Messages.showErrorDialog(
                             project,
                             "SSH host information is not available for this job",
-                            "SSH Connection Error"
+                            "SSH Connection Error",
                         )
                     }
                     is SshValidationResult.NotSupported -> {
                         Messages.showWarningDialog(
                             project,
                             "SSH is not available for GitHub App or GitLab projects",
-                            "SSH Not Supported"
+                            "SSH Not Supported",
                         )
                     }
                 }
@@ -338,14 +338,14 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
                         .createNotification(
                             "SSH Command Copied",
                             "SSH command copied to clipboard",
-                            NotificationType.INFORMATION
+                            NotificationType.INFORMATION,
                         )
                         .notify(project)
                 } else {
                     Messages.showWarningDialog(
                         project,
                         "SSH is not enabled for this job",
-                        "SSH Not Available"
+                        "SSH Not Available",
                     )
                 }
             }
@@ -417,7 +417,9 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
     }
 
     private fun showJobDetails(jobDetails: JobDetails) {
-        logger.info("showJobDetails called for job ${jobDetails.jobNumber}: ${jobDetails.name}, steps=${jobDetails.steps.size}")
+        logger.info(
+            "showJobDetails called for job ${jobDetails.jobNumber}: ${jobDetails.name}, steps=${jobDetails.steps.size}",
+        )
 
         loadingLabel.isVisible = false
         errorLabel.isVisible = false
@@ -550,7 +552,7 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
                     },
                     onFailure = { error ->
                         outputTextArea.text = "Failed to load output: ${error.message}"
-                    }
+                    },
                 )
             } catch (e: Exception) {
                 outputTextArea.text = "Error loading output: ${e.message}"
@@ -558,7 +560,10 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
         }
     }
 
-    private fun loadTestResults(projectSlug: String, jobNumber: Long) {
+    private fun loadTestResults(
+        projectSlug: String,
+        jobNumber: Long,
+    ) {
         scope.launch {
             try {
                 val result = jobDetailsService.fetchTestResults(projectSlug, jobNumber)
@@ -569,28 +574,32 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
 
                         // Add test results to table
                         tests.forEach { test ->
-                            val status = when (test.result?.lowercase()) {
-                                "success" -> "✓ PASSED"
-                                "failure" -> "✗ FAILED"
-                                "skipped" -> "⊘ SKIPPED"
-                                else -> test.result ?: "UNKNOWN"
-                            }
+                            val status =
+                                when (test.result?.lowercase()) {
+                                    "success" -> "✓ PASSED"
+                                    "failure" -> "✗ FAILED"
+                                    "skipped" -> "⊘ SKIPPED"
+                                    else -> test.result ?: "UNKNOWN"
+                                }
 
-                            val statusWithFlaky = if (test.flaky == true) {
-                                "$status [FLAKY]"
-                            } else {
-                                status
-                            }
+                            val statusWithFlaky =
+                                if (test.flaky == true) {
+                                    "$status [FLAKY]"
+                                } else {
+                                    status
+                                }
 
                             val duration = test.runTime?.let { String.format("%.2fs", it) } ?: "N/A"
                             val file = test.file ?: test.classname ?: "N/A"
 
-                            testResultsTableModel.addRow(arrayOf(
-                                test.name ?: "Unknown Test",
-                                statusWithFlaky,
-                                duration,
-                                file
-                            ))
+                            testResultsTableModel.addRow(
+                                arrayOf(
+                                    test.name ?: "Unknown Test",
+                                    statusWithFlaky,
+                                    duration,
+                                    file,
+                                ),
+                            )
                         }
 
                         if (tests.isEmpty()) {
@@ -600,7 +609,7 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
                     onFailure = { error ->
                         testResultsTableModel.setRowCount(0)
                         testResultsTableModel.addRow(arrayOf("Failed to load tests: ${error.message}", "", "", ""))
-                    }
+                    },
                 )
             } catch (e: Exception) {
                 testResultsTableModel.setRowCount(0)

@@ -28,7 +28,6 @@ import java.util.concurrent.ConcurrentHashMap
  */
 @Service(Service.Level.PROJECT)
 class CircleCINotificationService(private val project: Project) {
-
     private val logger = CircleCILogger.getInstance()
     private val stateStore = CircleCIStateStore.getInstance(project)
     private val webSocketService = CircleCIWebSocketService.getInstance()
@@ -37,18 +36,25 @@ class CircleCINotificationService(private val project: Project) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     // Notification group
-    private val notificationGroup = NotificationGroupManager.getInstance()
-        .getNotificationGroup("CircleCI Notifications")
+    private val notificationGroup =
+        NotificationGroupManager.getInstance()
+            .getNotificationGroup("CircleCI Notifications")
 
     // Throttling: track last notification time per workflow
     private val lastNotificationTime = ConcurrentHashMap<String, Long>()
     private val throttleWindowMs = 5 * 60 * 1000L // 5 minutes
 
     // Default statuses to notify for (exclude success and running - too noisy)
-    private val defaultNotificationStatuses = setOf(
-        "failed", "failing", "canceled", "error",
-        "on_hold", "not_run", "unauthorized"
-    )
+    private val defaultNotificationStatuses =
+        setOf(
+            "failed",
+            "failing",
+            "canceled",
+            "error",
+            "on_hold",
+            "not_run",
+            "unauthorized",
+        )
 
     init {
         logger.logLifecycleEvent("CircleCINotificationService initialized")
@@ -160,20 +166,22 @@ class CircleCINotificationService(private val project: Project) {
      */
     private suspend fun fetchWorkflowDetails(
         workflowId: String,
-        projectSlug: String
+        projectSlug: String,
     ): WorkflowNotificationData? {
         return withContext(Dispatchers.IO) {
             try {
                 // Get workflows from state if available
                 val projectData = stateStore.projectsData.value.data[projectSlug]
-                val workflow = projectData?.pipelines
-                    ?.flatMap { it.workflows }
-                    ?.find { it.id == workflowId }
+                val workflow =
+                    projectData?.pipelines
+                        ?.flatMap { it.workflows }
+                        ?.find { it.id == workflowId }
 
                 if (workflow != null) {
-                    val pipeline = projectData.pipelines.find {
-                        it.workflows.any { w -> w.id == workflowId }
-                    }
+                    val pipeline =
+                        projectData.pipelines.find {
+                            it.workflows.any { w -> w.id == workflowId }
+                        }
 
                     WorkflowNotificationData(
                         workflowId = workflow.id,
@@ -181,7 +189,7 @@ class CircleCINotificationService(private val project: Project) {
                         pipelineNumber = pipeline?.number,
                         branch = pipeline?.branch,
                         author = pipeline?.trigger?.actor?.login,
-                        projectSlug = projectSlug
+                        projectSlug = projectSlug,
                     )
                 } else {
                     null
@@ -199,14 +207,15 @@ class CircleCINotificationService(private val project: Project) {
     private fun showWorkflowNotification(
         details: WorkflowNotificationData,
         status: String,
-        projectSlug: String
+        projectSlug: String,
     ) {
         val title = "Workflow ${getStatusText(status)}"
         val content = buildNotificationContent(details, status)
         val notificationType = getNotificationType(status)
 
-        val notification = notificationGroup.createNotification(title, content, notificationType)
-            .setIcon(getStatusIcon(status))
+        val notification =
+            notificationGroup.createNotification(title, content, notificationType)
+                .setIcon(getStatusIcon(status))
 
         // Add action buttons
         notification.addAction(ViewWorkflowAction(details.workflowId, projectSlug))
@@ -229,7 +238,10 @@ class CircleCINotificationService(private val project: Project) {
     /**
      * Build notification content.
      */
-    private fun buildNotificationContent(details: WorkflowNotificationData, status: String): String {
+    private fun buildNotificationContent(
+        details: WorkflowNotificationData,
+        status: String,
+    ): String {
         val parts = mutableListOf<String>()
 
         parts.add("<b>${details.workflowName}</b>")
@@ -311,7 +323,7 @@ class CircleCINotificationService(private val project: Project) {
     fun updateNotificationPreferences(
         enabled: Boolean? = null,
         myPipelinesOnly: Boolean? = null,
-        statusFilter: Set<String>? = null
+        statusFilter: Set<String>? = null,
     ) {
         logger.info("Updating notification preferences")
         stateStore.updateNotificationPreferences(enabled, myPipelinesOnly, statusFilter)
@@ -337,7 +349,7 @@ private data class WorkflowNotificationData(
     val pipelineNumber: Int?,
     val branch: String?,
     val author: String?,
-    val projectSlug: String
+    val projectSlug: String,
 )
 
 /**
@@ -345,7 +357,7 @@ private data class WorkflowNotificationData(
  */
 private class ViewWorkflowAction(
     private val workflowId: String,
-    private val projectSlug: String
+    private val projectSlug: String,
 ) : AnAction("View Workflow") {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
@@ -359,7 +371,7 @@ private class ViewWorkflowAction(
  * Action to approve workflow.
  */
 private class ApproveWorkflowAction(
-    private val workflowId: String
+    private val workflowId: String,
 ) : AnAction("Approve") {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
@@ -373,7 +385,7 @@ private class ApproveWorkflowAction(
                 .createNotification(
                     "Approval Required",
                     "Please approve the workflow in the CircleCI tool window or web interface",
-                    NotificationType.INFORMATION
+                    NotificationType.INFORMATION,
                 )
                 .notify(project)
         }
@@ -384,7 +396,7 @@ private class ApproveWorkflowAction(
  * Action to rerun workflow.
  */
 private class RerunWorkflowAction(
-    private val workflowId: String
+    private val workflowId: String,
 ) : AnAction("Rerun") {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
@@ -399,7 +411,7 @@ private class RerunWorkflowAction(
                         .createNotification(
                             "Workflow Rerun",
                             "Workflow rerun started successfully",
-                            NotificationType.INFORMATION
+                            NotificationType.INFORMATION,
                         )
                         .notify(project)
                 },
@@ -409,10 +421,10 @@ private class RerunWorkflowAction(
                         .createNotification(
                             "Workflow Rerun Failed",
                             "Failed to rerun workflow: ${error.message}",
-                            NotificationType.ERROR
+                            NotificationType.ERROR,
                         )
                         .notify(project)
-                }
+                },
             )
         }
     }
@@ -432,7 +444,7 @@ private class DisableNotificationsAction : AnAction("Disable Notifications") {
             .createNotification(
                 "Notifications Disabled",
                 "CircleCI notifications have been disabled. Re-enable in Settings.",
-                NotificationType.INFORMATION
+                NotificationType.INFORMATION,
             )
             .notify(project)
     }

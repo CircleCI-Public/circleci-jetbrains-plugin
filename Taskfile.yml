@@ -47,6 +47,35 @@ tasks:
     cmds:
       - ./gradlew verifyPlugin
 
+  # Static Analysis Tasks
+  lint:
+    desc: Run all static analysis tools (detekt, ktlint, dependency-check)
+    cmds:
+      - ./gradlew staticAnalysis
+
+  detekt:
+    desc: Run detekt Kotlin static analysis
+    cmds:
+      - ./gradlew detekt
+      - echo "Report: build/reports/detekt/detekt.html"
+
+  ktlint:
+    desc: Run ktlint code style check
+    cmds:
+      - ./gradlew ktlintCheck
+      - echo "Report: build/reports/ktlint/"
+
+  ktlint-format:
+    desc: Auto-format code with ktlint
+    cmds:
+      - ./gradlew ktlintFormat
+
+  security-scan:
+    desc: Run OWASP dependency security scan
+    cmds:
+      - ./gradlew dependencyCheckAnalyze
+      - echo "Report: build/reports/dependency-check-report.html"
+
   run:
     desc: Launch IDE with plugin installed for testing
     cmds:

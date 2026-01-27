@@ -16,19 +16,20 @@ class LoginAction : AnAction() {
 
         // Check if already authenticated
         if (authService.isAuthenticated()) {
-            val result = Messages.showYesNoDialog(
-                project,
-                "You are already logged in. Do you want to log out and log in with a different account?",
-                "Already Logged In",
-                Messages.getQuestionIcon()
-            )
+            val result =
+                Messages.showYesNoDialog(
+                    project,
+                    "You are already logged in. Do you want to log out and log in with a different account?",
+                    "Already Logged In",
+                    Messages.getQuestionIcon(),
+                )
 
             if (result == Messages.YES) {
                 authService.logout()
                 Messages.showInfoMessage(
                     project,
                     "You have been logged out. Please log in again.",
-                    "Logged Out"
+                    "Logged Out",
                 )
             } else {
                 return

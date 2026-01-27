@@ -4,7 +4,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SensitiveDataRedactorTest {
-
     @Test
     fun `should redact Circle-Token header`() {
         val message = "Circle-Token: abc123def456ghi789jkl012"
@@ -74,11 +73,12 @@ class SensitiveDataRedactorTest {
 
     @Test
     fun `redactMap should redact token keys`() {
-        val map = mapOf(
-            "Content-Type" to "application/json",
-            "Circle-Token" to "secrettoken123",
-            "Authorization" to "Bearer mytoken456"
-        )
+        val map =
+            mapOf(
+                "Content-Type" to "application/json",
+                "Circle-Token" to "secrettoken123",
+                "Authorization" to "Bearer mytoken456",
+            )
 
         val redacted = SensitiveDataRedactor.redactMap(map)
 

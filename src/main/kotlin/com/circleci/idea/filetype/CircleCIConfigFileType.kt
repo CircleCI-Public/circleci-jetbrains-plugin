@@ -1,7 +1,6 @@
 package com.circleci.idea.filetype
 
 import com.intellij.openapi.fileTypes.FileType
-import com.intellij.openapi.vfs.VirtualFile
 import javax.swing.Icon
 
 /**

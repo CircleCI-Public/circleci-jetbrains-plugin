@@ -4,7 +4,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LogLevelTest {
-
     @Test
     fun `fromString should parse valid log levels`() {
         assertEquals(LogLevel.DEBUG, LogLevel.fromString("debug"))

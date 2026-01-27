@@ -1,13 +1,11 @@
 package com.circleci.idea.lsp
 
 import com.circleci.idea.logging.CircleCILogger
-import com.circleci.idea.settings.CircleCISettings
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.SystemInfo
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -28,13 +26,13 @@ import java.util.concurrent.TimeUnit
  */
 @Service(Service.Level.APP)
 class CircleCILanguageServerManager {
-
     private val logger = CircleCILogger.getInstance()
     private val gson = Gson()
-    private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
-        .build()
+    private val httpClient =
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)
+            .build()
 
     companion object {
         private const val GITHUB_REPO = "CircleCI-Public/circleci-yaml-language-server"
@@ -55,7 +53,9 @@ class CircleCILanguageServerManager {
                 SystemInfo.isLinux && isArm -> "linux-arm64-lsp"
                 SystemInfo.isLinux -> "linux-amd64-lsp"
                 SystemInfo.isWindows -> "windows-amd64-lsp.exe"
-                else -> throw UnsupportedOperationException("Unsupported platform: ${SystemInfo.OS_NAME} ${SystemInfo.OS_ARCH}")
+                else -> throw UnsupportedOperationException(
+                    "Unsupported platform: ${SystemInfo.OS_NAME} ${SystemInfo.OS_ARCH}",
+                )
             }
         }
     }
@@ -141,14 +141,19 @@ class CircleCILanguageServerManager {
     /**
      * Download a file from GitHub releases.
      */
-    private fun downloadFile(version: String, fileName: String, targetDir: File): Boolean {
+    private fun downloadFile(
+        version: String,
+        fileName: String,
+        targetDir: File,
+    ): Boolean {
         return try {
             val downloadUrl = "https://github.com/$GITHUB_REPO/releases/download/$version/$fileName"
             logger.info("Downloading $fileName from $downloadUrl")
 
-            val request = Request.Builder()
-                .url(downloadUrl)
-                .build()
+            val request =
+                Request.Builder()
+                    .url(downloadUrl)
+                    .build()
 
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
@@ -177,9 +182,10 @@ class CircleCILanguageServerManager {
      */
     private fun getLatestVersion(): String? {
         return try {
-            val request = Request.Builder()
-                .url("https://api.github.com/repos/$GITHUB_REPO/releases/latest")
-                .build()
+            val request =
+                Request.Builder()
+                    .url("https://api.github.com/repos/$GITHUB_REPO/releases/latest")
+                    .build()
 
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {

@@ -18,17 +18,17 @@ import com.intellij.openapi.project.Project
  * - Configurable log level via settings
  */
 class CircleCILogger private constructor() {
-
     private val ideLogger = Logger.getInstance("CircleCI")
     private val fileLogger: FileLogger
     private val context: LogContext
 
     init {
-        fileLogger = FileLogger(
-            logDirectory = FileLogger.getDefaultLogDirectory(),
-            maxFileSizeBytes = 10 * 1024 * 1024, // 10 MB
-            maxFiles = 5
-        )
+        fileLogger =
+            FileLogger(
+                logDirectory = FileLogger.getDefaultLogDirectory(),
+                maxFileSizeBytes = 10 * 1024 * 1024, // 10 MB
+                maxFiles = 5,
+            )
         context = LogContext.create()
 
         // Log initialization
@@ -54,35 +54,51 @@ class CircleCILogger private constructor() {
     /**
      * Log a debug message.
      */
-    fun debug(message: String, throwable: Throwable? = null) {
+    fun debug(
+        message: String,
+        throwable: Throwable? = null,
+    ) {
         log(LogLevel.DEBUG, message, throwable)
     }
 
     /**
      * Log an info message.
      */
-    fun info(message: String, throwable: Throwable? = null) {
+    fun info(
+        message: String,
+        throwable: Throwable? = null,
+    ) {
         log(LogLevel.INFO, message, throwable)
     }
 
     /**
      * Log a warning message.
      */
-    fun warn(message: String, throwable: Throwable? = null) {
+    fun warn(
+        message: String,
+        throwable: Throwable? = null,
+    ) {
         log(LogLevel.WARN, message, throwable)
     }
 
     /**
      * Log an error message.
      */
-    fun error(message: String, throwable: Throwable? = null) {
+    fun error(
+        message: String,
+        throwable: Throwable? = null,
+    ) {
         log(LogLevel.ERROR, message, throwable)
     }
 
     /**
      * Log a message at the specified level.
      */
-    private fun log(level: LogLevel, message: String, throwable: Throwable? = null) {
+    private fun log(
+        level: LogLevel,
+        message: String,
+        throwable: Throwable? = null,
+    ) {
         val currentLevel = getCurrentLogLevel()
 
         // Check if we should log this level
@@ -103,7 +119,11 @@ class CircleCILogger private constructor() {
     /**
      * Log to IDE's built-in logger.
      */
-    private fun logToIde(level: LogLevel, message: String, throwable: Throwable?) {
+    private fun logToIde(
+        level: LogLevel,
+        message: String,
+        throwable: Throwable?,
+    ) {
         val formattedMessage = LogFormatter.formatForConsole(level, message, throwable)
 
         when (level) {
@@ -117,7 +137,11 @@ class CircleCILogger private constructor() {
     /**
      * Log to file.
      */
-    private fun logToFile(level: LogLevel, message: String, throwable: Throwable?) {
+    private fun logToFile(
+        level: LogLevel,
+        message: String,
+        throwable: Throwable?,
+    ) {
         val formattedMessage = LogFormatter.formatForFile(level, message, context, throwable)
         fileLogger.write(formattedMessage)
     }
@@ -125,7 +149,10 @@ class CircleCILogger private constructor() {
     /**
      * Log API request.
      */
-    fun logApiRequest(method: String, url: String) {
+    fun logApiRequest(
+        method: String,
+        url: String,
+    ) {
         val message = LogFormatter.formatApiRequest(method, url)
         debug(message)
     }
@@ -133,7 +160,12 @@ class CircleCILogger private constructor() {
     /**
      * Log API response.
      */
-    fun logApiResponse(method: String, url: String, statusCode: Int, durationMs: Long) {
+    fun logApiResponse(
+        method: String,
+        url: String,
+        statusCode: Int,
+        durationMs: Long,
+    ) {
         val message = "${LogFormatter.formatApiRequest(method, url, statusCode)} (${durationMs}ms)"
         debug(message)
     }
@@ -141,7 +173,12 @@ class CircleCILogger private constructor() {
     /**
      * Log API error.
      */
-    fun logApiError(method: String, url: String, statusCode: Int, errorMessage: String) {
+    fun logApiError(
+        method: String,
+        url: String,
+        statusCode: Int,
+        errorMessage: String,
+    ) {
         val message = "${LogFormatter.formatApiRequest(method, url, statusCode)}: $errorMessage"
         error(message)
     }
@@ -149,7 +186,10 @@ class CircleCILogger private constructor() {
     /**
      * Log WebSocket event.
      */
-    fun logWebSocketEvent(event: String, channel: String? = null) {
+    fun logWebSocketEvent(
+        event: String,
+        channel: String? = null,
+    ) {
         val message = LogFormatter.formatWebSocketEvent(event, channel)
         debug(message)
     }
@@ -157,7 +197,11 @@ class CircleCILogger private constructor() {
     /**
      * Log state change (only at DEBUG level).
      */
-    fun logStateChange(stateName: String, from: Any?, to: Any?) {
+    fun logStateChange(
+        stateName: String,
+        from: Any?,
+        to: Any?,
+    ) {
         val message = LogFormatter.formatStateChange(stateName, from, to)
         debug(message)
     }
@@ -165,12 +209,16 @@ class CircleCILogger private constructor() {
     /**
      * Log user action.
      */
-    fun logUserAction(action: String, details: String? = null) {
-        val message = if (details != null) {
-            "User action: $action - $details"
-        } else {
-            "User action: $action"
-        }
+    fun logUserAction(
+        action: String,
+        details: String? = null,
+    ) {
+        val message =
+            if (details != null) {
+                "User action: $action - $details"
+            } else {
+                "User action: $action"
+            }
         info(message)
     }
 
@@ -184,7 +232,12 @@ class CircleCILogger private constructor() {
     /**
      * Show error notification to user and log it.
      */
-    fun notifyError(project: Project?, title: String, message: String, throwable: Throwable? = null) {
+    fun notifyError(
+        project: Project?,
+        title: String,
+        message: String,
+        throwable: Throwable? = null,
+    ) {
         error("$title: $message", throwable)
 
         try {

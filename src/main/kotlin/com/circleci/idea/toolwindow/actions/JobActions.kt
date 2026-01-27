@@ -24,9 +24,8 @@ import java.awt.datatransfer.StringSelection
 abstract class JobAction(
     text: String,
     description: String,
-    icon: javax.swing.Icon? = null
+    icon: javax.swing.Icon? = null,
 ) : AnAction(text, description, icon), DumbAware {
-
     protected val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     /**
@@ -51,18 +50,19 @@ abstract class JobAction(
     protected fun executeAction(
         e: AnActionEvent,
         confirmMessage: String?,
-        action: suspend () -> Result<Unit>
+        action: suspend () -> Result<Unit>,
     ) {
         val project = e.project ?: return
 
         // Show confirmation dialog if needed
         if (confirmMessage != null) {
-            val result = Messages.showYesNoDialog(
-                project,
-                confirmMessage,
-                "Confirm Action",
-                Messages.getQuestionIcon()
-            )
+            val result =
+                Messages.showYesNoDialog(
+                    project,
+                    confirmMessage,
+                    "Confirm Action",
+                    Messages.getQuestionIcon(),
+                )
             if (result != Messages.YES) {
                 return
             }
@@ -70,9 +70,10 @@ abstract class JobAction(
 
         scope.launch {
             // Execute action
-            val result = withContext(Dispatchers.IO) {
-                action()
-            }
+            val result =
+                withContext(Dispatchers.IO) {
+                    action()
+                }
 
             // Handle result
             withContext(Dispatchers.Main) {
@@ -84,7 +85,7 @@ abstract class JobAction(
                     Messages.showErrorDialog(
                         project,
                         "Failed to perform action: $error",
-                        "Action Failed"
+                        "Action Failed",
                     )
                 }
             }
@@ -108,7 +109,7 @@ abstract class JobAction(
 class OpenJobDetailsAction : JobAction(
     "Open Job Details",
     "Open detailed view of this job",
-    AllIcons.General.Information
+    AllIcons.General.Information,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
@@ -120,7 +121,7 @@ class OpenJobDetailsAction : JobAction(
             jobDetailsService.selectAndFetchJobDetails(
                 jobId = job.id,
                 jobNumber = job.jobNumber,
-                projectSlug = job.projectSlug
+                projectSlug = job.projectSlug,
             )
 
             // Show job details panel in tool window service
@@ -135,7 +136,7 @@ class OpenJobDetailsAction : JobAction(
 class RerunJobWithSshAction : JobAction(
     "Rerun with SSH",
     "Rerun this job with SSH access enabled",
-    AllIcons.Actions.RestartDebugger
+    AllIcons.Actions.RestartDebugger,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val jobNode = getJobNode(e) ?: return
@@ -147,14 +148,14 @@ class RerunJobWithSshAction : JobAction(
         executeAction(
             e,
             "Rerun job '${job.name}' with SSH enabled?\n\n" +
-                    "This will rerun the entire workflow with SSH access enabled for this specific job.",
+                "This will rerun the entire workflow with SSH access enabled for this specific job.",
             {
                 CircleCIApiService.getInstance().rerunWorkflow(
                     workflowId = workflow.id,
                     fromFailed = false,
-                    enableSsh = true
+                    enableSsh = true,
                 )
-            }
+            },
         )
     }
 
@@ -170,7 +171,7 @@ class RerunJobWithSshAction : JobAction(
 class CancelJobAction : JobAction(
     "Cancel Job",
     "Cancel this running job",
-    AllIcons.Actions.Suspend
+    AllIcons.Actions.Suspend,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val jobNode = getJobNode(e) ?: return
@@ -186,7 +187,7 @@ class CancelJobAction : JobAction(
                 } else {
                     Result.failure(IllegalStateException("Job number is not available"))
                 }
-            }
+            },
         )
     }
 
@@ -202,7 +203,7 @@ class CancelJobAction : JobAction(
 class CopyJobNumberAction : JobAction(
     "Copy Job Number",
     "Copy job number to clipboard",
-    AllIcons.Actions.Copy
+    AllIcons.Actions.Copy,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val jobNode = getJobNode(e) ?: return
@@ -217,13 +218,13 @@ class CopyJobNumberAction : JobAction(
             Messages.showInfoMessage(
                 e.project,
                 "Job number $jobNumber copied to clipboard",
-                "Copied"
+                "Copied",
             )
         } else {
             Messages.showErrorDialog(
                 e.project,
                 "Job number is not available for this job",
-                "Copy Failed"
+                "Copy Failed",
             )
         }
     }
@@ -240,7 +241,7 @@ class CopyJobNumberAction : JobAction(
 class OpenJobInBrowserAction : JobAction(
     "Open in Browser",
     "Open this job in CircleCI web interface",
-    AllIcons.Ide.External_link_arrow
+    AllIcons.Ide.External_link_arrow,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val jobNode = getJobNode(e) ?: return
@@ -259,7 +260,7 @@ class OpenJobInBrowserAction : JobAction(
             Messages.showErrorDialog(
                 e.project,
                 "Cannot open job in browser: job number is not available",
-                "Open Failed"
+                "Open Failed",
             )
         }
     }
@@ -276,7 +277,7 @@ class OpenJobInBrowserAction : JobAction(
 class RerunWorkflowFromJobAction : JobAction(
     "Rerun Workflow",
     "Rerun the entire workflow from the beginning",
-    AllIcons.Actions.Execute
+    AllIcons.Actions.Execute,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val jobNode = getJobNode(e) ?: return
@@ -290,9 +291,9 @@ class RerunWorkflowFromJobAction : JobAction(
             {
                 CircleCIApiService.getInstance().rerunWorkflow(
                     workflowId = workflow.id,
-                    fromFailed = false
+                    fromFailed = false,
                 )
-            }
+            },
         )
     }
 
@@ -300,6 +301,6 @@ class RerunWorkflowFromJobAction : JobAction(
         // Can rerun workflow if job is completed
         val workflowNode = getWorkflowNode(job)
         return workflowNode != null &&
-               workflowNode.workflow.status in listOf("success", "failed", "canceled", "failing")
+            workflowNode.workflow.status in listOf("success", "failed", "canceled", "failing")
     }
 }

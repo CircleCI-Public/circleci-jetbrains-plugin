@@ -16,7 +16,6 @@ import org.eclipse.lsp4j.services.LanguageServer
  * Creates and configures the language server connection.
  */
 class CircleCILanguageServerFactory : LanguageServerFactory {
-
     override fun createConnectionProvider(project: Project): StreamConnectionProvider {
         return CircleCIStreamConnectionProvider(project)
     }
@@ -34,48 +33,53 @@ class CircleCILanguageServerFactory : LanguageServerFactory {
  * Stream connection provider that starts the CircleCI LSP server process.
  */
 class CircleCIStreamConnectionProvider(private val project: Project) : StreamConnectionProvider {
-
     private val logger = CircleCILogger.getInstance()
     private val lspManager = CircleCILanguageServerManager.getInstance()
     private var process: Process? = null
 
     override fun start() {
-        val binary = lspManager.getLanguageServerBinary()
-            ?: throw ExecutionException("CircleCI Language Server binary not found. Please install it from settings.")
+        val binary =
+            lspManager.getLanguageServerBinary()
+                ?: throw ExecutionException(
+                    "CircleCI Language Server binary not found. Please install it from settings.",
+                )
 
         logger.info("Starting CircleCI Language Server: ${binary.absolutePath}")
 
         // Check for schema.json file
         val schemaFile = java.io.File(binary.parentFile, "schema.json")
 
-        val commandLine = GeneralCommandLine(binary.absolutePath).apply {
-            // Add -stdio flag for stdin/stdout communication
-            addParameter("-stdio")
+        val commandLine =
+            GeneralCommandLine(binary.absolutePath).apply {
+                // Add -stdio flag for stdin/stdout communication
+                addParameter("-stdio")
 
-            // Add schema file path if it exists
-            if (schemaFile.exists()) {
-                addParameter("-schema")
-                addParameter(schemaFile.absolutePath)
-                logger.info("Using schema file: ${schemaFile.absolutePath}")
-            } else {
-                logger.warn("Schema file not found at ${schemaFile.absolutePath}, language server may have limited functionality")
-            }
+                // Add schema file path if it exists
+                if (schemaFile.exists()) {
+                    addParameter("-schema")
+                    addParameter(schemaFile.absolutePath)
+                    logger.info("Using schema file: ${schemaFile.absolutePath}")
+                } else {
+                    logger.warn(
+                        "Schema file not found at ${schemaFile.absolutePath}, language server may have limited functionality",
+                    )
+                }
 
-            val basePath = project.basePath
-            if (basePath != null) {
-                withWorkDirectory(basePath)
-            }
+                val basePath = project.basePath
+                if (basePath != null) {
+                    withWorkDirectory(basePath)
+                }
 
-            // Add CircleCI API token as environment variable
-            val authService = CircleCIAuthService.getInstance(project)
-            val token = authService.getToken()
-            if (token != null && token.isNotEmpty()) {
-                withEnvironment("CIRCLECI_CLI_TOKEN", token)
-                logger.info("CircleCI token configured for language server")
-            } else {
-                logger.warn("No CircleCI token found - language server diagnostics may be limited")
+                // Add CircleCI API token as environment variable
+                val authService = CircleCIAuthService.getInstance(project)
+                val token = authService.getToken()
+                if (token != null && token.isNotEmpty()) {
+                    withEnvironment("CIRCLECI_CLI_TOKEN", token)
+                    logger.info("CircleCI token configured for language server")
+                } else {
+                    logger.warn("No CircleCI token found - language server diagnostics may be limited")
+                }
             }
-        }
 
         process = commandLine.createProcess()
         logger.info("CircleCI Language Server process started")
@@ -96,11 +100,13 @@ class CircleCIStreamConnectionProvider(private val project: Project) : StreamCon
  * Document matcher that determines which files should use the CircleCI language server.
  */
 class CircleCIDocumentMatcher : com.redhat.devtools.lsp4ij.DocumentMatcher {
-
-    override fun match(file: VirtualFile, project: Project): Boolean {
+    override fun match(
+        file: VirtualFile,
+        project: Project,
+    ): Boolean {
         // Support .yml and .yaml files in .circleci directory
         val path = file.path
         return (path.contains("/.circleci/") || path.contains("\\.circleci\\")) &&
-                (file.name.endsWith(".yml") || file.name.endsWith(".yaml"))
+            (file.name.endsWith(".yml") || file.name.endsWith(".yaml"))
     }
 }

@@ -14,12 +14,13 @@ import kotlinx.coroutines.launch
 /**
  * Action to refresh projects and pipelines.
  */
-class RefreshAction : AnAction(
-    "Refresh",
-    "Refresh CircleCI projects and pipelines",
-    AllIcons.Actions.Refresh
-), DumbAware {
-
+class RefreshAction :
+    AnAction(
+        "Refresh",
+        "Refresh CircleCI projects and pipelines",
+        AllIcons.Actions.Refresh,
+    ),
+    DumbAware {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun actionPerformed(e: AnActionEvent) {

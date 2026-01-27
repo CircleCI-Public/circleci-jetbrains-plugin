@@ -10,7 +10,6 @@ import javax.swing.tree.DefaultMutableTreeNode
  * Base class for all CircleCI tree nodes.
  */
 sealed class CircleCITreeNode(userObject: Any?) : DefaultMutableTreeNode(userObject) {
-
     /**
      * Returns the display text for this node.
      */
@@ -37,8 +36,10 @@ sealed class CircleCITreeNode(userObject: Any?) : DefaultMutableTreeNode(userObj
  */
 class RootNode : CircleCITreeNode(null) {
     override fun getDisplayText(): String = "CircleCI Projects"
+
     override fun getStatus(): String? = null
-    override fun canLoadChildren(): Boolean = true  // Root can contain project nodes
+
+    override fun canLoadChildren(): Boolean = true // Root can contain project nodes
 }
 
 /**
@@ -46,7 +47,9 @@ class RootNode : CircleCITreeNode(null) {
  */
 class ProjectNode(val project: CircleCIProject) : CircleCITreeNode(project) {
     override fun getDisplayText(): String = project.getDisplayName()
+
     override fun getStatus(): String? = null
+
     override fun canLoadChildren(): Boolean = true
 }
 
@@ -61,6 +64,7 @@ class PipelineNode(val pipeline: PipelineInfo) : CircleCITreeNode(pipeline) {
     }
 
     override fun getStatus(): String? = pipeline.state
+
     override fun canLoadChildren(): Boolean = true
 }
 
@@ -69,7 +73,9 @@ class PipelineNode(val pipeline: PipelineInfo) : CircleCITreeNode(pipeline) {
  */
 class WorkflowNode(val workflow: WorkflowInfo) : CircleCITreeNode(workflow) {
     override fun getDisplayText(): String = workflow.name
+
     override fun getStatus(): String? = workflow.status
+
     override fun canLoadChildren(): Boolean = true
 }
 
@@ -87,6 +93,7 @@ class JobNode(val job: JobInfo) : CircleCITreeNode(job) {
     }
 
     override fun getStatus(): String? = job.status
+
     override fun canLoadChildren(): Boolean = false
 }
 
@@ -95,7 +102,9 @@ class JobNode(val job: JobInfo) : CircleCITreeNode(job) {
  */
 class LoadMoreNode(val parentType: String, val nextPageToken: String?) : CircleCITreeNode(null) {
     override fun getDisplayText(): String = "Load More..."
+
     override fun getStatus(): String? = null
+
     override fun canLoadChildren(): Boolean = false
 }
 
@@ -104,7 +113,9 @@ class LoadMoreNode(val parentType: String, val nextPageToken: String?) : CircleC
  */
 class LoadingNode : CircleCITreeNode(null) {
     override fun getDisplayText(): String = "Loading..."
+
     override fun getStatus(): String? = null
+
     override fun canLoadChildren(): Boolean = false
 }
 
@@ -113,7 +124,9 @@ class LoadingNode : CircleCITreeNode(null) {
  */
 class ErrorNode(val message: String) : CircleCITreeNode(null) {
     override fun getDisplayText(): String = "Error: $message"
+
     override fun getStatus(): String? = "error"
+
     override fun canLoadChildren(): Boolean = false
 }
 
@@ -122,6 +135,8 @@ class ErrorNode(val message: String) : CircleCITreeNode(null) {
  */
 class EmptyNode(val message: String) : CircleCITreeNode(null) {
     override fun getDisplayText(): String = message
+
     override fun getStatus(): String? = null
+
     override fun canLoadChildren(): Boolean = false
 }

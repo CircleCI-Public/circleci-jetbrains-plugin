@@ -9,7 +9,6 @@ import com.intellij.openapi.startup.ProjectActivity
  * Startup activity to initialize CircleCI services when project opens.
  */
 class CircleCIStartupActivity : ProjectActivity {
-
     private val logger = CircleCILogger.getInstance()
 
     override suspend fun execute(project: Project) {

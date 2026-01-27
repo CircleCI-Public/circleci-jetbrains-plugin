@@ -7,7 +7,6 @@ import java.util.*
  * Formats log messages with timestamp, level, and context.
  */
 object LogFormatter {
-
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
 
     /**
@@ -17,7 +16,7 @@ object LogFormatter {
         level: LogLevel,
         message: String,
         context: LogContext? = null,
-        throwable: Throwable? = null
+        throwable: Throwable? = null,
     ): String {
         val timestamp = dateFormat.format(Date())
         val levelStr = level.displayName.padEnd(5)
@@ -43,7 +42,7 @@ object LogFormatter {
     fun formatForConsole(
         level: LogLevel,
         message: String,
-        throwable: Throwable? = null
+        throwable: Throwable? = null,
     ): String {
         val builder = StringBuilder()
         builder.append("[CircleCI] ")
@@ -60,7 +59,11 @@ object LogFormatter {
     /**
      * Format API request details for logging.
      */
-    fun formatApiRequest(method: String, url: String, statusCode: Int? = null): String {
+    fun formatApiRequest(
+        method: String,
+        url: String,
+        statusCode: Int? = null,
+    ): String {
         return if (statusCode != null) {
             "API $method $url -> $statusCode"
         } else {
@@ -71,7 +74,10 @@ object LogFormatter {
     /**
      * Format WebSocket event for logging.
      */
-    fun formatWebSocketEvent(event: String, channel: String? = null): String {
+    fun formatWebSocketEvent(
+        event: String,
+        channel: String? = null,
+    ): String {
         return if (channel != null) {
             "WebSocket [$channel] $event"
         } else {
@@ -82,7 +88,11 @@ object LogFormatter {
     /**
      * Format state change for logging.
      */
-    fun formatStateChange(stateName: String, from: Any?, to: Any?): String {
+    fun formatStateChange(
+        stateName: String,
+        from: Any?,
+        to: Any?,
+    ): String {
         return "State[$stateName] $from -> $to"
     }
 }

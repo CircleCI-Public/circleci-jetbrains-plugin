@@ -11,7 +11,7 @@ sealed class CircleCIWebSocketEvent {
         val workflowId: String,
         val status: String,
         val projectSlug: String,
-        val pipelineId: String
+        val pipelineId: String,
     ) : CircleCIWebSocketEvent()
 
     /**
@@ -21,7 +21,7 @@ sealed class CircleCIWebSocketEvent {
         val jobId: String,
         val jobNumber: Long?,
         val workflowId: String,
-        val projectSlug: String
+        val projectSlug: String,
     ) : CircleCIWebSocketEvent()
 
     /**
@@ -32,7 +32,7 @@ sealed class CircleCIWebSocketEvent {
         val jobNumber: Long?,
         val status: String,
         val workflowId: String,
-        val projectSlug: String
+        val projectSlug: String,
     ) : CircleCIWebSocketEvent()
 
     /**

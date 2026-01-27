@@ -4,7 +4,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LogFormatterTest {
-
     @Test
     fun `formatForFile should include timestamp and level`() {
         val formatted = LogFormatter.formatForFile(LogLevel.INFO, "Test message")

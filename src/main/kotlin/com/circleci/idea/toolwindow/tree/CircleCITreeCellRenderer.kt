@@ -10,7 +10,6 @@ import javax.swing.JTree
  * Displays status icons and formatted text for each node type.
  */
 class CircleCITreeCellRenderer : ColoredTreeCellRenderer() {
-
     override fun customizeCellRenderer(
         tree: JTree,
         value: Any?,
@@ -18,38 +17,40 @@ class CircleCITreeCellRenderer : ColoredTreeCellRenderer() {
         expanded: Boolean,
         leaf: Boolean,
         row: Int,
-        hasFocus: Boolean
+        hasFocus: Boolean,
     ) {
         if (value !is CircleCITreeNode) {
             return
         }
 
         // Set icon based on node type and status
-        icon = when (value) {
-            is RootNode -> CircleCIIcons.PLUGIN_ICON
-            is ProjectNode -> CircleCIIcons.PLUGIN_ICON
-            is LoadingNode -> null
-            is LoadMoreNode -> null
-            is EmptyNode -> null
-            is ErrorNode -> CircleCIIcons.Status.FAILED
-            else -> {
-                val status = value.getStatus()
-                if (status != null) {
-                    CircleCIIcons.getStatusIcon(status)
-                } else {
-                    null
+        icon =
+            when (value) {
+                is RootNode -> CircleCIIcons.PLUGIN_ICON
+                is ProjectNode -> CircleCIIcons.PLUGIN_ICON
+                is LoadingNode -> null
+                is LoadMoreNode -> null
+                is EmptyNode -> null
+                is ErrorNode -> CircleCIIcons.Status.FAILED
+                else -> {
+                    val status = value.getStatus()
+                    if (status != null) {
+                        CircleCIIcons.getStatusIcon(status)
+                    } else {
+                        null
+                    }
                 }
             }
-        }
 
         // Set text and attributes
-        val attributes = when (value) {
-            is LoadingNode -> SimpleTextAttributes.GRAYED_ITALIC_ATTRIBUTES
-            is LoadMoreNode -> SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES
-            is EmptyNode -> SimpleTextAttributes.GRAYED_ITALIC_ATTRIBUTES
-            is ErrorNode -> SimpleTextAttributes.ERROR_ATTRIBUTES
-            else -> SimpleTextAttributes.REGULAR_ATTRIBUTES
-        }
+        val attributes =
+            when (value) {
+                is LoadingNode -> SimpleTextAttributes.GRAYED_ITALIC_ATTRIBUTES
+                is LoadMoreNode -> SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES
+                is EmptyNode -> SimpleTextAttributes.GRAYED_ITALIC_ATTRIBUTES
+                is ErrorNode -> SimpleTextAttributes.ERROR_ATTRIBUTES
+                else -> SimpleTextAttributes.REGULAR_ATTRIBUTES
+            }
 
         append(value.getDisplayText(), attributes)
 

@@ -12,7 +12,6 @@ import com.intellij.openapi.project.Project
  */
 @Service(Service.Level.PROJECT)
 class CircleCIStatePersistence(private val project: Project) {
-
     private val properties: PropertiesComponent
         get() = PropertiesComponent.getInstance(project)
 
@@ -40,15 +39,16 @@ class CircleCIStatePersistence(private val project: Project) {
             val branchFilter = BranchFilter.valueOf(branchFilterName)
             val myPipelinesOnly = properties.getBoolean(KEY_MY_PIPELINES_ONLY, false)
             val statusFilterJson = properties.getValue(KEY_STATUS_FILTER, "[]")
-            val statusFilter = gson.fromJson<Set<String>>(
-                statusFilterJson,
-                object : TypeToken<Set<String>>() {}.type
-            )
+            val statusFilter =
+                gson.fromJson<Set<String>>(
+                    statusFilterJson,
+                    object : TypeToken<Set<String>>() {}.type,
+                )
 
             FiltersState(
                 branchFilter = branchFilter,
                 myPipelinesOnly = myPipelinesOnly,
-                statusFilter = statusFilter
+                statusFilter = statusFilter,
             )
         } catch (e: Exception) {
             null
@@ -89,29 +89,33 @@ class CircleCIStatePersistence(private val project: Project) {
     fun loadUIState(): UIState? {
         return try {
             val expandedItemsJson = properties.getValue(KEY_EXPANDED_ITEMS, "[]")
-            val expandedItems = gson.fromJson<Set<String>>(
-                expandedItemsJson,
-                object : TypeToken<Set<String>>() {}.type
-            )
+            val expandedItems =
+                gson.fromJson<Set<String>>(
+                    expandedItemsJson,
+                    object : TypeToken<Set<String>>() {}.type,
+                )
 
             val notificationsEnabled = properties.getBoolean(KEY_NOTIFICATIONS_ENABLED, true)
             val notificationsMyPipelines = properties.getBoolean(KEY_NOTIFICATIONS_MY_PIPELINES, false)
-            val notificationsStatusJson = properties.getValue(
-                KEY_NOTIFICATIONS_STATUS,
-                gson.toJson(setOf("failed", "failing", "canceled", "on_hold", "error", "unauthorized"))
-            )
-            val notificationsStatus = gson.fromJson<Set<String>>(
-                notificationsStatusJson,
-                object : TypeToken<Set<String>>() {}.type
-            )
+            val notificationsStatusJson =
+                properties.getValue(
+                    KEY_NOTIFICATIONS_STATUS,
+                    gson.toJson(setOf("failed", "failing", "canceled", "on_hold", "error", "unauthorized")),
+                )
+            val notificationsStatus =
+                gson.fromJson<Set<String>>(
+                    notificationsStatusJson,
+                    object : TypeToken<Set<String>>() {}.type,
+                )
 
             UIState(
                 expandedItems = expandedItems,
-                notificationPreferences = NotificationPreferences(
-                    enabled = notificationsEnabled,
-                    myPipelinesOnly = notificationsMyPipelines,
-                    statusFilter = notificationsStatus
-                )
+                notificationPreferences =
+                    NotificationPreferences(
+                        enabled = notificationsEnabled,
+                        myPipelinesOnly = notificationsMyPipelines,
+                        statusFilter = notificationsStatus,
+                    ),
             )
         } catch (e: Exception) {
             null

@@ -7,7 +7,8 @@ enum class VcsType(val shortCode: String, val displayName: String) {
     GITHUB("gh", "GitHub"),
     BITBUCKET("bb", "Bitbucket"),
     GITLAB("gl", "GitLab"),
-    CIRCLECI("circleci", "CircleCI");
+    CIRCLECI("circleci", "CircleCI"),
+    ;
 
     companion object {
         fun fromShortCode(code: String): VcsType? {

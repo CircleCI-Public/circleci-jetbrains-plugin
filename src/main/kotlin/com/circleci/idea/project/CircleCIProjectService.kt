@@ -1,6 +1,5 @@
 package com.circleci.idea.project
 
-import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.project.models.CircleCIProject
 import com.circleci.idea.state.CircleCIStateStore
@@ -16,7 +15,6 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 @Service(Service.Level.PROJECT)
 class CircleCIProjectService(private val project: Project) {
-
     private val logger = CircleCILogger.getInstance()
     private val scanner = GitRepositoryScanner(project)
     private val stateStore = project.getService(CircleCIStateStore::class.java)
@@ -112,7 +110,7 @@ class CircleCIProjectService(private val project: Project) {
             }.onFailure { error ->
                 logger.error("Failed to fetch followed projects: ${error.message}", error)
             }
-            */
+             */
         } catch (e: Exception) {
             logger.debug("Failed to fetch followed projects: ${e.message}")
         } finally {
@@ -135,10 +133,11 @@ class CircleCIProjectService(private val project: Project) {
                 // Update followed status for detected projects
                 val index = detectedProjects.indexOfFirst { it.slug == followedProject.slug }
                 if (index >= 0) {
-                    detectedProjects[index] = detectedProjects[index].copy(
-                        followed = true,
-                        defaultBranch = followedProject.defaultBranch ?: detectedProjects[index].defaultBranch
-                    )
+                    detectedProjects[index] =
+                        detectedProjects[index].copy(
+                            followed = true,
+                            defaultBranch = followedProject.defaultBranch ?: detectedProjects[index].defaultBranch,
+                        )
                 }
             }
         }

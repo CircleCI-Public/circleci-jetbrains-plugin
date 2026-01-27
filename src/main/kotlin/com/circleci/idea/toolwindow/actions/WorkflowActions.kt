@@ -20,9 +20,8 @@ import kotlinx.coroutines.withContext
 abstract class WorkflowAction(
     text: String,
     description: String,
-    icon: javax.swing.Icon? = null
+    icon: javax.swing.Icon? = null,
 ) : AnAction(text, description, icon), DumbAware {
-
     protected val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     /**
@@ -40,7 +39,7 @@ abstract class WorkflowAction(
     protected fun executeAction(
         e: AnActionEvent,
         confirmMessage: String?,
-        action: suspend (String) -> Result<Unit>
+        action: suspend (String) -> Result<Unit>,
     ) {
         val project = e.project ?: return
         val workflowNode = getWorkflowNode(e) ?: return
@@ -48,12 +47,13 @@ abstract class WorkflowAction(
 
         // Show confirmation dialog if needed
         if (confirmMessage != null) {
-            val result = Messages.showYesNoDialog(
-                project,
-                confirmMessage,
-                "Confirm Action",
-                Messages.getQuestionIcon()
-            )
+            val result =
+                Messages.showYesNoDialog(
+                    project,
+                    confirmMessage,
+                    "Confirm Action",
+                    Messages.getQuestionIcon(),
+                )
             if (result != Messages.YES) {
                 return
             }
@@ -63,9 +63,10 @@ abstract class WorkflowAction(
             val apiService = CircleCIApiService.getInstance()
 
             // Execute action
-            val result = withContext(Dispatchers.IO) {
-                action(workflowId)
-            }
+            val result =
+                withContext(Dispatchers.IO) {
+                    action(workflowId)
+                }
 
             // Handle result
             withContext(Dispatchers.Main) {
@@ -77,7 +78,7 @@ abstract class WorkflowAction(
                     Messages.showErrorDialog(
                         project,
                         "Failed to perform action: $error",
-                        "Action Failed"
+                        "Action Failed",
                     )
                 }
             }
@@ -101,7 +102,7 @@ abstract class WorkflowAction(
 class RerunWorkflowAction : WorkflowAction(
     "Rerun from Start",
     "Rerun this workflow from the beginning",
-    AllIcons.Actions.Execute
+    AllIcons.Actions.Execute,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val workflowNode = getWorkflowNode(e) ?: return
@@ -110,7 +111,7 @@ class RerunWorkflowAction : WorkflowAction(
             "Rerun workflow '${workflowNode.workflow.name}' from start?",
             { workflowId ->
                 CircleCIApiService.getInstance().rerunWorkflow(workflowId, fromFailed = false)
-            }
+            },
         )
     }
 
@@ -126,7 +127,7 @@ class RerunWorkflowAction : WorkflowAction(
 class RerunWorkflowFromFailedAction : WorkflowAction(
     "Rerun from Failed",
     "Rerun this workflow from failed jobs",
-    AllIcons.Actions.Restart
+    AllIcons.Actions.Restart,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val workflowNode = getWorkflowNode(e) ?: return
@@ -135,7 +136,7 @@ class RerunWorkflowFromFailedAction : WorkflowAction(
             "Rerun workflow '${workflowNode.workflow.name}' from failed jobs?",
             { workflowId ->
                 CircleCIApiService.getInstance().rerunWorkflow(workflowId, fromFailed = true)
-            }
+            },
         )
     }
 
@@ -151,7 +152,7 @@ class RerunWorkflowFromFailedAction : WorkflowAction(
 class CancelWorkflowAction : WorkflowAction(
     "Cancel Workflow",
     "Cancel this running workflow",
-    AllIcons.Actions.Suspend
+    AllIcons.Actions.Suspend,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val workflowNode = getWorkflowNode(e) ?: return
@@ -160,7 +161,7 @@ class CancelWorkflowAction : WorkflowAction(
             "Cancel workflow '${workflowNode.workflow.name}'?\n\nThis will stop all running jobs.",
             { workflowId ->
                 CircleCIApiService.getInstance().cancelWorkflow(workflowId)
-            }
+            },
         )
     }
 
@@ -176,19 +177,20 @@ class CancelWorkflowAction : WorkflowAction(
 class ApproveWorkflowAction : WorkflowAction(
     "Approve Workflow",
     "Approve this workflow to continue",
-    AllIcons.Actions.Checked
+    AllIcons.Actions.Checked,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val workflowNode = getWorkflowNode(e) ?: return
 
         // Get approval request ID from user
-        val approvalRequestId = Messages.showInputDialog(
-            project,
-            "Enter the approval request ID:",
-            "Approve Workflow",
-            Messages.getQuestionIcon()
-        )
+        val approvalRequestId =
+            Messages.showInputDialog(
+                project,
+                "Enter the approval request ID:",
+                "Approve Workflow",
+                Messages.getQuestionIcon(),
+            )
 
         if (approvalRequestId.isNullOrBlank()) {
             return
@@ -199,7 +201,7 @@ class ApproveWorkflowAction : WorkflowAction(
             "Approve workflow '${workflowNode.workflow.name}'?",
             { workflowId ->
                 CircleCIApiService.getInstance().approveWorkflow(workflowId, approvalRequestId)
-            }
+            },
         )
     }
 
@@ -215,7 +217,7 @@ class ApproveWorkflowAction : WorkflowAction(
 class OpenWorkflowInBrowserAction : WorkflowAction(
     "Open in Browser",
     "Open this workflow in CircleCI web interface",
-    AllIcons.Ide.External_link_arrow
+    AllIcons.Ide.External_link_arrow,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return

@@ -4,7 +4,6 @@ import com.circleci.idea.api.models.PipelineInfo
 import com.circleci.idea.git.GitBranchService
 import com.circleci.idea.state.BranchFilter
 import com.circleci.idea.state.CircleCIStateStore
-import com.circleci.idea.state.FiltersState
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 
@@ -13,7 +12,6 @@ import com.intellij.openapi.project.Project
  */
 @Service(Service.Level.PROJECT)
 class PipelineFilterService(private val project: Project) {
-
     private val stateStore = CircleCIStateStore.getInstance(project)
     private val gitService = GitBranchService.getInstance(project)
 
@@ -35,22 +33,27 @@ class PipelineFilterService(private val project: Project) {
     /**
      * Filter a list of pipelines based on current filter state.
      */
-    fun filterPipelines(pipelines: List<PipelineInfo>, currentUserId: String? = null): List<PipelineInfo> {
+    fun filterPipelines(
+        pipelines: List<PipelineInfo>,
+        currentUserId: String? = null,
+    ): List<PipelineInfo> {
         val filters = stateStore.filters.value
         var filtered = pipelines
 
         // Filter by status
         if (filters.statusFilter.isNotEmpty()) {
-            filtered = filtered.filter { pipeline ->
-                filters.statusFilter.contains(pipeline.state)
-            }
+            filtered =
+                filtered.filter { pipeline ->
+                    filters.statusFilter.contains(pipeline.state)
+                }
         }
 
         // Filter by author (my pipelines only)
         if (filters.myPipelinesOnly && currentUserId != null) {
-            filtered = filtered.filter { pipeline ->
-                pipeline.trigger?.actor?.login == currentUserId
-            }
+            filtered =
+                filtered.filter { pipeline ->
+                    pipeline.trigger?.actor?.login == currentUserId
+                }
         }
 
         return filtered
@@ -62,8 +65,8 @@ class PipelineFilterService(private val project: Project) {
     fun hasActiveFilters(): Boolean {
         val filters = stateStore.filters.value
         return filters.branchFilter != BranchFilter.ALL ||
-               filters.statusFilter.isNotEmpty() ||
-               filters.myPipelinesOnly
+            filters.statusFilter.isNotEmpty() ||
+            filters.myPipelinesOnly
     }
 
     /**

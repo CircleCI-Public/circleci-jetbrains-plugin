@@ -10,22 +10,24 @@ import com.intellij.openapi.ui.Messages
 /**
  * Action to manually add a CircleCI project by slug.
  */
-class AddProjectAction : AnAction(
-    "Add Project",
-    "Manually add a CircleCI project by slug (e.g., gh/org/repo)",
-    AllIcons.General.Add
-), DumbAware {
-
+class AddProjectAction :
+    AnAction(
+        "Add Project",
+        "Manually add a CircleCI project by slug (e.g., gh/org/repo)",
+        AllIcons.General.Add,
+    ),
+    DumbAware {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val projectService = project.getService(CircleCIProjectService::class.java)
 
-        val slug = Messages.showInputDialog(
-            project,
-            "Enter the CircleCI project slug:\n(Format: vcs/org/repo, e.g., gh/myorg/myrepo)",
-            "Add CircleCI Project",
-            Messages.getQuestionIcon()
-        )
+        val slug =
+            Messages.showInputDialog(
+                project,
+                "Enter the CircleCI project slug:\n(Format: vcs/org/repo, e.g., gh/myorg/myrepo)",
+                "Add CircleCI Project",
+                Messages.getQuestionIcon(),
+            )
 
         if (slug != null && slug.isNotBlank()) {
             val success = projectService.addProjectBySlug(slug.trim())
@@ -33,17 +35,17 @@ class AddProjectAction : AnAction(
                 Messages.showInfoMessage(
                     project,
                     "Project '$slug' has been added and selected.",
-                    "Project Added"
+                    "Project Added",
                 )
             } else {
                 Messages.showErrorDialog(
                     project,
                     "Invalid project slug format. Please use: vcs/org/repo\n" +
-                            "Examples:\n" +
-                            "  gh/myorg/myrepo (GitHub)\n" +
-                            "  bb/myorg/myrepo (Bitbucket)\n" +
-                            "  gl/myorg/myrepo (GitLab)",
-                    "Invalid Project Slug"
+                        "Examples:\n" +
+                        "  gh/myorg/myrepo (GitHub)\n" +
+                        "  bb/myorg/myrepo (Bitbucket)\n" +
+                        "  gl/myorg/myrepo (GitLab)",
+                    "Invalid Project Slug",
                 )
             }
         }

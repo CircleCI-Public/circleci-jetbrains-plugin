@@ -15,7 +15,6 @@ import kotlinx.coroutines.cancel
  */
 @Service(Service.Level.PROJECT)
 class CircleCIProjectService(private val project: Project) {
-
     // Coroutine scope for async operations
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

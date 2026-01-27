@@ -17,24 +17,25 @@ class LogoutAction : AnAction() {
             Messages.showInfoMessage(
                 project,
                 "You are not logged in.",
-                "Not Logged In"
+                "Not Logged In",
             )
             return
         }
 
-        val result = Messages.showYesNoDialog(
-            project,
-            "Are you sure you want to log out?",
-            "Confirm Logout",
-            Messages.getQuestionIcon()
-        )
+        val result =
+            Messages.showYesNoDialog(
+                project,
+                "Are you sure you want to log out?",
+                "Confirm Logout",
+                Messages.getQuestionIcon(),
+            )
 
         if (result == Messages.YES) {
             authService.logout()
             Messages.showInfoMessage(
                 project,
                 "You have been successfully logged out.",
-                "Logged Out"
+                "Logged Out",
             )
         }
     }

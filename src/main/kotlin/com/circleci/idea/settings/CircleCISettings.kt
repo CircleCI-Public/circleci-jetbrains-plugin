@@ -11,7 +11,7 @@ import com.intellij.util.xmlb.XmlSerializerUtil
  */
 @State(
     name = "CircleCISettings",
-    storages = [Storage("circleci.xml")]
+    storages = [Storage("circleci.xml")],
 )
 class CircleCISettings : PersistentStateComponent<CircleCISettings> {
     var hostUrl: String = "https://circleci.com"

@@ -26,9 +26,8 @@ import kotlin.math.pow
 class CircleCIApiClient(
     private val baseUrl: String = "https://circleci.com",
     private val token: String,
-    private val userAgent: String = "CircleCI-IntelliJ-Plugin/1.0.0"
+    private val userAgent: String = "CircleCI-IntelliJ-Plugin/1.0.0",
 ) {
-
     private val gson = Gson()
     private val mediaTypeJson = "application/json; charset=utf-8".toMediaType()
     private val logger = CircleCILogger.getInstance()
@@ -40,23 +39,28 @@ class CircleCIApiClient(
     private val rateLimiter = RateLimiter(maxRequestsPerSecond = 50)
 
     // OkHttp client with timeouts
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .addInterceptor(AuthInterceptor(token, userAgent))
-        .addInterceptor(RetryInterceptor(maxRetries = 3))
-        .build()
+    private val client =
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .addInterceptor(AuthInterceptor(token, userAgent))
+            .addInterceptor(RetryInterceptor(maxRetries = 3))
+            .build()
 
     /**
      * Execute a GET request.
      */
-    fun get(path: String, queryParams: Map<String, String> = emptyMap()): ApiResponse {
+    fun get(
+        path: String,
+        queryParams: Map<String, String> = emptyMap(),
+    ): ApiResponse {
         val url = buildUrl(path, queryParams)
-        val request = Request.Builder()
-            .url(url)
-            .get()
-            .build()
+        val request =
+            Request.Builder()
+                .url(url)
+                .get()
+                .build()
 
         return executeRequest(request)
     }
@@ -64,18 +68,23 @@ class CircleCIApiClient(
     /**
      * Execute a POST request.
      */
-    fun post(path: String, body: Any? = null): ApiResponse {
+    fun post(
+        path: String,
+        body: Any? = null,
+    ): ApiResponse {
         val url = buildUrl(path)
-        val jsonBody = if (body != null) {
-            gson.toJson(body).toRequestBody(mediaTypeJson)
-        } else {
-            "{}".toRequestBody(mediaTypeJson)
-        }
+        val jsonBody =
+            if (body != null) {
+                gson.toJson(body).toRequestBody(mediaTypeJson)
+            } else {
+                "{}".toRequestBody(mediaTypeJson)
+            }
 
-        val request = Request.Builder()
-            .url(url)
-            .post(jsonBody)
-            .build()
+        val request =
+            Request.Builder()
+                .url(url)
+                .post(jsonBody)
+                .build()
 
         return executeRequest(request)
     }
@@ -83,14 +92,18 @@ class CircleCIApiClient(
     /**
      * Execute a PUT request.
      */
-    fun put(path: String, body: Any): ApiResponse {
+    fun put(
+        path: String,
+        body: Any,
+    ): ApiResponse {
         val url = buildUrl(path)
         val jsonBody = gson.toJson(body).toRequestBody(mediaTypeJson)
 
-        val request = Request.Builder()
-            .url(url)
-            .put(jsonBody)
-            .build()
+        val request =
+            Request.Builder()
+                .url(url)
+                .put(jsonBody)
+                .build()
 
         return executeRequest(request)
     }
@@ -100,10 +113,11 @@ class CircleCIApiClient(
      */
     fun delete(path: String): ApiResponse {
         val url = buildUrl(path)
-        val request = Request.Builder()
-            .url(url)
-            .delete()
-            .build()
+        val request =
+            Request.Builder()
+                .url(url)
+                .delete()
+                .build()
 
         return executeRequest(request)
     }
@@ -153,7 +167,11 @@ class CircleCIApiClient(
     /**
      * Parse HTTP response into ApiResponse.
      */
-    private fun parseResponse(response: Response, request: Request, startTime: Long): ApiResponse {
+    private fun parseResponse(
+        response: Response,
+        request: Request,
+        startTime: Long,
+    ): ApiResponse {
         val code = response.code
         val body = response.body?.string() ?: ""
         val duration = System.currentTimeMillis() - startTime
@@ -181,12 +199,13 @@ class CircleCIApiClient(
                 ApiResponse.RateLimited(retryAfter)
             }
             else -> {
-                val errorMessage = try {
-                    val json = gson.fromJson(body, JsonObject::class.java)
-                    json.get("message")?.asString ?: "Request failed"
-                } catch (e: Exception) {
-                    "Request failed: $body"
-                }
+                val errorMessage =
+                    try {
+                        val json = gson.fromJson(body, JsonObject::class.java)
+                        json.get("message")?.asString ?: "Request failed"
+                    } catch (e: Exception) {
+                        "Request failed: $body"
+                    }
                 logger.logApiError(request.method, request.url.toString(), code, errorMessage)
                 ApiResponse.Error(errorMessage, code)
             }
@@ -196,16 +215,20 @@ class CircleCIApiClient(
     /**
      * Build full URL with base URL and query parameters.
      */
-    private fun buildUrl(path: String, queryParams: Map<String, String> = emptyMap()): String {
+    private fun buildUrl(
+        path: String,
+        queryParams: Map<String, String> = emptyMap(),
+    ): String {
         val cleanPath = path.trimStart('/')
         val url = "$baseUrl/$cleanPath"
 
         return if (queryParams.isEmpty()) {
             url
         } else {
-            val params = queryParams.entries.joinToString("&") { (key, value) ->
-                "$key=$value"
-            }
+            val params =
+                queryParams.entries.joinToString("&") { (key, value) ->
+                    "$key=$value"
+                }
             "$url?$params"
         }
     }
@@ -216,14 +239,15 @@ class CircleCIApiClient(
  */
 private class AuthInterceptor(
     private val token: String,
-    private val userAgent: String
+    private val userAgent: String,
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
-        val request = chain.request().newBuilder()
-            .header("Circle-Token", token)
-            .header("User-Agent", userAgent)
-            .header("Accept", "application/json")
-            .build()
+        val request =
+            chain.request().newBuilder()
+                .header("Circle-Token", token)
+                .header("User-Agent", userAgent)
+                .header("Accept", "application/json")
+                .build()
 
         return chain.proceed(request)
     }
@@ -291,7 +315,10 @@ private class RateLimiter(private val maxRequestsPerSecond: Int) {
  */
 sealed class ApiResponse {
     data class Success(val data: JsonObject, val code: Int) : ApiResponse()
+
     data class Error(val message: String, val code: Int) : ApiResponse()
+
     data class Unauthorized(val message: String) : ApiResponse()
+
     data class RateLimited(val retryAfter: Int) : ApiResponse()
 }

@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 @Service(Service.Level.PROJECT)
 class JobDataService(private val project: Project) {
-
     private val logger = CircleCILogger.getInstance()
     private val stateStore = project.getService(CircleCIStateStore::class.java)
     private val apiService = CircleCIApiService.getInstance()
@@ -38,7 +37,7 @@ class JobDataService(private val project: Project) {
      */
     suspend fun fetchJobs(
         projectSlug: String,
-        workflowId: String
+        workflowId: String,
     ): List<Job> {
         logger.info("Fetching jobs for workflow $workflowId")
         _isLoading.value = true
@@ -59,9 +58,8 @@ class JobDataService(private val project: Project) {
                 onFailure = { error ->
                     logger.error("Failed to fetch jobs for workflow $workflowId: ${error.message}", error)
                     emptyList()
-                }
+                },
             )
-
         } catch (e: Exception) {
             logger.error("Failed to fetch jobs for workflow $workflowId", e)
             return emptyList()
@@ -79,7 +77,7 @@ class JobDataService(private val project: Project) {
      */
     suspend fun fetchJobsForWorkflows(
         projectSlug: String,
-        workflowIds: List<String>
+        workflowIds: List<String>,
     ): Map<String, List<Job>> {
         logger.info("Fetching jobs for ${workflowIds.size} workflows")
 
@@ -99,7 +97,10 @@ class JobDataService(private val project: Project) {
      * @param projectSlug Project slug
      * @param workflowId Workflow ID
      */
-    suspend fun refreshJobs(projectSlug: String, workflowId: String) {
+    suspend fun refreshJobs(
+        projectSlug: String,
+        workflowId: String,
+    ) {
         logger.info("Refreshing jobs for workflow $workflowId")
         fetchJobs(projectSlug, workflowId)
     }
@@ -115,7 +116,7 @@ class JobDataService(private val project: Project) {
             status = jobInfo.status,
             type = jobInfo.type,
             startedAt = jobInfo.startedAt,
-            stoppedAt = jobInfo.stoppedAt
+            stoppedAt = jobInfo.stoppedAt,
         )
     }
 

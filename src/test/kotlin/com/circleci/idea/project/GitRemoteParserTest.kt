@@ -5,7 +5,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class GitRemoteParserTest {
-
     @Test
     fun `should parse HTTPS GitHub URL`() {
         val url = "https://github.com/circleci/circleci.git"

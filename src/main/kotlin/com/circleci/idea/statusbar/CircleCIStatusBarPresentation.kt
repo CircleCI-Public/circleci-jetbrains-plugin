@@ -13,7 +13,6 @@ import javax.swing.Icon
  * Shows current pipeline status with color coding and icon.
  */
 class CircleCIStatusBarPresentation(private val project: Project) : StatusBarWidget.IconPresentation {
-
     private var isAuthenticated: Boolean = false
     private var isLoading: Boolean = false
     private var latestStatus: String? = null
@@ -28,7 +27,10 @@ class CircleCIStatusBarPresentation(private val project: Project) : StatusBarWid
     /**
      * Update pipeline status.
      */
-    fun updatePipelineStatus(isLoading: Boolean, latestStatus: String?) {
+    fun updatePipelineStatus(
+        isLoading: Boolean,
+        latestStatus: String?,
+    ) {
         this.isLoading = isLoading
         this.latestStatus = latestStatus
     }

@@ -9,7 +9,6 @@ import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
-import java.awt.Component
 import java.awt.event.ActionEvent
 import javax.swing.*
 
@@ -18,9 +17,8 @@ import javax.swing.*
  * Allows users to enter their API token and optionally configure the host URL.
  */
 class CircleCILoginDialog(
-    private val project: Project
+    private val project: Project,
 ) : DialogWrapper(project) {
-
     private val tokenField = JBPasswordField()
     private val hostUrlField = JBTextField()
     private val authService = CircleCIAuthService.getInstance(project)
@@ -32,19 +30,21 @@ class CircleCILoginDialog(
     }
 
     override fun createCenterPanel(): JComponent {
-        val instructionsLabel = JBLabel(
-            "<html>Enter your CircleCI personal API token.<br>" +
-                    "You can create one at: <a href='https://app.circleci.com/settings/user/tokens'>CircleCI Settings</a></html>"
-        )
+        val instructionsLabel =
+            JBLabel(
+                "<html>Enter your CircleCI personal API token.<br>" +
+                    "You can create one at: <a href='https://app.circleci.com/settings/user/tokens'>CircleCI Settings</a></html>",
+            )
         instructionsLabel.setCopyable(true)
 
-        val panel = FormBuilder.createFormBuilder()
-            .addComponent(instructionsLabel, JBUI.scale(10))
-            .addSeparator(JBUI.scale(10))
-            .addLabeledComponent(JBLabel("API Token:"), tokenField, 1, false)
-            .addLabeledComponent(JBLabel("Host URL:"), hostUrlField, 1, false)
-            .addComponentFillVertically(JPanel(), 0)
-            .panel
+        val panel =
+            FormBuilder.createFormBuilder()
+                .addComponent(instructionsLabel, JBUI.scale(10))
+                .addSeparator(JBUI.scale(10))
+                .addLabeledComponent(JBLabel("API Token:"), tokenField, 1, false)
+                .addLabeledComponent(JBLabel("Host URL:"), hostUrlField, 1, false)
+                .addComponentFillVertically(JPanel(), 0)
+                .panel
 
         panel.preferredSize = JBUI.size(450, 200)
         return panel
@@ -58,7 +58,7 @@ class CircleCILoginDialog(
             Messages.showErrorDialog(
                 project,
                 "Please enter your CircleCI API token",
-                "Token Required"
+                "Token Required",
             )
             return
         }
@@ -67,7 +67,7 @@ class CircleCILoginDialog(
             Messages.showErrorDialog(
                 project,
                 "Please enter a valid CircleCI host URL",
-                "Invalid URL"
+                "Invalid URL",
             )
             return
         }
@@ -80,7 +80,7 @@ class CircleCILoginDialog(
                 Messages.showInfoMessage(
                     project,
                     "Successfully authenticated as ${user.name}",
-                    "Login Successful"
+                    "Login Successful",
                 )
                 super.doOKAction()
             },
@@ -88,9 +88,9 @@ class CircleCILoginDialog(
                 Messages.showErrorDialog(
                     project,
                     "Authentication failed: ${error.message}",
-                    "Login Failed"
+                    "Login Failed",
                 )
-            }
+            },
         )
     }
 
@@ -104,12 +104,12 @@ class CircleCILoginDialog(
                 Messages.showInfoMessage(
                     project,
                     "To create a CircleCI personal API token:\n\n" +
-                            "1. Go to https://app.circleci.com/settings/user/tokens\n" +
-                            "2. Click 'Create New Token'\n" +
-                            "3. Give it a name (e.g., 'IntelliJ Plugin')\n" +
-                            "4. Copy the token and paste it here\n\n" +
-                            "Note: The token will only be shown once, so make sure to copy it!",
-                    "How to Get an API Token"
+                        "1. Go to https://app.circleci.com/settings/user/tokens\n" +
+                        "2. Click 'Create New Token'\n" +
+                        "3. Give it a name (e.g., 'IntelliJ Plugin')\n" +
+                        "4. Copy the token and paste it here\n\n" +
+                        "Note: The token will only be shown once, so make sure to copy it!",
+                    "How to Get an API Token",
                 )
             }
         }
@@ -117,11 +117,12 @@ class CircleCILoginDialog(
 
     private fun isValidUrl(url: String): Boolean {
         return try {
-            val normalized = if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                "https://$url"
-            } else {
-                url
-            }
+            val normalized =
+                if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                    "https://$url"
+                } else {
+                    url
+                }
             java.net.URL(normalized)
             true
         } catch (e: Exception) {

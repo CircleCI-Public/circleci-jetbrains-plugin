@@ -10,7 +10,6 @@ import com.intellij.openapi.wm.StatusBarWidgetFactory
  * Creates and manages the lifecycle of the status bar widget.
  */
 class CircleCIStatusBarWidgetFactory : StatusBarWidgetFactory {
-
     override fun getId(): String = "CircleCIStatusBar"
 
     override fun getDisplayName(): String = "CircleCI"

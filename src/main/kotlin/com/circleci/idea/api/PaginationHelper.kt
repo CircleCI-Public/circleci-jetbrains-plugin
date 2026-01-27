@@ -7,7 +7,6 @@ import com.circleci.idea.logging.CircleCILogger
  * Helper for handling paginated API requests.
  */
 object PaginationHelper {
-
     private val logger = CircleCILogger.getInstance()
 
     /**
@@ -19,7 +18,7 @@ object PaginationHelper {
      */
     suspend fun <T> fetchAllPages(
         maxPages: Int = 100,
-        fetcher: suspend (pageToken: String?) -> Result<PaginatedResponse<T>>
+        fetcher: suspend (pageToken: String?) -> Result<PaginatedResponse<T>>,
     ): List<T> {
         val allItems = mutableListOf<T>()
         var pageToken: String? = null
@@ -66,7 +65,7 @@ object PaginationHelper {
      */
     suspend fun <T> fetchMultiplePages(
         depth: Int,
-        fetcher: suspend (pageToken: String?) -> Result<PaginatedResponse<T>>
+        fetcher: suspend (pageToken: String?) -> Result<PaginatedResponse<T>>,
     ): Pair<List<T>, String?> {
         val allItems = mutableListOf<T>()
         var pageToken: String? = null
@@ -83,7 +82,7 @@ object PaginationHelper {
                 allItems.addAll(response.items)
                 pageToken = response.nextPageToken
 
-                logger.debug("Fetched page ${pageIndex + 1}/${depth} with ${response.items.size} items")
+                logger.debug("Fetched page ${pageIndex + 1}/$depth with ${response.items.size} items")
 
                 // If no next page token, stop early
                 if (pageToken == null) {
@@ -111,7 +110,7 @@ object PaginationHelper {
      */
     suspend fun <T> fetchPage(
         pageToken: String? = null,
-        fetcher: suspend (pageToken: String?) -> Result<PaginatedResponse<T>>
+        fetcher: suspend (pageToken: String?) -> Result<PaginatedResponse<T>>,
     ): Pair<List<T>, String?> {
         logger.debug("Fetching single page" + if (pageToken != null) " (token: ${pageToken.take(10)}...)" else "")
 
@@ -125,7 +124,7 @@ object PaginationHelper {
             onFailure = { error ->
                 logger.error("Failed to fetch page: ${error.message}", error)
                 Pair(emptyList(), null)
-            }
+            },
         )
     }
 }

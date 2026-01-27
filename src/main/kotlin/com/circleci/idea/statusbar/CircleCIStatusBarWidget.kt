@@ -6,7 +6,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
-import com.intellij.openapi.wm.WindowManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 
@@ -15,7 +14,6 @@ import kotlinx.coroutines.flow.collectLatest
  * Shows the current status of the latest pipeline/workflow.
  */
 class CircleCIStatusBarWidget(private val project: Project) : StatusBarWidget {
-
     private val logger = CircleCILogger.getInstance()
     private val stateStore = CircleCIStateStore.getInstance(project)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -62,7 +60,7 @@ class CircleCIStatusBarWidget(private val project: Project) : StatusBarWidget {
                 val latestStatus = findLatestWorkflowStatus(projectsDataState)
                 presentation.updatePipelineStatus(
                     isLoading = projectsDataState.isRefreshing,
-                    latestStatus = latestStatus
+                    latestStatus = latestStatus,
                 )
                 updateWidget()
             }
@@ -73,10 +71,11 @@ class CircleCIStatusBarWidget(private val project: Project) : StatusBarWidget {
      * Find the latest workflow status across all projects.
      */
     private fun findLatestWorkflowStatus(projectsDataState: com.circleci.idea.state.ProjectsDataState): String? {
-        val allWorkflows = projectsDataState.data.values
-            .flatMap { it.pipelines }
-            .flatMap { it.workflows }
-            .sortedByDescending { it.createdAt }
+        val allWorkflows =
+            projectsDataState.data.values
+                .flatMap { it.pipelines }
+                .flatMap { it.workflows }
+                .sortedByDescending { it.createdAt }
 
         return allWorkflows.firstOrNull()?.status
     }

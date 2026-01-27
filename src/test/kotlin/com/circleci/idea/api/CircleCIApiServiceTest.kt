@@ -2,16 +2,16 @@ package com.circleci.idea.api
 
 import com.circleci.idea.api.models.*
 import com.google.gson.Gson
-import org.junit.Test
 import org.junit.Assert.*
+import org.junit.Test
 
 class CircleCIApiServiceTest {
-
     private val gson = Gson()
 
     @Test
     fun testJobInfoDeserialization() {
-        val json = """
+        val json =
+            """
             {
                 "id": "job-123",
                 "job_number": 456,
@@ -24,7 +24,7 @@ class CircleCIApiServiceTest {
                 "dependencies": ["job-1", "job-2"],
                 "approved_by": null
             }
-        """.trimIndent()
+            """.trimIndent()
 
         val jobInfo = gson.fromJson(json, JobInfo::class.java)
 
@@ -43,7 +43,8 @@ class CircleCIApiServiceTest {
     @Test
     fun testJobInfoDeserializationWithNullJobNumber() {
         // Test that jobNumber can be null (important for our bug fix)
-        val json = """
+        val json =
+            """
             {
                 "id": "job-123",
                 "name": "build",
@@ -55,7 +56,7 @@ class CircleCIApiServiceTest {
                 "dependencies": [],
                 "approved_by": null
             }
-        """.trimIndent()
+            """.trimIndent()
 
         val jobInfo = gson.fromJson(json, JobInfo::class.java)
 
@@ -66,7 +67,8 @@ class CircleCIApiServiceTest {
 
     @Test
     fun testJobDetailsInfoDeserialization() {
-        val json = """
+        val json =
+            """
             {
                 "id": "job-123",
                 "job_number": 456,
@@ -103,7 +105,7 @@ class CircleCIApiServiceTest {
                 },
                 "web_url": "https://app.circleci.com/pipelines/gh/test/repo/jobs/456"
             }
-        """.trimIndent()
+            """.trimIndent()
 
         val jobDetails = gson.fromJson(json, JobDetailsInfo::class.java)
 
@@ -126,7 +128,8 @@ class CircleCIApiServiceTest {
 
     @Test
     fun testPipelineInfoDeserialization() {
-        val json = """
+        val json =
+            """
             {
                 "id": "pipeline-123",
                 "number": 1,
@@ -148,7 +151,7 @@ class CircleCIApiServiceTest {
                     }
                 }
             }
-        """.trimIndent()
+            """.trimIndent()
 
         val pipeline = gson.fromJson(json, PipelineInfo::class.java)
 
@@ -164,7 +167,8 @@ class CircleCIApiServiceTest {
 
     @Test
     fun testWorkflowInfoDeserialization() {
-        val json = """
+        val json =
+            """
             {
                 "id": "workflow-123",
                 "name": "build-and-test",
@@ -172,7 +176,7 @@ class CircleCIApiServiceTest {
                 "created_at": "2024-01-01T00:00:00Z",
                 "stopped_at": "2024-01-01T00:10:00Z"
             }
-        """.trimIndent()
+            """.trimIndent()
 
         val workflow = gson.fromJson(json, WorkflowInfo::class.java)
 
@@ -185,7 +189,8 @@ class CircleCIApiServiceTest {
 
     @Test
     fun testPaginatedResponseDeserialization() {
-        val json = """
+        val json =
+            """
             {
                 "items": [
                     {
@@ -202,9 +207,13 @@ class CircleCIApiServiceTest {
                 ],
                 "next_page_token": "next-token-123"
             }
-        """.trimIndent()
+            """.trimIndent()
 
-        val response = gson.fromJson(json, object : com.google.gson.reflect.TypeToken<PaginatedResponse<JobInfo>>() {}.type) as PaginatedResponse<JobInfo>
+        val response =
+            gson.fromJson(
+                json,
+                object : com.google.gson.reflect.TypeToken<PaginatedResponse<JobInfo>>() {}.type,
+            ) as PaginatedResponse<JobInfo>
 
         assertEquals(1, response.items.size)
         assertEquals("job-1", response.items.first().id)
@@ -213,7 +222,8 @@ class CircleCIApiServiceTest {
 
     @Test
     fun testProjectInfoDeserialization() {
-        val json = """
+        val json =
+            """
             {
                 "slug": "gh/test/repo",
                 "name": "repo",
@@ -223,7 +233,7 @@ class CircleCIApiServiceTest {
                     "default_branch": "main"
                 }
             }
-        """.trimIndent()
+            """.trimIndent()
 
         val project = gson.fromJson(json, ProjectInfo::class.java)
 
@@ -236,7 +246,8 @@ class CircleCIApiServiceTest {
 
     @Test
     fun testJobStepInfoWithMultipleActions() {
-        val json = """
+        val json =
+            """
             {
                 "name": "Build",
                 "actions": [
@@ -256,7 +267,7 @@ class CircleCIApiServiceTest {
                     }
                 ]
             }
-        """.trimIndent()
+            """.trimIndent()
 
         val step = gson.fromJson(json, JobStepInfo::class.java)
 
@@ -271,7 +282,8 @@ class CircleCIApiServiceTest {
 
     @Test
     fun testApprovalJobType() {
-        val json = """
+        val json =
+            """
             {
                 "id": "job-123",
                 "job_number": 456,
@@ -284,7 +296,7 @@ class CircleCIApiServiceTest {
                 "dependencies": [],
                 "approved_by": null
             }
-        """.trimIndent()
+            """.trimIndent()
 
         val jobInfo = gson.fromJson(json, JobInfo::class.java)
 
@@ -296,12 +308,13 @@ class CircleCIApiServiceTest {
 
     @Test
     fun testConfigValidationResponse() {
-        val json = """
+        val json =
+            """
             {
                 "valid": true,
                 "errors": []
             }
-        """.trimIndent()
+            """.trimIndent()
 
         val response = gson.fromJson(json, ConfigValidationResponse::class.java)
 
@@ -311,7 +324,8 @@ class CircleCIApiServiceTest {
 
     @Test
     fun testConfigValidationResponseWithErrors() {
-        val json = """
+        val json =
+            """
             {
                 "valid": false,
                 "errors": [
@@ -319,7 +333,7 @@ class CircleCIApiServiceTest {
                     {"message": "Unknown job reference"}
                 ]
             }
-        """.trimIndent()
+            """.trimIndent()
 
         val response = gson.fromJson(json, ConfigValidationResponse::class.java)
 

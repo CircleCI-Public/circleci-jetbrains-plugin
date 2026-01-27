@@ -19,7 +19,6 @@ import com.intellij.openapi.project.Project
  */
 @Service(Service.Level.PROJECT)
 class CircleCIAuthService(private val project: Project) {
-
     private val log = logger<CircleCIAuthService>()
     private val passwordSafe = PasswordSafe.instance
     private val apiService = CircleCIApiService.getInstance()
@@ -53,7 +52,10 @@ class CircleCIAuthService(private val project: Project) {
      * Authenticate with a token.
      * Validates the token and stores it securely if valid.
      */
-    fun login(token: String, hostUrl: String? = null): Result<User> {
+    fun login(
+        token: String,
+        hostUrl: String? = null,
+    ): Result<User> {
         val settings = CircleCISettings.getInstance()
         val effectiveHostUrl = hostUrl ?: settings.hostUrl
 
@@ -71,11 +73,12 @@ class CircleCIAuthService(private val project: Project) {
                 }
 
                 // Create user object
-                val user = User(
-                    id = userInfo.id,
-                    login = userInfo.login,
-                    name = userInfo.name ?: userInfo.login
-                )
+                val user =
+                    User(
+                        id = userInfo.id,
+                        login = userInfo.login,
+                        name = userInfo.name ?: userInfo.login,
+                    )
 
                 // Update state
                 updateAuthState { state ->
@@ -84,7 +87,7 @@ class CircleCIAuthService(private val project: Project) {
                         token = redactToken(token),
                         hostUrl = effectiveHostUrl,
                         user = user,
-                        error = null
+                        error = null,
                     )
                 }
 
@@ -101,12 +104,12 @@ class CircleCIAuthService(private val project: Project) {
                         isAuthenticated = false,
                         token = null,
                         user = null,
-                        error = errorMessage
+                        error = errorMessage,
                     )
                 }
 
                 Result.failure(error)
-            }
+            },
         )
     }
 
@@ -143,17 +146,18 @@ class CircleCIAuthService(private val project: Project) {
 
         return apiService.getCurrentUser().fold(
             onSuccess = { userInfo ->
-                val user = User(
-                    id = userInfo.id,
-                    login = userInfo.login,
-                    name = userInfo.name ?: userInfo.login
-                )
+                val user =
+                    User(
+                        id = userInfo.id,
+                        login = userInfo.login,
+                        name = userInfo.name ?: userInfo.login,
+                    )
 
                 updateAuthState { state ->
                     state.copy(
                         isAuthenticated = true,
                         user = user,
-                        error = null
+                        error = null,
                     )
                 }
 
@@ -165,12 +169,12 @@ class CircleCIAuthService(private val project: Project) {
                 updateAuthState { state ->
                     state.copy(
                         isAuthenticated = false,
-                        error = error.message
+                        error = error.message,
                     )
                 }
 
                 Result.failure(error)
-            }
+            },
         )
     }
 
@@ -184,7 +188,7 @@ class CircleCIAuthService(private val project: Project) {
         updateAuthState { state ->
             state.copy(
                 isAuthenticated = false,
-                error = error
+                error = error,
             )
         }
     }
@@ -203,7 +207,7 @@ class CircleCIAuthService(private val project: Project) {
     private fun createCredentialAttributes(): CredentialAttributes {
         return CredentialAttributes(
             serviceName = CREDENTIAL_SERVICE_NAME,
-            userName = CREDENTIAL_USER_NAME
+            userName = CREDENTIAL_USER_NAME,
         )
     }
 

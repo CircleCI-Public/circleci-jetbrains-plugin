@@ -8,7 +8,6 @@ import com.intellij.openapi.project.Project
  */
 @Service(Service.Level.PROJECT)
 class GitBranchService(private val project: Project) {
-
     /**
      * Get the current branch name for the given project slug.
      * Returns null if no git repository is found or if there's an error.

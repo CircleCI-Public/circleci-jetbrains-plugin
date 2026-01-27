@@ -10,7 +10,6 @@ import java.io.File
  * Scans workspace for git repositories and detects CircleCI projects.
  */
 class GitRepositoryScanner(private val project: Project) {
-
     private val logger = CircleCILogger.getInstance()
 
     /**
@@ -28,6 +27,7 @@ class GitRepositoryScanner(private val project: Project) {
             val gitRepositoryManager = getInstance.invoke(null, project) ?: return emptyList()
 
             val getRepositories = gitRepositoryManagerClass.getMethod("getRepositories")
+
             @Suppress("UNCHECKED_CAST")
             val repositories = getRepositories.invoke(gitRepositoryManager) as List<*>
 
@@ -65,6 +65,7 @@ class GitRepositoryScanner(private val project: Project) {
 
             // Get remote URLs
             val getRemotes = repositoryClass.getMethod("getRemotes")
+
             @Suppress("UNCHECKED_CAST")
             val remotes = getRemotes.invoke(repository) as Collection<*>
             logger.debug("Found ${remotes.size} remotes")
@@ -75,6 +76,7 @@ class GitRepositoryScanner(private val project: Project) {
                 val remoteName = getName.invoke(remote) as String
 
                 val getUrls = remoteClass.getMethod("getUrls")
+
                 @Suppress("UNCHECKED_CAST")
                 val urls = getUrls.invoke(remote) as Collection<String>
                 logger.debug("Remote '$remoteName' has ${urls.size} URLs")
@@ -85,9 +87,10 @@ class GitRepositoryScanner(private val project: Project) {
                     val project = GitRemoteParser.parseRemoteUrl(url)
                     if (project != null) {
                         // Add local path information
-                        val projectWithPath = project.copy(
-                            localPath = root.path
-                        )
+                        val projectWithPath =
+                            project.copy(
+                                localPath = root.path,
+                            )
                         projects.add(projectWithPath)
                         logger.info("Detected project: ${projectWithPath.slug} at ${root.path}")
                     } else {

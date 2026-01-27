@@ -27,7 +27,6 @@ import javax.swing.*
  * Panel for displaying and managing job artifacts.
  */
 class ArtifactsPanel(private val project: Project) : JPanel(BorderLayout()) {
-
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val jobDetailsService = project.getService(JobDetailsService::class.java)
 
@@ -48,16 +47,18 @@ class ArtifactsPanel(private val project: Project) : JPanel(BorderLayout()) {
         artifactList.selectionMode = ListSelectionModel.SINGLE_SELECTION
 
         // Add double-click to download
-        artifactList.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                if (e.clickCount == 2) {
-                    val selectedArtifact = artifactList.selectedValue
-                    if (selectedArtifact != null) {
-                        downloadArtifact(selectedArtifact)
+        artifactList.addMouseListener(
+            object : MouseAdapter() {
+                override fun mouseClicked(e: MouseEvent) {
+                    if (e.clickCount == 2) {
+                        val selectedArtifact = artifactList.selectedValue
+                        if (selectedArtifact != null) {
+                            downloadArtifact(selectedArtifact)
+                        }
                     }
                 }
-            }
-        })
+            },
+        )
 
         // Add right-click context menu
         artifactList.componentPopupMenu = createContextMenu()
@@ -69,7 +70,10 @@ class ArtifactsPanel(private val project: Project) : JPanel(BorderLayout()) {
     /**
      * Load artifacts for a job.
      */
-    fun loadArtifacts(projectSlug: String, jobNumber: Long) {
+    fun loadArtifacts(
+        projectSlug: String,
+        jobNumber: Long,
+    ) {
         showLoadingState()
 
         scope.launch {
@@ -85,7 +89,7 @@ class ArtifactsPanel(private val project: Project) : JPanel(BorderLayout()) {
                     },
                     onFailure = { error ->
                         showErrorState("Failed to load artifacts: ${error.message}")
-                    }
+                    },
                 )
             } catch (e: Exception) {
                 showErrorState("Error loading artifacts: ${e.message}")
@@ -189,62 +193,65 @@ class ArtifactsPanel(private val project: Project) : JPanel(BorderLayout()) {
             val targetFile = fileChooser.selectedFile
 
             // Download with progress indicator
-            ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Downloading ${artifact.prettyPath ?: "artifact"}", true) {
-                override fun run(indicator: ProgressIndicator) {
-                    try {
-                        indicator.text = "Downloading ${artifact.prettyPath ?: "artifact"}..."
-                        indicator.isIndeterminate = false
+            ProgressManager.getInstance().run(
+                object : Task.Backgroundable(project, "Downloading ${artifact.prettyPath ?: "artifact"}", true) {
+                    override fun run(indicator: ProgressIndicator) {
+                        try {
+                            indicator.text = "Downloading ${artifact.prettyPath ?: "artifact"}..."
+                            indicator.isIndeterminate = false
 
-                        val url = URL(artifact.url)
-                        val connection = url.openConnection()
-                        val contentLength = connection.contentLengthLong
+                            val url = URL(artifact.url)
+                            val connection = url.openConnection()
+                            val contentLength = connection.contentLengthLong
 
-                        connection.getInputStream().use { input ->
-                            FileOutputStream(targetFile).use { output ->
-                                val buffer = ByteArray(8192)
-                                var bytesRead: Int
-                                var totalBytesRead = 0L
+                            connection.getInputStream().use { input ->
+                                FileOutputStream(targetFile).use { output ->
+                                    val buffer = ByteArray(8192)
+                                    var bytesRead: Int
+                                    var totalBytesRead = 0L
 
-                                while (input.read(buffer).also { bytesRead = it } != -1) {
-                                    if (indicator.isCanceled) {
-                                        targetFile.delete()
-                                        return
-                                    }
+                                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                                        if (indicator.isCanceled) {
+                                            targetFile.delete()
+                                            return
+                                        }
 
-                                    output.write(buffer, 0, bytesRead)
-                                    totalBytesRead += bytesRead
+                                        output.write(buffer, 0, bytesRead)
+                                        totalBytesRead += bytesRead
 
-                                    if (contentLength > 0) {
-                                        indicator.fraction = totalBytesRead.toDouble() / contentLength
-                                        indicator.text = "Downloaded ${formatBytes(totalBytesRead)} of ${formatBytes(contentLength)}"
+                                        if (contentLength > 0) {
+                                            indicator.fraction = totalBytesRead.toDouble() / contentLength
+                                            indicator.text = "Downloaded ${formatBytes(
+                                                totalBytesRead,
+                                            )} of ${formatBytes(contentLength)}"
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        SwingUtilities.invokeLater {
-                            Messages.showInfoMessage(
-                                project,
-                                "Artifact downloaded successfully to:\n${targetFile.absolutePath}",
-                                "Download Complete"
-                            )
-                        }
+                            SwingUtilities.invokeLater {
+                                Messages.showInfoMessage(
+                                    project,
+                                    "Artifact downloaded successfully to:\n${targetFile.absolutePath}",
+                                    "Download Complete",
+                                )
+                            }
+                        } catch (e: Exception) {
+                            if (targetFile.exists()) {
+                                targetFile.delete()
+                            }
 
-                    } catch (e: Exception) {
-                        if (targetFile.exists()) {
-                            targetFile.delete()
-                        }
-
-                        SwingUtilities.invokeLater {
-                            Messages.showErrorDialog(
-                                project,
-                                "Failed to download artifact: ${e.message}",
-                                "Download Failed"
-                            )
+                            SwingUtilities.invokeLater {
+                                Messages.showErrorDialog(
+                                    project,
+                                    "Failed to download artifact: ${e.message}",
+                                    "Download Failed",
+                                )
+                            }
                         }
                     }
-                }
-            })
+                },
+            )
         }
     }
 
@@ -269,7 +276,7 @@ class ArtifactsPanel(private val project: Project) : JPanel(BorderLayout()) {
             value: Any?,
             index: Int,
             isSelected: Boolean,
-            cellHasFocus: Boolean
+            cellHasFocus: Boolean,
         ): Component {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
 

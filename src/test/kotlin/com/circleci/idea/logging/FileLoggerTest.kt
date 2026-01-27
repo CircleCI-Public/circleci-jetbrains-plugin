@@ -8,7 +8,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 class FileLoggerTest {
-
     @get:Rule
     val tempFolder = TemporaryFolder()
 
@@ -73,9 +72,10 @@ class FileLoggerTest {
         logger.close()
 
         // Count log files
-        val logFileCount = Files.list(tempDir)
-            .filter { it.fileName.toString().startsWith("circleci.log") }
-            .count()
+        val logFileCount =
+            Files.list(tempDir)
+                .filter { it.fileName.toString().startsWith("circleci.log") }
+                .count()
 
         assertTrue("Should not exceed maximum number of log files", logFileCount <= maxFiles)
     }
@@ -116,13 +116,14 @@ class FileLoggerTest {
     @Test
     fun `should handle concurrent writes safely`() {
         val logger = FileLogger(tempDir)
-        val threads = (1..10).map { threadNum ->
-            Thread {
-                repeat(10) {
-                    logger.write("Thread $threadNum message $it")
+        val threads =
+            (1..10).map { threadNum ->
+                Thread {
+                    repeat(10) {
+                        logger.write("Thread $threadNum message $it")
+                    }
                 }
             }
-        }
 
         threads.forEach { it.start() }
         threads.forEach { it.join() }

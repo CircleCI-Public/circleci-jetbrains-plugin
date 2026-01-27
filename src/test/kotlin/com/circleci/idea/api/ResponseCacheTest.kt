@@ -6,7 +6,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ResponseCacheTest {
-
     @Test
     fun `should store and retrieve values`() {
         val cache = ResponseCache<String, Int>()
@@ -26,60 +25,66 @@ class ResponseCacheTest {
     }
 
     @Test
-    fun `should expire entries after TTL`() = runBlocking {
-        val cache = ResponseCache<String, Int>(defaultTtlMs = 100)
+    fun `should expire entries after TTL`() =
+        runBlocking {
+            val cache = ResponseCache<String, Int>(defaultTtlMs = 100)
 
-        cache.put("key", 100)
-        assertEquals(100, cache.get("key"))
+            cache.put("key", 100)
+            assertEquals(100, cache.get("key"))
 
-        delay(150)
+            delay(150)
 
-        assertNull("Entry should be expired", cache.get("key"))
-    }
-
-    @Test
-    fun `should respect custom TTL`() = runBlocking {
-        val cache = ResponseCache<String, Int>(defaultTtlMs = 1000)
-
-        cache.put("key1", 100, ttlMs = 50)
-        cache.put("key2", 200, ttlMs = 200)
-
-        delay(100)
-
-        assertNull("key1 should be expired", cache.get("key1"))
-        assertEquals("key2 should still be valid", 200, cache.get("key2"))
-    }
-
-    @Test
-    fun `getOrPut should return cached value if present`() = runBlocking {
-        val cache = ResponseCache<String, Int>()
-        var computeCount = 0
-
-        cache.put("key", 100)
-
-        val value = cache.getOrPut("key") {
-            computeCount++
-            200
+            assertNull("Entry should be expired", cache.get("key"))
         }
 
-        assertEquals(100, value)
-        assertEquals("Compute function should not be called", 0, computeCount)
-    }
-
     @Test
-    fun `getOrPut should compute and cache if not present`() = runBlocking {
-        val cache = ResponseCache<String, Int>()
-        var computeCount = 0
+    fun `should respect custom TTL`() =
+        runBlocking {
+            val cache = ResponseCache<String, Int>(defaultTtlMs = 1000)
 
-        val value = cache.getOrPut("key") {
-            computeCount++
-            100
+            cache.put("key1", 100, ttlMs = 50)
+            cache.put("key2", 200, ttlMs = 200)
+
+            delay(100)
+
+            assertNull("key1 should be expired", cache.get("key1"))
+            assertEquals("key2 should still be valid", 200, cache.get("key2"))
         }
 
-        assertEquals(100, value)
-        assertEquals(1, computeCount)
-        assertEquals(100, cache.get("key"))
-    }
+    @Test
+    fun `getOrPut should return cached value if present`() =
+        runBlocking {
+            val cache = ResponseCache<String, Int>()
+            var computeCount = 0
+
+            cache.put("key", 100)
+
+            val value =
+                cache.getOrPut("key") {
+                    computeCount++
+                    200
+                }
+
+            assertEquals(100, value)
+            assertEquals("Compute function should not be called", 0, computeCount)
+        }
+
+    @Test
+    fun `getOrPut should compute and cache if not present`() =
+        runBlocking {
+            val cache = ResponseCache<String, Int>()
+            var computeCount = 0
+
+            val value =
+                cache.getOrPut("key") {
+                    computeCount++
+                    100
+                }
+
+            assertEquals(100, value)
+            assertEquals(1, computeCount)
+            assertEquals(100, cache.get("key"))
+        }
 
     @Test
     fun `should invalidate specific key`() {
@@ -128,33 +133,35 @@ class ResponseCacheTest {
     }
 
     @Test
-    fun `cleanup should remove expired entries`() = runBlocking {
-        val cache = ResponseCache<String, Int>(defaultTtlMs = 100)
+    fun `cleanup should remove expired entries`() =
+        runBlocking {
+            val cache = ResponseCache<String, Int>(defaultTtlMs = 100)
 
-        cache.put("key1", 100)
-        cache.put("key2", 200)
+            cache.put("key1", 100)
+            cache.put("key2", 200)
 
-        assertEquals(2, cache.size())
+            assertEquals(2, cache.size())
 
-        delay(150)
+            delay(150)
 
-        cache.cleanup()
+            cache.cleanup()
 
-        assertEquals(0, cache.size())
-    }
+            assertEquals(0, cache.size())
+        }
 
     @Test
-    fun `cleanup should preserve non-expired entries`() = runBlocking {
-        val cache = ResponseCache<String, Int>(defaultTtlMs = 1000)
+    fun `cleanup should preserve non-expired entries`() =
+        runBlocking {
+            val cache = ResponseCache<String, Int>(defaultTtlMs = 1000)
 
-        cache.put("key1", 100, ttlMs = 50)
-        cache.put("key2", 200, ttlMs = 500)
+            cache.put("key1", 100, ttlMs = 50)
+            cache.put("key2", 200, ttlMs = 500)
 
-        delay(100)
+            delay(100)
 
-        cache.cleanup()
+            cache.cleanup()
 
-        assertEquals(1, cache.size())
-        assertEquals(200, cache.get("key2"))
-    }
+            assertEquals(1, cache.size())
+            assertEquals(200, cache.get("key2"))
+        }
 }

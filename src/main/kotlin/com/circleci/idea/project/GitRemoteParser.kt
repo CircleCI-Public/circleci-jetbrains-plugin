@@ -11,7 +11,6 @@ import com.circleci.idea.project.models.VcsType
  * - SSH with protocol: ssh://git@github.com/org/repo.git
  */
 object GitRemoteParser {
-
     private val HTTPS_PATTERN = Regex("""https?://([^/]+)/([^/]+)/([^/\s]+?)(?:\.git)?$""")
     private val SSH_PATTERN = Regex("""git@([^:]+):([^/]+)/([^/\s]+?)(?:\.git)?$""")
     private val SSH_PROTOCOL_PATTERN = Regex("""ssh://git@([^/]+)/([^/]+)/([^/\s]+?)(?:\.git)?$""")
@@ -43,7 +42,12 @@ object GitRemoteParser {
     /**
      * Create a CircleCI project from parsed components.
      */
-    private fun createProject(host: String, org: String, repo: String, vcsUrl: String): CircleCIProject? {
+    private fun createProject(
+        host: String,
+        org: String,
+        repo: String,
+        vcsUrl: String,
+    ): CircleCIProject? {
         val vcsType = VcsType.fromUrl(host) ?: return null
 
         val slug = CircleCIProject.createSlug(vcsType, org, repo)
@@ -53,7 +57,7 @@ object GitRemoteParser {
             vcsType = vcsType,
             organization = org,
             repository = repo,
-            vcsUrl = vcsUrl
+            vcsUrl = vcsUrl,
         )
     }
 

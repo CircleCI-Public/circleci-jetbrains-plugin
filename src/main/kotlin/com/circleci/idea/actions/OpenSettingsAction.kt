@@ -12,7 +12,7 @@ class OpenSettingsAction : AnAction() {
         val project = e.project ?: return
         ShowSettingsUtil.getInstance().showSettingsDialog(
             project,
-            "CircleCI"
+            "CircleCI",
         )
     }
 }

@@ -9,18 +9,19 @@ import java.util.concurrent.ConcurrentHashMap
  * @param defaultTtlMs Default time-to-live for cached items in milliseconds
  */
 class ResponseCache<K, V>(
-    private val defaultTtlMs: Long = 30_000 // 30 seconds
+    private val defaultTtlMs: Long = 30_000, // 30 seconds
 ) {
-    private val logger: CircleCILogger? = try {
-        CircleCILogger.getInstance()
-    } catch (e: Exception) {
-        null
-    }
+    private val logger: CircleCILogger? =
+        try {
+            CircleCILogger.getInstance()
+        } catch (e: Exception) {
+            null
+        }
     private val cache = ConcurrentHashMap<K, CacheEntry<V>>()
 
     private data class CacheEntry<V>(
         val value: V,
-        val expiresAt: Long
+        val expiresAt: Long,
     )
 
     /**
@@ -51,7 +52,11 @@ class ResponseCache<K, V>(
      * @param value Value to cache
      * @param ttlMs Time-to-live in milliseconds (defaults to defaultTtlMs)
      */
-    fun put(key: K, value: V, ttlMs: Long = defaultTtlMs) {
+    fun put(
+        key: K,
+        value: V,
+        ttlMs: Long = defaultTtlMs,
+    ) {
         val expiresAt = System.currentTimeMillis() + ttlMs
         cache[key] = CacheEntry(value, expiresAt)
         logger?.debug("Cached: $key (TTL: ${ttlMs}ms)")
@@ -67,7 +72,11 @@ class ResponseCache<K, V>(
      * @param compute Function to compute the value if not cached
      * @return Cached or computed value
      */
-    suspend fun getOrPut(key: K, ttlMs: Long = defaultTtlMs, compute: suspend () -> V): V {
+    suspend fun getOrPut(
+        key: K,
+        ttlMs: Long = defaultTtlMs,
+        compute: suspend () -> V,
+    ): V {
         get(key)?.let { return it }
 
         val value = compute()

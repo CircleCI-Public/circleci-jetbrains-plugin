@@ -57,11 +57,12 @@ class CircleCIToolWindowService(private val project: Project) {
             val panel = JobDetailsPanel(project)
             jobDetailsPanel = panel
 
-            val content = ContentFactory.getInstance().createContent(
-                panel,
-                "Job Details",
-                false
-            )
+            val content =
+                ContentFactory.getInstance().createContent(
+                    panel,
+                    "Job Details",
+                    false,
+                )
 
             tw.contentManager.addContent(content)
             tw.contentManager.setSelectedContent(content)

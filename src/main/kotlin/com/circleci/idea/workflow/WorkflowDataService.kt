@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 @Service(Service.Level.PROJECT)
 class WorkflowDataService(private val project: Project) {
-
     private val logger = CircleCILogger.getInstance()
     private val stateStore = project.getService(CircleCIStateStore::class.java)
     private val apiService = CircleCIApiService.getInstance()
@@ -38,7 +37,7 @@ class WorkflowDataService(private val project: Project) {
      */
     suspend fun fetchWorkflows(
         projectSlug: String,
-        pipelineId: String
+        pipelineId: String,
     ): List<Workflow> {
         logger.info("Fetching workflows for pipeline $pipelineId")
         _isLoading.value = true
@@ -59,9 +58,8 @@ class WorkflowDataService(private val project: Project) {
                 onFailure = { error ->
                     logger.error("Failed to fetch workflows for pipeline $pipelineId: ${error.message}", error)
                     emptyList()
-                }
+                },
             )
-
         } catch (e: Exception) {
             logger.error("Failed to fetch workflows for pipeline $pipelineId", e)
             return emptyList()
@@ -79,7 +77,7 @@ class WorkflowDataService(private val project: Project) {
      */
     suspend fun fetchWorkflowsForPipelines(
         projectSlug: String,
-        pipelineIds: List<String>
+        pipelineIds: List<String>,
     ): Map<String, List<Workflow>> {
         logger.info("Fetching workflows for ${pipelineIds.size} pipelines")
 
@@ -99,7 +97,10 @@ class WorkflowDataService(private val project: Project) {
      * @param projectSlug Project slug
      * @param pipelineId Pipeline ID
      */
-    suspend fun refreshWorkflows(projectSlug: String, pipelineId: String) {
+    suspend fun refreshWorkflows(
+        projectSlug: String,
+        pipelineId: String,
+    ) {
         logger.info("Refreshing workflows for pipeline $pipelineId")
         fetchWorkflows(projectSlug, pipelineId)
     }
@@ -113,7 +114,7 @@ class WorkflowDataService(private val project: Project) {
             name = workflowInfo.name,
             status = workflowInfo.status,
             createdAt = workflowInfo.createdAt,
-            stoppedAt = workflowInfo.stoppedAt
+            stoppedAt = workflowInfo.stoppedAt,
         )
     }
 

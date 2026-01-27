@@ -11,7 +11,7 @@ class ValidateConfigAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         Messages.showInfoMessage(
             "Config validation coming soon",
-            "CircleCI Config Validation"
+            "CircleCI Config Validation",
         )
     }
 }

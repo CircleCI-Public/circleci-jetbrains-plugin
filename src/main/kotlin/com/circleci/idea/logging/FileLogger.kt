@@ -17,7 +17,7 @@ import kotlin.concurrent.withLock
 class FileLogger(
     private val logDirectory: Path,
     private val maxFileSizeBytes: Long = 10 * 1024 * 1024, // 10 MB
-    private val maxFiles: Int = 5
+    private val maxFiles: Int = 5,
 ) {
     private val lock = ReentrantLock()
     private var currentLogFile: File
@@ -92,11 +92,12 @@ class FileLogger(
      * Get log file for a given index.
      */
     private fun getLogFile(index: Int): File {
-        val filename = if (index == 0) {
-            "circleci.log"
-        } else {
-            "circleci.log.$index"
-        }
+        val filename =
+            if (index == 0) {
+                "circleci.log"
+            } else {
+                "circleci.log.$index"
+            }
         return logDirectory.resolve(filename).toFile()
     }
 

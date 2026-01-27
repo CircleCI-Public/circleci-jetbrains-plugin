@@ -113,11 +113,11 @@ class CircleCIConfigurable : Configurable {
         val tokenChanged = token.isNotEmpty() && getAuthService()?.getToken() != token
 
         return tokenChanged ||
-                hostUrlField.text != settings.hostUrl ||
-                getBranchFilterValue() != settings.branchFilter ||
-                myPipelinesOnlyCheck.isSelected != settings.myPipelinesOnly ||
-                notificationsEnabledCheck.isSelected != settings.notificationsEnabled ||
-                logLevelCombo.selectedItem?.toString()?.lowercase() != settings.logLevel
+            hostUrlField.text != settings.hostUrl ||
+            getBranchFilterValue() != settings.branchFilter ||
+            myPipelinesOnlyCheck.isSelected != settings.myPipelinesOnly ||
+            notificationsEnabledCheck.isSelected != settings.notificationsEnabled ||
+            logLevelCombo.selectedItem?.toString()?.lowercase() != settings.logLevel
     }
 
     override fun apply() {
@@ -135,7 +135,7 @@ class CircleCIConfigurable : Configurable {
                     },
                     onFailure = { error ->
                         authStatusLabel.text = "<html><font color='red'>✗ Authentication failed: ${error.message}</font></html>"
-                    }
+                    },
                 )
             }
         }
@@ -172,21 +172,23 @@ class CircleCIConfigurable : Configurable {
         notificationsEnabledCheck.isSelected = settings.notificationsEnabled
 
         // Set branch filter
-        branchFilterCombo.selectedIndex = when (settings.branchFilter) {
-            "current" -> 0
-            "all" -> 1
-            "default" -> 2
-            else -> 0
-        }
+        branchFilterCombo.selectedIndex =
+            when (settings.branchFilter) {
+                "current" -> 0
+                "all" -> 1
+                "default" -> 2
+                else -> 0
+            }
 
         // Set log level
-        logLevelCombo.selectedIndex = when (settings.logLevel.lowercase()) {
-            "error" -> 0
-            "warn" -> 1
-            "info" -> 2
-            "debug" -> 3
-            else -> 2
-        }
+        logLevelCombo.selectedIndex =
+            when (settings.logLevel.lowercase()) {
+                "error" -> 0
+                "warn" -> 1
+                "info" -> 2
+                "debug" -> 3
+                else -> 2
+            }
     }
 
     /**
@@ -213,4 +215,3 @@ class CircleCIConfigurable : Configurable {
         }
     }
 }
-
