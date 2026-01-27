@@ -31,9 +31,21 @@ class CircleCILanguageServerDescriptor(project: Project) : ProjectWideLspServerD
 
         logger.info("Starting CircleCI Language Server: ${binary.absolutePath}")
 
+        // Check for schema.json file
+        val schemaFile = java.io.File(binary.parentFile, "schema.json")
+
         return GeneralCommandLine(binary.absolutePath).apply {
             // Add -stdio flag for stdin/stdout communication
             addParameter("-stdio")
+
+            // Add schema file path if it exists
+            if (schemaFile.exists()) {
+                addParameter("-schema")
+                addParameter(schemaFile.absolutePath)
+                logger.info("Using schema file: ${schemaFile.absolutePath}")
+            } else {
+                logger.warn("Schema file not found at ${schemaFile.absolutePath}, language server may have limited functionality")
+            }
 
             val basePath = this@CircleCILanguageServerDescriptor.project.basePath
             if (basePath != null) {

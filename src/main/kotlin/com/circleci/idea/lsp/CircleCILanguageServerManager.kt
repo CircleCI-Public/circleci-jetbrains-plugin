@@ -105,8 +105,46 @@ class CircleCILanguageServerManager {
             val targetVersion = version ?: getLatestVersion() ?: return false
             logger.info("Downloading CircleCI language server version $targetVersion")
 
+            val lspDir = getLanguageServerDir()
+
+            // Download binary
             val binaryName = getPlatformBinaryName()
-            val downloadUrl = "https://github.com/$GITHUB_REPO/releases/download/$targetVersion/$binaryName"
+            if (!downloadFile(targetVersion, binaryName, lspDir)) {
+                return false
+            }
+
+            // Download schema.json
+            if (!downloadFile(targetVersion, "schema.json", lspDir)) {
+                logger.warn("Failed to download schema.json, language server may not work correctly")
+            }
+
+            // Make binary executable on Unix systems
+            val binaryFile = File(lspDir, binaryName)
+            if (!SystemInfo.isWindows) {
+                val perms = Files.getPosixFilePermissions(binaryFile.toPath()).toMutableSet()
+                perms.add(PosixFilePermission.OWNER_EXECUTE)
+                perms.add(PosixFilePermission.GROUP_EXECUTE)
+                Files.setPosixFilePermissions(binaryFile.toPath(), perms)
+            }
+
+            // Save version info
+            File(lspDir, CURRENT_VERSION_FILE).writeText(targetVersion)
+
+            logger.info("Successfully downloaded language server to ${binaryFile.absolutePath}")
+            true
+        } catch (e: Exception) {
+            logger.error("Failed to download language server", e)
+            false
+        }
+    }
+
+    /**
+     * Download a file from GitHub releases.
+     */
+    private fun downloadFile(version: String, fileName: String, targetDir: File): Boolean {
+        return try {
+            val downloadUrl = "https://github.com/$GITHUB_REPO/releases/download/$version/$fileName"
+            logger.info("Downloading $fileName from $downloadUrl")
 
             val request = Request.Builder()
                 .url(downloadUrl)
@@ -114,35 +152,22 @@ class CircleCILanguageServerManager {
 
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    logger.error("Failed to download language server: HTTP ${response.code}")
+                    logger.error("Failed to download $fileName: HTTP ${response.code}")
                     return false
                 }
 
-                val lspDir = getLanguageServerDir()
-                val binaryFile = File(lspDir, binaryName)
-
+                val targetFile = File(targetDir, fileName)
                 response.body?.byteStream()?.use { input ->
-                    FileOutputStream(binaryFile).use { output ->
+                    FileOutputStream(targetFile).use { output ->
                         input.copyTo(output)
                     }
                 }
 
-                // Make binary executable on Unix systems
-                if (!SystemInfo.isWindows) {
-                    val perms = Files.getPosixFilePermissions(binaryFile.toPath()).toMutableSet()
-                    perms.add(PosixFilePermission.OWNER_EXECUTE)
-                    perms.add(PosixFilePermission.GROUP_EXECUTE)
-                    Files.setPosixFilePermissions(binaryFile.toPath(), perms)
-                }
-
-                // Save version info
-                File(lspDir, CURRENT_VERSION_FILE).writeText(targetVersion)
-
-                logger.info("Successfully downloaded language server to ${binaryFile.absolutePath}")
+                logger.info("Successfully downloaded $fileName to ${targetFile.absolutePath}")
                 true
             }
         } catch (e: Exception) {
-            logger.error("Failed to download language server", e)
+            logger.error("Failed to download $fileName", e)
             false
         }
     }
