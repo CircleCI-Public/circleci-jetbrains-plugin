@@ -32,6 +32,9 @@ class CircleCILanguageServerDescriptor(project: Project) : ProjectWideLspServerD
         logger.info("Starting CircleCI Language Server: ${binary.absolutePath}")
 
         return GeneralCommandLine(binary.absolutePath).apply {
+            // Add -stdio flag for stdin/stdout communication
+            addParameter("-stdio")
+
             val basePath = this@CircleCILanguageServerDescriptor.project.basePath
             if (basePath != null) {
                 withWorkDirectory(basePath)
