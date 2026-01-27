@@ -35,9 +35,16 @@ intellij {
     version.set("2024.3")
     type.set("IU") // IntelliJ IDEA Ultimate Edition
 
-    // Note: git4idea and terminal are bundled plugins, no need to specify them
-    // YAML support will be added later
-    plugins.set(listOf())
+    // LSP4IJ for Language Server Protocol support
+    // Downloaded from JetBrains Marketplace
+    plugins.set(listOf(
+        "com.redhat.devtools.lsp4ij:0.9.0"
+    ))
+
+    // Add marketplace URL for plugin downloads
+    pluginsRepositories {
+        marketplace()
+    }
 }
 
 tasks {

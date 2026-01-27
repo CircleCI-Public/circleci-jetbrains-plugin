@@ -41,6 +41,7 @@
     <!-- Product and plugin compatibility requirements -->
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.ultimate</depends>
+    <depends>com.redhat.devtools.lsp4ij</depends>
     <depends optional="true" config-file="git-support.xml">Git4Idea</depends>
     <depends optional="true" config-file="terminal-support.xml">org.jetbrains.plugins.terminal</depends>
 
@@ -107,13 +108,25 @@
             displayType="BALLOON"
             isLogByDefault="true"/>
 
-        <!-- Language Server Protocol Support -->
-        <platform.lsp.serverSupportProvider
-            implementation="com.circleci.idea.lsp.CircleCILspServerSupportProvider"/>
-
         <!-- Application Service for LSP Manager -->
         <applicationService
             serviceImplementation="com.circleci.idea.lsp.CircleCILanguageServerManager"/>
+    </extensions>
+
+    <!-- LSP4IJ Language Server Configuration -->
+    <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
+        <server id="circleci-yaml-ls"
+                name="CircleCI YAML Language Server"
+                factoryClass="com.circleci.idea.lsp.CircleCILanguageServerFactory">
+            <description><![CDATA[
+                Language server for CircleCI YAML configuration files (.circleci/config.yml).
+                Provides validation, code completion, and documentation for CircleCI configs.
+            ]]></description>
+        </server>
+
+        <languageMapping language="yaml"
+                        serverId="circleci-yaml-ls"
+                        documentMatcher="com.circleci.idea.lsp.CircleCIDocumentMatcher"/>
     </extensions>
 
     <actions>
