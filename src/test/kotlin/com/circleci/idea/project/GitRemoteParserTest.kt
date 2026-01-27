@@ -1,8 +1,8 @@
 package com.circleci.idea.project
 
 import com.circleci.idea.project.models.VcsType
-import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Test
+import org.junit.Assert.*
+import org.junit.Test
 
 class GitRemoteParserTest {
 

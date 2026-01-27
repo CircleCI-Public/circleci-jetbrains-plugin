@@ -1,15 +1,19 @@
 package com.circleci.idea.logging
 
-import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.io.TempDir
+import org.junit.Assert.*
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.nio.file.Files
 import java.nio.file.Path
 
 class FileLoggerTest {
 
-    @TempDir
-    lateinit var tempDir: Path
+    @get:Rule
+    val tempFolder = TemporaryFolder()
+
+    private val tempDir: Path
+        get() = tempFolder.root.toPath()
 
     @Test
     fun `should create log file`() {
@@ -53,7 +57,7 @@ class FileLoggerTest {
 
         // Check that rotated files were created
         val logFile1 = tempDir.resolve("circleci.log.1")
-        assertTrue(Files.exists(logFile1), "Rotated log file should exist")
+        assertTrue("Rotated log file should exist", Files.exists(logFile1))
     }
 
     @Test
@@ -73,7 +77,7 @@ class FileLoggerTest {
             .filter { it.fileName.toString().startsWith("circleci.log") }
             .count()
 
-        assertTrue(logFileCount <= maxFiles, "Should not exceed maximum number of log files")
+        assertTrue("Should not exceed maximum number of log files", logFileCount <= maxFiles)
     }
 
     @Test
@@ -104,7 +108,7 @@ class FileLoggerTest {
 
         // Verify log files are deleted
         val filesAfterClear = Files.list(tempDir).count()
-        assertEquals(0, filesAfterClear, "All log files should be deleted")
+        assertEquals("All log files should be deleted", 0L, filesAfterClear)
 
         logger.close()
     }
@@ -129,6 +133,6 @@ class FileLoggerTest {
         val content = Files.readString(logFile)
         val lineCount = content.lines().filter { it.isNotBlank() }.size
 
-        assertEquals(100, lineCount, "All messages should be written")
+        assertEquals("All messages should be written", 100, lineCount)
     }
 }

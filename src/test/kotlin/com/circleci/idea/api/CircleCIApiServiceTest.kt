@@ -2,8 +2,8 @@ package com.circleci.idea.api
 
 import com.circleci.idea.api.models.*
 import com.google.gson.Gson
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Assertions.*
+import org.junit.Test
+import org.junit.Assert.*
 
 class CircleCIApiServiceTest {
 

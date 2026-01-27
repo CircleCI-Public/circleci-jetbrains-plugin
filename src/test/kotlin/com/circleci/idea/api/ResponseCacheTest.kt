@@ -2,8 +2,8 @@ package com.circleci.idea.api
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
-import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Test
+import org.junit.Assert.*
+import org.junit.Test
 
 class ResponseCacheTest {
 
@@ -34,7 +34,7 @@ class ResponseCacheTest {
 
         delay(150)
 
-        assertNull(cache.get("key"), "Entry should be expired")
+        assertNull("Entry should be expired", cache.get("key"))
     }
 
     @Test
@@ -46,8 +46,8 @@ class ResponseCacheTest {
 
         delay(100)
 
-        assertNull(cache.get("key1"), "key1 should be expired")
-        assertEquals(200, cache.get("key2"), "key2 should still be valid")
+        assertNull("key1 should be expired", cache.get("key1"))
+        assertEquals("key2 should still be valid", 200, cache.get("key2"))
     }
 
     @Test
@@ -63,7 +63,7 @@ class ResponseCacheTest {
         }
 
         assertEquals(100, value)
-        assertEquals(0, computeCount, "Compute function should not be called")
+        assertEquals("Compute function should not be called", 0, computeCount)
     }
 
     @Test
