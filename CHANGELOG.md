@@ -5,6 +5,25 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-01-27
+
+### Added
+- **CircleCI YAML Language Server Integration**
+  - Real-time validation for CircleCI configuration files
+  - Schema-based error detection and diagnostics
+  - Code completion and documentation support
+  - Automatic schema.json download and updates
+
+### Changed
+- Migrated from IntelliJ native LSP framework to lsp4ij library
+  - Enables proper rendering of language server diagnostics in editor
+  - Improved LSP communication and error display
+  - Better integration with IDE UI components
+
+### Fixed
+- Language server diagnostics now properly display in the editor
+- CircleCI API token authentication passed via environment variable
+
 ## [1.0.1] - 2026-01-26
 
 ### Fixed
