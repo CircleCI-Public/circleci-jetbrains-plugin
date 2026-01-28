@@ -179,8 +179,8 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
 
     private fun setupContent() {
         // Configure steps tree
-        stepsTree.isRootVisible = true
-        stepsTree.showsRootHandles = true
+        stepsTree.isRootVisible = false
+        stepsTree.showsRootHandles = false
         stepsTree.selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
         stepsTree.cellRenderer = JobStepTreeCellRenderer()
 
@@ -466,26 +466,20 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
             logger.info("  Step $index: name=${step.name}, actions=${step.actions.size}")
         }
 
-        val root = DefaultMutableTreeNode("Steps (${steps.size})")
+        // Count total actions across all steps
+        val totalActions = steps.sumOf { it.actions.size }
+        val root = DefaultMutableTreeNode("Steps ($totalActions)")
 
-        for ((stepIndex, step) in steps.withIndex()) {
-            val stepNode = DefaultMutableTreeNode(StepNodeData(step.name, stepIndex + 1))
-
+        // Flatten the tree - add actions directly to root
+        for (step in steps) {
             for (action in step.actions) {
                 val actionNode = DefaultMutableTreeNode(ActionNodeData(action))
-                stepNode.add(actionNode)
+                root.add(actionNode)
             }
-
-            root.add(stepNode)
         }
 
         stepsTree.model = DefaultTreeModel(root)
-        logger.info("Steps tree updated with ${root.childCount} step nodes")
-
-        // Expand all nodes
-        for (i in 0 until stepsTree.rowCount) {
-            stepsTree.expandRow(i)
-        }
+        logger.info("Steps tree updated with ${root.childCount} action nodes")
     }
 
     private fun updateActionButtons(jobDetails: JobDetails) {

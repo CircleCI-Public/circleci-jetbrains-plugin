@@ -1,61 +1,61 @@
 package com.circleci.idea.toolwindow
 
 import com.circleci.idea.icons.CircleCIIcons
-import com.intellij.ui.JBColor
-import java.awt.Component
+import com.intellij.ui.ColoredTreeCellRenderer
+import com.intellij.ui.SimpleTextAttributes
 import javax.swing.JTree
 import javax.swing.tree.DefaultMutableTreeNode
-import javax.swing.tree.DefaultTreeCellRenderer
 
 /**
  * Custom cell renderer for job steps tree.
+ * Uses ColoredTreeCellRenderer for proper styling consistent with pipeline tree.
  */
-class JobStepTreeCellRenderer : DefaultTreeCellRenderer() {
-    override fun getTreeCellRendererComponent(
-        tree: JTree?,
+class JobStepTreeCellRenderer : ColoredTreeCellRenderer() {
+    override fun customizeCellRenderer(
+        tree: JTree,
         value: Any?,
         selected: Boolean,
         expanded: Boolean,
         leaf: Boolean,
         row: Int,
         hasFocus: Boolean,
-    ): Component {
-        super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus)
-
-        if (value is DefaultMutableTreeNode) {
-            val userObject = value.userObject
-
-            when (userObject) {
-                is StepNodeData -> {
-                    text = "${userObject.stepNumber}. ${userObject.name ?: "Unknown Step"}"
-                    icon = CircleCIIcons.Status.SUCCESS
-                }
-                is ActionNodeData -> {
-                    val action = userObject.action
-                    text = buildActionText(action)
-                    icon = getActionIcon(action.status ?: "unknown")
-                    foreground = getActionColor(action.status ?: "unknown")
-                }
-                else -> {
-                    // Root node or other
-                    text = userObject.toString()
-                }
-            }
+    ) {
+        if (value !is DefaultMutableTreeNode) {
+            return
         }
 
-        return this
-    }
+        val userObject = value.userObject
 
-    private fun buildActionText(action: com.circleci.idea.state.JobAction): String {
-        val duration =
-            if (action.runTimeMillis != null) {
-                val seconds = action.runTimeMillis / 1000
-                " (${seconds}s)"
-            } else {
-                ""
+        when (userObject) {
+            is StepNodeData -> {
+                append("${userObject.stepNumber}. ${userObject.name ?: "Unknown Step"}", SimpleTextAttributes.REGULAR_ATTRIBUTES)
+                icon = CircleCIIcons.Status.SUCCESS
             }
+            is ActionNodeData -> {
+                val action = userObject.action
+                val duration =
+                    if (action.runTimeMillis != null) {
+                        val seconds = action.runTimeMillis / 1000
+                        " (${seconds}s)"
+                    } else {
+                        ""
+                    }
 
-        return "${action.name ?: "Unknown Action"}$duration"
+                // Main text
+                append(action.name ?: "Unknown Action", SimpleTextAttributes.REGULAR_ATTRIBUTES)
+
+                // Duration in grayed text
+                if (duration.isNotEmpty()) {
+                    append(duration, SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
+                }
+
+                // Set icon based on status
+                icon = getActionIcon(action.status ?: "unknown")
+            }
+            else -> {
+                append(userObject.toString(), SimpleTextAttributes.REGULAR_ATTRIBUTES)
+            }
+        }
     }
 
     private fun getActionIcon(status: String) =
@@ -65,14 +65,5 @@ class JobStepTreeCellRenderer : DefaultTreeCellRenderer() {
             "running" -> CircleCIIcons.Status.RUNNING
             "canceled" -> CircleCIIcons.Status.CANCELED
             else -> null
-        }
-
-    private fun getActionColor(status: String) =
-        when (status.lowercase()) {
-            "success" -> JBColor.GREEN
-            "failed" -> JBColor.RED
-            "running" -> JBColor.BLUE
-            "canceled" -> JBColor.GRAY
-            else -> JBColor.BLACK
         }
 }
