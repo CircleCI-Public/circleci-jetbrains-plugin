@@ -66,6 +66,40 @@ class CircleCIApiClient(
     }
 
     /**
+     * Execute a GET request and return raw response body string.
+     * Useful for endpoints that return arrays directly instead of objects.
+     */
+    fun getRaw(
+        path: String,
+        queryParams: Map<String, String> = emptyMap(),
+    ): Result<String> {
+        val url = buildUrl(path, queryParams)
+        val request =
+            Request.Builder()
+                .url(url)
+                .get()
+                .build()
+
+        // Apply rate limiting
+        rateLimiter.acquire()
+
+        return try {
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                val body = response.body?.string() ?: ""
+                Result.success(body)
+            } else if (response.code == 401) {
+                Result.failure(Exception("Unauthorized: Invalid or expired token"))
+            } else {
+                Result.failure(Exception("HTTP ${response.code}: ${response.message}"))
+            }
+        } catch (e: IOException) {
+            logger.error("Network error: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Execute a POST request.
      */
     fun post(

@@ -174,7 +174,8 @@ class CircleCIApiService {
 
     /**
      * Fetch step output from output URL.
-     * Note: This is a different endpoint pattern - the outputUrl is a full URL.
+     * Note: This endpoint returns a JSON array directly, not wrapped in an object.
+     * We use getRaw() to get the raw JSON string and parse it as an array.
      */
     fun getStepOutput(outputUrl: String): Result<List<StepOutputResponse>> {
         val apiClient = client ?: return Result.failure(IllegalStateException("API client not initialized"))
@@ -182,9 +183,10 @@ class CircleCIApiService {
         // Extract the path from the full URL
         val path = outputUrl.substringAfter("circleci.com")
 
-        return executeRequest(path) { data ->
-            val itemsArray = data.getAsJsonArray("items") ?: com.google.gson.JsonArray()
-            itemsArray.map {
+        return apiClient.getRaw(path).mapCatching { body ->
+            // Parse as JSON array directly
+            val jsonArray = gson.fromJson(body, com.google.gson.JsonArray::class.java)
+            jsonArray.map {
                 gson.fromJson(it, StepOutputResponse::class.java)
             }
         }
