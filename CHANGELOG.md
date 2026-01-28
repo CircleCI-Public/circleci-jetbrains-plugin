@@ -5,6 +5,21 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-01-28
+
+### Fixed
+- Fixed step output display showing "No output" for all job steps
+  - CircleCI step output API returns JSON arrays directly, not wrapped in objects
+  - Added `getRaw()` method to API client for array response handling
+  - Step output now displays correctly in job details panel
+
+### Improved
+- Simplified steps tree UI in job details panel
+  - Flattened tree structure - actions now display directly without nested groupings
+  - Switched to `ColoredTreeCellRenderer` for consistent styling with pipeline tree
+  - Removed background highlighting artifacts on unselected items
+  - Duration formatted in grayed small text for better readability
+
 ## [1.1.1] - 2026-01-27
 
 ### Fixed
