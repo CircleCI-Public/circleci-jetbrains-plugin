@@ -44,12 +44,41 @@ The plugin follows the standard JetBrains plugin architecture with these key com
 1. Clone the repository
 2. Open in IntelliJ IDEA
 3. Wait for Gradle sync to complete
-4. Run the plugin using the "Run Plugin" run configuration
+4. Install Task (taskfile.dev) if not already installed: `brew install go-task/tap/go-task`
+
+### Using Taskfile
+
+This project uses [Taskfile](https://taskfile.dev/) for common development tasks. View all available tasks:
+
+```bash
+task --list
+```
+
+**Available Commands:**
+
+```bash
+# Development
+task build          # Build the plugin
+task test           # Run tests and verify plugin
+task run            # Launch IDE with plugin for testing
+task clean          # Clean build artifacts
+
+# Code Quality
+task lint           # Run all static analysis (detekt, ktlint, security)
+task format         # Auto-format code with ktlint
+
+# Release
+task release        # Full release (clean, test, build, publish to GitHub)
+task release-quick  # Quick release (skip tests, useful for docs/minor fixes)
+```
 
 ### Running the Plugin
 
 ```bash
 # Run in sandboxed IDE
+task run
+
+# Or use Gradle directly
 ./gradlew runIde
 
 # Run with debugging
@@ -59,7 +88,10 @@ The plugin follows the standard JetBrains plugin architecture with these key com
 ### Testing
 
 ```bash
-# Run all tests
+# Run all tests (recommended)
+task test
+
+# Or use Gradle directly
 ./gradlew test
 
 # Run specific test
@@ -72,20 +104,57 @@ The plugin follows the standard JetBrains plugin architecture with these key com
 ### Building
 
 ```bash
-# Build plugin
+# Build plugin (recommended)
+task build
+
+# Or use Gradle directly
 ./gradlew buildPlugin
 
 # Build and verify
 ./gradlew buildPlugin verifyPlugin
 ```
 
+### Static Analysis
+
+```bash
+# Run all static analysis tools
+task lint
+
+# Auto-format code
+task format
+
+# See STATIC_ANALYSIS.md for detailed documentation
+```
+
 ## Code Style
 
-- Follow Kotlin coding conventions
+This project uses automated code quality tools:
+
+- **ktlint**: Enforces Kotlin coding conventions
+- **detekt**: Detects code smells and potential bugs
+- **OWASP Dependency-Check**: Scans for security vulnerabilities
+
+### Running Code Quality Checks
+
+```bash
+# Run all static analysis
+task lint
+
+# Auto-format code to fix style issues
+task format
+```
+
+### Coding Conventions
+
+- Follow Kotlin coding conventions (enforced by ktlint)
 - Use meaningful variable and function names
 - Add KDoc comments for public APIs
-- Keep functions small and focused
+- Keep functions small and focused (detekt checks complexity)
 - Use dependency injection where appropriate
+- Maximum line length: 120 characters
+- Use trailing commas in multi-line structures
+
+See [STATIC_ANALYSIS.md](STATIC_ANALYSIS.md) for detailed information about code quality tools.
 
 ## Plugin Structure
 

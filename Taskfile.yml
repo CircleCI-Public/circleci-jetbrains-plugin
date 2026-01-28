@@ -18,6 +18,7 @@ tasks:
     cmds:
       - task --list
 
+  # Development Tasks
   clean:
     desc: Clean build artifacts
     cmds:
@@ -25,120 +26,58 @@ tasks:
       - rm -rf {{.DOCS_DIR}}
 
   build:
-    desc: Build the plugin distribution
+    desc: Build the plugin
     cmds:
       - ./gradlew buildPlugin
-      - echo "Plugin built at {{.PLUGIN_ZIP}}"
-    sources:
-      - src/**/*.kt
-      - src/**/*.java
-      - src/**/*.xml
-      - build.gradle.kts
-    generates:
-      - "{{.PLUGIN_ZIP}}"
+      - echo "✅ Plugin built at {{.PLUGIN_ZIP}}"
 
   test:
-    desc: Run tests
+    desc: Run tests and verify plugin
     cmds:
       - ./gradlew test verifyPlugin
 
-  verify:
-    desc: Verify plugin compatibility
+  run:
+    desc: Launch IDE with plugin for testing
     cmds:
-      - ./gradlew verifyPlugin
+      - ./gradlew runIde
 
-  # Static Analysis Tasks
+  # Static Analysis
   lint:
-    desc: Run all static analysis tools (detekt, ktlint, dependency-check)
+    desc: Run all static analysis (detekt, ktlint, security)
     cmds:
       - ./gradlew staticAnalysis
 
-  detekt:
-    desc: Run detekt Kotlin static analysis
-    cmds:
-      - ./gradlew detekt
-      - echo "Report: build/reports/detekt/detekt.html"
-
-  ktlint:
-    desc: Run ktlint code style check
-    cmds:
-      - ./gradlew ktlintCheck
-      - echo "Report: build/reports/ktlint/"
-
-  ktlint-format:
+  format:
     desc: Auto-format code with ktlint
     cmds:
       - ./gradlew ktlintFormat
 
-  security-scan:
-    desc: Run OWASP dependency security scan
+  # Release Tasks
+  release:
+    desc: Full release (clean, test, build, publish to GitHub)
     cmds:
-      - ./gradlew dependencyCheckAnalyze
-      - echo "Report: build/reports/dependency-check-report.html"
+      - task: clean
+      - task: test
+      - task: _build-release
+      - task: _publish-release
+      - echo ""
+      - echo "✅ Release v{{.VERSION}} completed!"
+      - echo "📦 https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/releases/tag/v{{.VERSION}}"
 
-  run:
-    desc: Launch IDE with plugin installed for testing
+  release-quick:
+    desc: Quick release (skip tests, useful for docs/minor fixes)
     cmds:
-      - ./gradlew runIde
+      - task: _build-release
+      - task: _publish-release
+      - echo ""
+      - echo "✅ Release v{{.VERSION}} completed!"
+      - echo "📦 https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/releases/tag/v{{.VERSION}}"
 
-  run-with-logs:
-    desc: Launch IDE and monitor logs in real-time
+  # Internal Tasks (prefixed with _)
+  _build-release:
+    internal: true
     cmds:
-      - |
-        # Kill any existing sandbox IDE instances
-        pkill -f "build/idea-sandbox" 2>/dev/null || true
-        sleep 2
-
-        # Create log directory
-        LOG_DIR=/tmp/circleci-idea-plugin-logs
-        mkdir -p $LOG_DIR
-        LOG_FILE=$LOG_DIR/ide-$(date +%Y%m%d-%H%M%S).log
-
-        echo "Starting IDE with logging to $LOG_FILE"
-        echo "Press Ctrl+C to stop monitoring (IDE will continue running)"
-        echo ""
-
-        # Start IDE in background
-        ./gradlew runIde > $LOG_FILE 2>&1 &
-        GRADLE_PID=$!
-
-        # Wait for IDE to start
-        echo "Waiting for IDE to start..."
-        sleep 15
-
-        # Monitor logs
-        echo "Monitoring logs (filtering for CircleCI events)..."
-        echo "Full log: $LOG_FILE"
-        echo ""
-        tail -f $LOG_FILE | grep --line-buffered -E "CircleCI|Error|Exception|WARN.*CircleCI" || tail -f $LOG_FILE
-
-  logs:
-    desc: Monitor the most recent IDE log file
-    cmds:
-      - |
-        # Find the most recent IDE log from sandbox
-        SANDBOX_LOG="$HOME/Library/Logs/JetBrains/IdeaIC*/idea.log"
-
-        # Find the most recent temp log
-        TEMP_LOG=$(ls -t /tmp/circleci-idea-plugin-logs/ide-*.log 2>/dev/null | head -1)
-
-        if [ -f "$TEMP_LOG" ]; then
-          echo "Monitoring: $TEMP_LOG"
-          tail -f "$TEMP_LOG" | grep --line-buffered -E "CircleCI|Error|Exception|WARN.*CircleCI" || tail -f "$TEMP_LOG"
-        elif ls $SANDBOX_LOG 2>/dev/null; then
-          LATEST_LOG=$(ls -t $SANDBOX_LOG | head -1)
-          echo "Monitoring: $LATEST_LOG"
-          tail -f "$LATEST_LOG" | grep --line-buffered -E "CircleCI|Error|Exception|WARN.*CircleCI" || tail -f "$LATEST_LOG"
-        else
-          echo "No log files found"
-          echo "Start the IDE with 'task run-with-logs' first"
-        fi
-
-  generate-update-xml:
-    desc: Generate updatePlugins.xml for custom repository
-    deps:
-      - build
-    cmds:
+      - ./gradlew buildPlugin
       - mkdir -p {{.DOCS_DIR}}
       - |
         cat > {{.UPDATE_XML}} << 'EOF'
@@ -158,82 +97,14 @@ tasks:
           </plugin>
         </plugins>
         EOF
-      - echo "Generated {{.UPDATE_XML}}"
 
-  validate-version:
-    desc: Validate that version matches git tag
+  _publish-release:
+    internal: true
     cmds:
-      - |
-        if [ -n "$CIRCLE_TAG" ]; then
-          TAG_VERSION=$(echo $CIRCLE_TAG | sed 's/^v//')
-          if [ "{{.VERSION}}" != "$TAG_VERSION" ]; then
-            echo "Error: build.gradle.kts version ({{.VERSION}}) does not match git tag ($TAG_VERSION)"
-            exit 1
-          fi
-          echo "Version validated: {{.VERSION}}"
-        else
-          echo "No git tag found, skipping validation"
-        fi
-
-  create-release:
-    desc: Create GitHub release and upload plugin
-    deps:
-      - build
-      - generate-update-xml
-    vars:
-      RELEASE_TAG: "v{{.VERSION}}"
-      RELEASE_NAME: "{{.PLUGIN_NAME}} v{{.VERSION}}"
-    cmds:
-      - |
-        # Check if gh CLI is installed
-        if ! command -v gh &> /dev/null; then
-          echo "Error: GitHub CLI (gh) is not installed"
-          exit 1
-        fi
-      - |
-        # Check if release already exists
-        if gh release view {{.RELEASE_TAG}} &> /dev/null; then
-          echo "Release {{.RELEASE_TAG}} already exists, deleting..."
-          gh release delete {{.RELEASE_TAG}} -y
-        fi
-      - |
-        # Create release with plugin ZIP
-        gh release create {{.RELEASE_TAG}} \
-          --title "{{.RELEASE_NAME}}" \
-          --notes-file CHANGELOG.md \
-          {{.PLUGIN_ZIP}}
-      - echo "Created release {{.RELEASE_TAG}}"
-
-  update-repository:
-    desc: Update the custom plugin repository (GitHub Pages)
-    deps:
-      - generate-update-xml
-    cmds:
-      - |
-        # Ensure we're on main branch
-        git checkout main
-      - |
-        # Add and commit the docs
-        git add {{.DOCS_DIR}}
-        if git diff --cached --quiet; then
-          echo "No changes to commit"
-        else
-          git commit -m "Update plugin repository for v{{.VERSION}}"
-          git push origin main
-        fi
-      - echo "Updated plugin repository"
-
-  release-quick:
-    desc: Quick release - build, create GitHub release, and update repository
-    cmds:
-      - echo "Starting release process for v{{.VERSION}}..."
-      - task: build
-      - task: generate-update-xml
       - |
         # Create GitHub release
-        echo "Creating GitHub release v{{.VERSION}}..."
         if gh release view v{{.VERSION}} &> /dev/null; then
-          echo "Release v{{.VERSION}} already exists, deleting..."
+          echo "⚠️  Release v{{.VERSION}} exists, deleting..."
           gh release delete v{{.VERSION}} -y
         fi
         gh release create v{{.VERSION}} \
@@ -241,79 +112,9 @@ tasks:
           --notes-file CHANGELOG.md \
           {{.PLUGIN_ZIP}}
       - |
-        # Commit and push docs
-        echo "Updating plugin repository..."
+        # Update plugin repository
         git add {{.DOCS_DIR}}
         if ! git diff --cached --quiet; then
           git commit -m "Update plugin repository for v{{.VERSION}}"
           git push origin main
         fi
-      - echo ""
-      - echo "✅ Release v{{.VERSION}} completed successfully!"
-      - echo ""
-      - echo "📦 Release{{":"}} https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/releases/tag/v{{.VERSION}}"
-      - echo "🔗 Plugin Repository{{":"}} https://{{.GITHUB_ORG}}.github.io/{{.GITHUB_REPO}}/updatePlugins.xml"
-      - echo ""
-      - echo "To enable GitHub Pages (if not already done){{":"}}"
-      - echo "1. Go to https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/settings/pages"
-      - echo "2. Set Source to 'Deploy from a branch'"
-      - echo "3. Select 'main' branch and '/docs' folder"
-      - echo "4. Click Save"
-
-  release:
-    desc: Full release process (build, test, create release, update repository)
-    cmds:
-      - task: clean
-      - task: test
-      - task: verify
-      - task: validate-version
-      - task: create-release
-      - task: update-repository
-      - echo "Release v{{.VERSION}} completed successfully!"
-      - echo "Users can install from https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/blob/main/{{.UPDATE_XML}}"
-
-  setup-pages:
-    desc: Setup GitHub Pages for the custom plugin repository
-    cmds:
-      - mkdir -p {{.DOCS_DIR}}
-      - |
-        cat > {{.DOCS_DIR}}/index.html << 'EOF'
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>CircleCI IntelliJ Plugin Repository</title>
-          <style>
-            body { font-family: system-ui; max-width: 800px; margin: 50px auto; padding: 20px; }
-            code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; }
-            pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; }
-          </style>
-        </head>
-        <body>
-          <h1>CircleCI IntelliJ Plugin Repository</h1>
-          <p>Private plugin repository for the CircleCI IntelliJ IDEA plugin.</p>
-
-          <h2>Installation</h2>
-          <ol>
-            <li>Open IntelliJ IDEA</li>
-            <li>Go to <code>Settings → Plugins → ⚙️ (gear icon) → Manage Plugin Repositories</code></li>
-            <li>Add this repository URL:
-              <pre>https://{{.GITHUB_ORG}}.github.io/{{.GITHUB_REPO}}/updatePlugins.xml</pre>
-            </li>
-            <li>Search for "CircleCI" in the Marketplace tab</li>
-            <li>Click Install</li>
-          </ol>
-
-          <h2>Releases</h2>
-          <p>See <a href="https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/releases">GitHub Releases</a> for version history.</p>
-        </body>
-        </html>
-        EOF
-      - git add {{.DOCS_DIR}}/index.html
-      - echo "Created GitHub Pages index"
-      - echo ""
-      - echo "Next steps:"
-      - echo "1. Commit and push the docs/index.html file"
-      - echo "2. Go to repository Settings → Pages"
-      - echo "3. Set Source to 'main branch /docs folder'"
-      - echo "4. Save and wait for deployment"
-      - echo "5. Your repository will be available at https://{{.GITHUB_ORG}}.github.io/{{.GITHUB_REPO}}/updatePlugins.xml"
