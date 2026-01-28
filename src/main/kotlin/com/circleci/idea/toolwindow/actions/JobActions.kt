@@ -154,6 +154,7 @@ class RerunJobWithSshAction : JobAction(
                     workflowId = workflow.id,
                     fromFailed = false,
                     enableSsh = true,
+                    jobs = listOf(job.id),
                 )
             },
         )

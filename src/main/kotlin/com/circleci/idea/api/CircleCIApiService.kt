@@ -82,12 +82,16 @@ class CircleCIApiService {
         workflowId: String,
         fromFailed: Boolean = false,
         enableSsh: Boolean = false,
+        jobs: List<String>? = null,
     ): Result<Unit> {
         val body =
-            mapOf(
-                "from_failed" to fromFailed,
-                "enable_ssh" to enableSsh,
-            )
+            buildMap {
+                put("from_failed", fromFailed)
+                put("enable_ssh", enableSsh)
+                if (jobs != null) {
+                    put("jobs", jobs)
+                }
+            }
 
         return executeRequest("/api/v2/workflow/$workflowId/rerun", emptyMap(), body) { Unit }
     }

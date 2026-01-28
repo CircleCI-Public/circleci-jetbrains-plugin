@@ -151,20 +151,56 @@ class RerunWorkflowFromFailedAction : WorkflowAction(
  */
 class RerunWorkflowWithSshAction : WorkflowAction(
     "Rerun with SSH",
-    "Rerun this workflow with SSH access enabled",
+    "Rerun this workflow with SSH access enabled for a specific job",
     AllIcons.Actions.RestartDebugger,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
         val workflowNode = getWorkflowNode(e) ?: return
+
+        // Get jobs from workflow node's children
+        val jobNodes =
+            workflowNode.children().asSequence()
+                .filterIsInstance<com.circleci.idea.toolwindow.tree.JobNode>()
+                .toList()
+
+        if (jobNodes.isEmpty()) {
+            Messages.showErrorDialog(
+                project,
+                "No jobs found in this workflow. Load the workflow details first.",
+                "No Jobs Available",
+            )
+            return
+        }
+
+        // Show dialog to select which job to enable SSH for
+        val jobNames = jobNodes.map { it.job.name }.toTypedArray()
+        val selectedIndex =
+            Messages.showChooseDialog(
+                project,
+                "Select which job to enable SSH access for:",
+                "Select Job for SSH",
+                Messages.getQuestionIcon(),
+                jobNames,
+                jobNames[0],
+            )
+
+        if (selectedIndex == -1) {
+            return // User canceled
+        }
+
+        val selectedJob = jobNodes[selectedIndex].job
+
         executeAction(
             e,
-            "Rerun workflow '${workflowNode.workflow.name}' with SSH enabled?\n\n" +
-                "This will rerun the entire workflow with SSH access enabled.",
+            "Rerun workflow '${workflowNode.workflow.name}' with SSH enabled for job '${selectedJob.name}'?\n\n" +
+                "This will rerun the entire workflow with SSH access enabled for this specific job.",
             { workflowId ->
                 CircleCIApiService.getInstance().rerunWorkflow(
                     workflowId,
                     fromFailed = false,
                     enableSsh = true,
+                    jobs = listOf(selectedJob.id),
                 )
             },
         )
