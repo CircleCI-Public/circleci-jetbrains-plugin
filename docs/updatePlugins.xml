@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <plugins>
-  <plugin id="com.circleci.idea" url="https://github.com/circleci-petri/circleci-idea-plugin/releases/download/v1.1.1/circleci-idea-plugin-1.1.1.zip" version="1.1.1">
+  <plugin id="com.circleci.idea" url="https://github.com/circleci-petri/circleci-idea-plugin/releases/download/v1.1.2/circleci-idea-plugin-1.1.2.zip" version="1.1.2">
     <name>CircleCI</name>
     <description><![CDATA[
       CircleCI integration for JetBrains IDEs.
@@ -9,7 +9,7 @@
     <vendor email="support@circleci.com" url="https://circleci.com">CircleCI</vendor>
     <idea-version since-build="232" until-build="241.*"/>
     <change-notes><![CDATA[
-      See https://github.com/circleci-petri/circleci-idea-plugin/releases/tag/v1.1.1 for release notes.
+      See https://github.com/circleci-petri/circleci-idea-plugin/releases/tag/v1.1.2 for release notes.
     ]]></change-notes>
   </plugin>
 </plugins>
