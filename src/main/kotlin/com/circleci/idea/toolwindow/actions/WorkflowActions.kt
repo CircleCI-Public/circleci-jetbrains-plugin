@@ -147,6 +147,36 @@ class RerunWorkflowFromFailedAction : WorkflowAction(
 }
 
 /**
+ * Action to rerun a workflow with SSH enabled.
+ */
+class RerunWorkflowWithSshAction : WorkflowAction(
+    "Rerun with SSH",
+    "Rerun this workflow with SSH access enabled",
+    AllIcons.Actions.RestartDebugger,
+) {
+    override fun actionPerformed(e: AnActionEvent) {
+        val workflowNode = getWorkflowNode(e) ?: return
+        executeAction(
+            e,
+            "Rerun workflow '${workflowNode.workflow.name}' with SSH enabled?\n\n" +
+                "This will rerun the entire workflow with SSH access enabled.",
+            { workflowId ->
+                CircleCIApiService.getInstance().rerunWorkflow(
+                    workflowId,
+                    fromFailed = false,
+                    enableSsh = true,
+                )
+            },
+        )
+    }
+
+    override fun isEnabledForWorkflow(workflow: WorkflowNode): Boolean {
+        // Can rerun workflows that are completed (success, failed, canceled)
+        return workflow.workflow.status in listOf("success", "failed", "canceled", "failing")
+    }
+}
+
+/**
  * Action to cancel a running workflow.
  */
 class CancelWorkflowAction : WorkflowAction(

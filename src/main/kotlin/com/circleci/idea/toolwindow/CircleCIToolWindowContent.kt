@@ -223,6 +223,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
             is WorkflowNode -> {
                 actionGroup.add(com.circleci.idea.toolwindow.actions.RerunWorkflowAction())
                 actionGroup.add(com.circleci.idea.toolwindow.actions.RerunWorkflowFromFailedAction())
+                actionGroup.add(com.circleci.idea.toolwindow.actions.RerunWorkflowWithSshAction())
                 actionGroup.add(com.circleci.idea.toolwindow.actions.CancelWorkflowAction())
                 actionGroup.addSeparator()
                 actionGroup.add(com.circleci.idea.toolwindow.actions.ApproveWorkflowAction())
