@@ -91,6 +91,10 @@ tasks {
         // Exclude platform integration test that requires special IDE environment setup
         // TODO: Fix CircleCIStateStoreTest to work with JUnit 4 or convert to lightweight test
         exclude("**/CircleCIStateStoreTest.class")
+
+        // Exclude E2E tests that require running IDE with robot-server
+        // Run these separately with: task ui:test
+        exclude("**/*E2ETest.class")
     }
 
     // UI Testing - Configure the existing runIdeForUiTests task
