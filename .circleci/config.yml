@@ -1,156 +1,77 @@
 version: 2.1
 
-# Orbs for common tasks
 orbs:
-  jq: circleci/jq@3.0
+  gradle: circleci/gradle@3.0
 
-# Executors
-executors:
-  java-builder:
+jobs:
+  build-and-test:
     docker:
       - image: cimg/openjdk:17.0
-    working_directory: ~/project
-    environment:
-      GRADLE_OPTS: -Xmx2048m -Dorg.gradle.daemon=false
 
-# Jobs
-jobs:
-  # Build and test the plugin
-  build-and-test:
-    executor: java-builder
+    resource_class: large
+
     steps:
       - checkout
 
+      # Restore Gradle cache
       - restore_cache:
           keys:
-            - gradle-cache-v1-{{ checksum "build.gradle.kts" }}
+            - gradle-cache-v1-{{ checksum "build.gradle.kts" }}-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}
             - gradle-cache-v1-
 
+      # Make gradlew executable
       - run:
-          name: Install Task
-          command: |
-            sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b ~/.local/bin
-            echo 'export PATH=$HOME/.local/bin:$PATH' >> $BASH_ENV
+          name: Make gradlew executable
+          command: chmod +x gradlew
 
+      # Build plugin
       - run:
           name: Build plugin
-          command: task build
+          command: ./gradlew build
 
+      # Run tests
       - run:
           name: Run tests
-          command: task test
+          command: ./gradlew test
 
+      # Verify plugin
       - run:
           name: Verify plugin
-          command: task verify
+          command: ./gradlew verifyPlugin
 
+      # Save Gradle cache
       - save_cache:
-          key: gradle-cache-v1-{{ checksum "build.gradle.kts" }}
+          key: gradle-cache-v1-{{ checksum "build.gradle.kts" }}-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}
           paths:
             - ~/.gradle/caches
             - ~/.gradle/wrapper
 
+      # Store test results
       - store_test_results:
           path: build/test-results
 
+      # Store test reports
       - store_artifacts:
-          path: build/reports
-          destination: reports
+          path: build/reports/tests
+          destination: test-reports
 
+      # Store plugin distribution
       - store_artifacts:
           path: build/distributions
-          destination: distributions
+          destination: plugin-distribution
 
-      - persist_to_workspace:
-          root: .
-          paths:
-            - build/distributions/*.zip
+      # Store verification results
+      - store_artifacts:
+          path: build/reports/pluginVerifier
+          destination: verification-reports
 
-  # Release the plugin
-  release:
-    executor: java-builder
-    steps:
-      - checkout
-
-      - attach_workspace:
-          at: .
-
-      - restore_cache:
-          keys:
-            - gradle-cache-v1-{{ checksum "build.gradle.kts" }}
-
-      - run:
-          name: Install Task
-          command: |
-            sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b ~/.local/bin
-            echo 'export PATH=$HOME/.local/bin:$PATH' >> $BASH_ENV
-
-      - run:
-          name: Install GitHub CLI
-          command: |
-            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-            sudo apt update
-            sudo apt install gh -y
-
-      - run:
-          name: Configure Git
-          command: |
-            git config user.email "ci@circleci.com"
-            git config user.name "CircleCI Bot"
-
-      - run:
-          name: Validate version matches tag
-          command: task validate-version
-
-      - run:
-          name: Create GitHub Release
-          command: |
-            # Authenticate gh CLI
-            echo "$GITHUB_TOKEN" | gh auth login --with-token
-
-            # Run release task
-            task create-release
-
-      - run:
-          name: Update Plugin Repository
-          command: task update-repository
-
-# Workflows
 workflows:
   version: 2
-
-  # Build and test on every commit
-  build:
+  build-test-verify:
     jobs:
       - build-and-test:
           filters:
-            tags:
-              ignore: /.*/
-
-  # Release workflow triggered by version tags
-  release:
-    jobs:
-      - build-and-test:
-          filters:
-            tags:
-              only: /^v\d+\.\d+\.\d+$/
             branches:
-              ignore: /.*/
-
-      - hold-for-approval:
-          type: approval
-          requires:
-            - build-and-test
-          filters:
-            tags:
-              only: /^v\d+\.\d+\.\d+$/
-
-      - release:
-          requires:
-            - hold-for-approval
-          filters:
-            tags:
-              only: /^v\d+\.\d+\.\d+$/
-          context:
-            - github-release  # Context containing GITHUB_TOKEN
+              only:
+                - main
+                - develop
