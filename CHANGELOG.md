@@ -5,6 +5,22 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-01-29
+
+### Added
+- **E2E Testing Framework**
+  - Integrated IntelliJ Remote Robot for UI testing
+  - Added test commands: `task ui:start`, `task ui:test`, `task ui:all`
+  - Example E2E tests and page object pattern
+  - UI testing documentation and quick reference guide
+  - Component inspection at http://localhost:8082/ during test runs
+
+### Fixed
+- Job details panel actions now work properly with correct job/workflow context
+  - 'Rerun with SSH' requires job ID parameter
+  - Job data properly passed from tree nodes to preserve context
+  - Workflow ID stored directly in JobDetails object
+
 ## [1.1.2] - 2026-01-28
 
 ### Fixed
