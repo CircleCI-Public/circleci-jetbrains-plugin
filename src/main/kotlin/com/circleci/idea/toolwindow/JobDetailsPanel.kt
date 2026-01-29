@@ -241,7 +241,9 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
             scope.launch {
                 val state = stateStore.jobDetails.value
                 val jobDetails = state.jobDetails
-                if (jobDetails != null) {
+                val workflowId = state.selectedWorkflowId
+
+                if (jobDetails != null && jobDetails.id != null && workflowId != null) {
                     // Validate SSH availability
                     val validation = sshService.validateSshDetails(jobDetails)
                     when (validation) {
@@ -253,15 +255,52 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
                             )
                         }
                         else -> {
-                            // Note: Rerun with SSH requires workflow ID
-                            Messages.showInfoMessage(
+                            // Confirm action
+                            val result = Messages.showYesNoDialog(
                                 project,
-                                "To rerun a job with SSH, use the 'Rerun Workflow with SSH' action from the pipelines tree.\n\n" +
-                                    "Once the job is running with SSH enabled, use the 'Connect SSH' button to open a terminal session.",
-                                "Rerun with SSH",
+                                "Rerun job '${jobDetails.name}' with SSH enabled?\n\n" +
+                                    "This will rerun the entire workflow with SSH access enabled for this specific job.",
+                                "Confirm Rerun with SSH",
+                                Messages.getQuestionIcon(),
                             )
+
+                            if (result == Messages.YES) {
+                                withContext(Dispatchers.IO) {
+                                    val apiResult = com.circleci.idea.api.CircleCIApiService.getInstance().rerunWorkflow(
+                                        workflowId = workflowId,
+                                        fromFailed = false,
+                                        enableSsh = true,
+                                        jobs = listOf(jobDetails.id),
+                                    )
+
+                                    withContext(Dispatchers.Main) {
+                                        if (apiResult.isSuccess) {
+                                            Messages.showInfoMessage(
+                                                project,
+                                                "Workflow rerun with SSH initiated successfully.\n\n" +
+                                                    "Once the job starts running, use the 'Connect SSH' button to open a terminal session.",
+                                                "Rerun Successful",
+                                            )
+                                        } else {
+                                            val error = apiResult.exceptionOrNull()?.message ?: "Unknown error"
+                                            Messages.showErrorDialog(
+                                                project,
+                                                "Failed to rerun workflow with SSH: $error",
+                                                "Rerun Failed",
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
+                } else {
+                    Messages.showWarningDialog(
+                        project,
+                        "Cannot rerun job: workflow information not available.\n\n" +
+                            "Try opening the job from the pipelines tree.",
+                        "Cannot Rerun",
+                    )
                 }
             }
         }
@@ -270,9 +309,45 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
             scope.launch {
                 val state = stateStore.jobDetails.value
                 val jobDetails = state.jobDetails
+
                 if (jobDetails != null && jobDetails.jobNumber != null && jobDetails.projectSlug != null) {
-                    jobDetailsService.cancelJob(jobDetails.projectSlug, jobDetails.jobNumber)
-                    jobDetailsService.refreshJobDetails()
+                    // Confirm action
+                    val result = Messages.showYesNoDialog(
+                        project,
+                        "Cancel job '${jobDetails.name}'?",
+                        "Confirm Cancel",
+                        Messages.getQuestionIcon(),
+                    )
+
+                    if (result == Messages.YES) {
+                        withContext(Dispatchers.IO) {
+                            val apiResult = jobDetailsService.cancelJob(jobDetails.projectSlug, jobDetails.jobNumber)
+
+                            withContext(Dispatchers.Main) {
+                                if (apiResult.isSuccess) {
+                                    Messages.showInfoMessage(
+                                        project,
+                                        "Job cancelled successfully",
+                                        "Cancel Successful",
+                                    )
+                                    jobDetailsService.refreshJobDetails()
+                                } else {
+                                    val error = apiResult.exceptionOrNull()?.message ?: "Unknown error"
+                                    Messages.showErrorDialog(
+                                        project,
+                                        "Failed to cancel job: $error",
+                                        "Cancel Failed",
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Messages.showWarningDialog(
+                        project,
+                        "Cannot cancel job: job information not available",
+                        "Cannot Cancel",
+                    )
                 }
             }
         }

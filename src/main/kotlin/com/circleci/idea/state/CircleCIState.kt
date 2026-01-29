@@ -179,6 +179,7 @@ data class JobDetailsState(
     val selectedJobId: String? = null,
     val selectedJobNumber: Long? = null,
     val selectedProjectSlug: String? = null,
+    val selectedWorkflowId: String? = null,
     val jobDetails: JobDetails? = null,
     val isLoading: Boolean = false,
     val error: String? = null,

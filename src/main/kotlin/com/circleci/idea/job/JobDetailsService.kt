@@ -32,11 +32,13 @@ class JobDetailsService(private val project: Project) {
      * @param jobId Job ID
      * @param jobNumber Job number
      * @param projectSlug Project slug
+     * @param workflowId Workflow ID (optional, needed for rerun actions)
      */
     suspend fun selectAndFetchJobDetails(
         jobId: String,
         jobNumber: Long?,
         projectSlug: String,
+        workflowId: String? = null,
     ) {
         if (jobNumber == null) {
             logger.warn("Cannot fetch job details without job number")
@@ -44,8 +46,8 @@ class JobDetailsService(private val project: Project) {
             return
         }
 
-        logger.info("Selecting job $jobId (number: $jobNumber) for project $projectSlug")
-        stateStore.selectJob(jobId, jobNumber, projectSlug)
+        logger.info("Selecting job $jobId (number: $jobNumber) for project $projectSlug, workflow $workflowId")
+        stateStore.selectJob(jobId, jobNumber, projectSlug, workflowId)
 
         try {
             fetchJobDetails(projectSlug, jobNumber)

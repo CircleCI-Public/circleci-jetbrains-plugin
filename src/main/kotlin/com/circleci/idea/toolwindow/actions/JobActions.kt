@@ -114,6 +114,7 @@ class OpenJobDetailsAction : JobAction(
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val jobNode = getJobNode(e) ?: return
+        val workflowNode = getWorkflowNode(jobNode)
         val job = jobNode.job
 
         scope.launch {
@@ -122,6 +123,7 @@ class OpenJobDetailsAction : JobAction(
                 jobId = job.id,
                 jobNumber = job.jobNumber,
                 projectSlug = job.projectSlug,
+                workflowId = workflowNode?.workflow?.id,
             )
 
             // Show job details panel in tool window service

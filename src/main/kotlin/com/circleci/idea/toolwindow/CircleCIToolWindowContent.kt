@@ -197,11 +197,13 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
 
     private fun handleJobDoubleClick(jobNode: JobNode) {
         val job = jobNode.job
+        val workflow = (jobNode.parent as? WorkflowNode)?.workflow
         scope.launch {
             jobDetailsService.selectAndFetchJobDetails(
                 jobId = job.id,
                 jobNumber = job.jobNumber,
                 projectSlug = job.projectSlug,
+                workflowId = workflow?.id,
             )
         }
 

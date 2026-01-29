@@ -97,12 +97,14 @@ class CircleCIStateStore(private val project: Project) : CircleCIState {
         jobId: String,
         jobNumber: Long?,
         projectSlug: String,
+        workflowId: String? = null,
     ) {
         _jobDetails.value =
             JobDetailsState(
                 selectedJobId = jobId,
                 selectedJobNumber = jobNumber,
                 selectedProjectSlug = projectSlug,
+                selectedWorkflowId = workflowId,
                 isLoading = true,
             )
     }
