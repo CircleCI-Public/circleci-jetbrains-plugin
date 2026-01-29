@@ -204,6 +204,8 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
                 jobNumber = job.jobNumber,
                 projectSlug = job.projectSlug,
                 workflowId = workflow?.id,
+                jobName = job.name,
+                jobStatus = job.status,
             )
         }
 

@@ -33,12 +33,16 @@ class JobDetailsService(private val project: Project) {
      * @param jobNumber Job number
      * @param projectSlug Project slug
      * @param workflowId Workflow ID (optional, needed for rerun actions)
+     * @param jobName Job name (optional, used as fallback if API doesn't return it)
+     * @param jobStatus Job status (optional, used as fallback if API doesn't return it)
      */
     suspend fun selectAndFetchJobDetails(
         jobId: String,
         jobNumber: Long?,
         projectSlug: String,
         workflowId: String? = null,
+        jobName: String? = null,
+        jobStatus: String? = null,
     ) {
         if (jobNumber == null) {
             logger.warn("Cannot fetch job details without job number")
@@ -50,7 +54,7 @@ class JobDetailsService(private val project: Project) {
         stateStore.selectJob(jobId, jobNumber, projectSlug, workflowId)
 
         try {
-            fetchJobDetails(projectSlug, jobNumber)
+            fetchJobDetails(projectSlug, jobNumber, jobId, jobName, jobStatus, workflowId)
         } catch (e: Exception) {
             logger.error("Failed to fetch job details for job $jobNumber", e)
             stateStore.setJobDetailsError("Failed to load job details: ${e.message}")
@@ -62,12 +66,20 @@ class JobDetailsService(private val project: Project) {
      *
      * @param projectSlug Project slug
      * @param jobNumber Job number
+     * @param jobId Job ID (fallback if API doesn't return it)
+     * @param jobName Job name (fallback if API doesn't return it)
+     * @param jobStatus Job status (fallback if API doesn't return it)
+     * @param workflowId Workflow ID
      */
     private suspend fun fetchJobDetails(
         projectSlug: String,
         jobNumber: Long,
+        jobId: String? = null,
+        jobName: String? = null,
+        jobStatus: String? = null,
+        workflowId: String? = null,
     ) {
-        logger.info("Fetching job details for job $jobNumber")
+        logger.info("Fetching job details for job $jobNumber (name: $jobName)")
 
         val result = apiService.getJobDetails(projectSlug, jobNumber)
 
@@ -82,11 +94,15 @@ class JobDetailsService(private val project: Project) {
                     logger.warn("No steps data in API response for job $jobNumber")
                 }
 
-                // Get workflowId from current state
-                val workflowId = stateStore.jobDetails.value.selectedWorkflowId
-
-                val jobDetails = convertToJobDetails(jobDetailsInfo, jobNumber, workflowId)
-                logger.info("Converted JobDetails: steps=${jobDetails.steps.size}, workflowId=$workflowId")
+                val jobDetails = convertToJobDetails(
+                    jobDetailsInfo,
+                    jobNumber,
+                    workflowId,
+                    jobId,
+                    jobName,
+                    jobStatus,
+                )
+                logger.info("Converted JobDetails: name=${jobDetails.name}, steps=${jobDetails.steps.size}, workflowId=$workflowId")
                 jobDetails.steps.forEachIndexed { index, step ->
                     logger.info("  Converted Step $index: name=${step.name}, actions=${step.actions.size}")
                 }
@@ -147,19 +163,23 @@ class JobDetailsService(private val project: Project) {
 
     /**
      * Convert API JobDetailsInfo to domain JobDetails model.
+     * Uses fallback values if API response doesn't include certain fields.
      */
     private fun convertToJobDetails(
         jobDetailsInfo: JobDetailsInfo,
         jobNumber: Long,
         workflowId: String? = null,
+        fallbackJobId: String? = null,
+        fallbackJobName: String? = null,
+        fallbackJobStatus: String? = null,
     ): JobDetails {
         return JobDetails(
-            id = jobDetailsInfo.id,
+            id = jobDetailsInfo.id ?: fallbackJobId,
             jobNumber = jobDetailsInfo.jobNumber ?: jobNumber,
-            name = jobDetailsInfo.name,
+            name = jobDetailsInfo.name ?: fallbackJobName,
             projectSlug = jobDetailsInfo.projectSlug,
             workflowId = workflowId,
-            status = jobDetailsInfo.status,
+            status = jobDetailsInfo.status ?: fallbackJobStatus,
             type = jobDetailsInfo.type,
             startedAt = jobDetailsInfo.startedAt,
             stoppedAt = jobDetailsInfo.stoppedAt,

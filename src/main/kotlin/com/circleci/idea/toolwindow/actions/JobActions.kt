@@ -124,6 +124,8 @@ class OpenJobDetailsAction : JobAction(
                 jobNumber = job.jobNumber,
                 projectSlug = job.projectSlug,
                 workflowId = workflowNode?.workflow?.id,
+                jobName = job.name,
+                jobStatus = job.status,
             )
 
             // Show job details panel in tool window service
