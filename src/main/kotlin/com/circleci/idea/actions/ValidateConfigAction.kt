@@ -1,7 +1,9 @@
 package com.circleci.idea.actions
 
 import com.circleci.idea.api.CircleCIApiService
+import com.circleci.idea.auth.CircleCIAuthService
 import com.circleci.idea.logging.CircleCILogger
+import com.circleci.idea.settings.CircleCISettings
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -59,6 +61,26 @@ class ValidateConfigAction : AnAction("Validate CircleCI Config") {
         project: Project,
         file: VirtualFile,
     ) {
+        // Check authentication first
+        val authService = CircleCIAuthService.getInstance(project)
+        if (!authService.isAuthenticated()) {
+            showErrorNotification(
+                project,
+                "Please login to CircleCI first (Tools → CircleCI → Login)",
+            )
+            return
+        }
+
+        // Initialize API service with token and host
+        val token = authService.getToken()
+        if (token == null) {
+            showErrorNotification(project, "No authentication token found. Please login to CircleCI.")
+            return
+        }
+
+        val settings = CircleCISettings.getInstance()
+        apiService.initialize(token, settings.hostUrl)
+
         ProgressManager.getInstance().run(
             object : Task.Backgroundable(project, "Validating CircleCI Configuration", false) {
                 override fun run(indicator: ProgressIndicator) {
