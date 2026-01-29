@@ -145,11 +145,8 @@ class CircleCIApiService {
 
         // Use v1.1 API to get job details with steps
         return executeRequest("/api/v1.1/project/$vcsType/$username/$project/$jobNumber") { data ->
-            logger.info("Raw v1.1 API response for job $jobNumber: ${data.toString().take(500)}...")
             val jobDetails = gson.fromJson(data.toString(), JobDetailsInfo::class.java)
-            logger.info(
-                "Parsed JobDetailsInfo: id=${jobDetails.id}, name=${jobDetails.name}, steps=${jobDetails.steps?.size ?: 0}",
-            )
+            logger.debug("Fetched job details for job $jobNumber: ${jobDetails.steps?.size ?: 0} steps")
             jobDetails
         }
     }

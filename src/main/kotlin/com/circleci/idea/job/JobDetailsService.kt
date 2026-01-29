@@ -173,6 +173,12 @@ class JobDetailsService(private val project: Project) {
         fallbackJobName: String? = null,
         fallbackJobStatus: String? = null,
     ): JobDetails {
+        // Always calculate duration from timestamps (more reliable than API field)
+        val duration = calculateDuration(
+            jobDetailsInfo.startedAt,
+            jobDetailsInfo.stoppedAt,
+        ) ?: jobDetailsInfo.duration
+
         return JobDetails(
             id = jobDetailsInfo.id ?: fallbackJobId,
             jobNumber = jobDetailsInfo.jobNumber ?: jobNumber,
@@ -183,7 +189,7 @@ class JobDetailsService(private val project: Project) {
             type = jobDetailsInfo.type,
             startedAt = jobDetailsInfo.startedAt,
             stoppedAt = jobDetailsInfo.stoppedAt,
-            duration = jobDetailsInfo.duration,
+            duration = duration,
             resourceClass = jobDetailsInfo.executor?.resourceClass,
             parallelism = jobDetailsInfo.parallelism,
             steps = jobDetailsInfo.steps?.map { convertToJobStep(it) } ?: emptyList(),
@@ -193,6 +199,31 @@ class JobDetailsService(private val project: Project) {
             sshUser = jobDetailsInfo.ssh?.user,
             webUrl = jobDetailsInfo.webUrl,
         )
+    }
+
+    /**
+     * Calculate duration from start and stop timestamps.
+     * Returns null if either timestamp is missing or invalid.
+     */
+    private fun calculateDuration(
+        startedAt: String?,
+        stoppedAt: String?,
+    ): Long? {
+        if (startedAt == null || stoppedAt == null) {
+            return null
+        }
+
+        return try {
+            val startTime = java.time.Instant.parse(startedAt)
+            val stopTime = java.time.Instant.parse(stoppedAt)
+            val durationMillis = java.time.Duration.between(startTime, stopTime).toMillis()
+
+            // Return null for negative durations (data inconsistency)
+            if (durationMillis < 0) null else durationMillis
+        } catch (e: Exception) {
+            logger.debug("Failed to parse timestamps for duration calculation", e)
+            null
+        }
     }
 
     /**

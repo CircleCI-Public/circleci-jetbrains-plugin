@@ -25,9 +25,8 @@ import kotlinx.coroutines.flow.collectLatest
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
 import java.awt.datatransfer.StringSelection
+import javax.swing.BoxLayout
 import javax.swing.*
 import javax.swing.event.TreeSelectionListener
 import javax.swing.table.DefaultTableModel
@@ -47,7 +46,7 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
 
     // UI Components
     private val mainPanel = JBPanel<JBPanel<*>>(BorderLayout())
-    private val headerPanel = JBPanel<JBPanel<*>>(GridBagLayout())
+    private val headerPanel = JBPanel<JBPanel<*>>()
     private val contentPanel = JBPanel<JBPanel<*>>(BorderLayout())
     private val loadingLabel = JBLabel("Loading job details...", SwingConstants.CENTER)
     private val errorLabel = JBLabel("", SwingConstants.CENTER)
@@ -121,58 +120,35 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
 
     private fun setupHeader() {
         headerPanel.border = JBUI.Borders.empty(10)
+        headerPanel.layout = BoxLayout(headerPanel, BoxLayout.Y_AXIS)
 
-        val gbc = GridBagConstraints()
-        gbc.anchor = GridBagConstraints.WEST
-        gbc.fill = GridBagConstraints.HORIZONTAL
-        gbc.insets = JBUI.insets(5)
+        // Title row: Job name and status
+        val titlePanel = JBPanel<JBPanel<*>>(FlowLayout(FlowLayout.LEFT, 10, 5))
+        titlePanel.add(jobNameLabel)
+        titlePanel.add(jobStatusLabel)
+        headerPanel.add(titlePanel)
 
-        // Job name and status row
-        gbc.gridx = 0
-        gbc.gridy = 0
-        gbc.gridwidth = 2
-        headerPanel.add(jobNameLabel, gbc)
-
-        gbc.gridx = 2
-        gbc.gridwidth = 1
-        headerPanel.add(jobStatusLabel, gbc)
-
-        // Job number and duration row
-        gbc.gridx = 0
-        gbc.gridy = 1
-        gbc.gridwidth = 1
-        headerPanel.add(JBLabel("Job #:"), gbc)
-
-        gbc.gridx = 1
-        headerPanel.add(jobNumberLabel, gbc)
-
-        gbc.gridx = 2
-        headerPanel.add(JBLabel("Duration:"), gbc)
-
-        gbc.gridx = 3
-        headerPanel.add(jobDurationLabel, gbc)
-
-        // Resource class row
-        gbc.gridx = 0
-        gbc.gridy = 2
-        headerPanel.add(JBLabel("Resource Class:"), gbc)
-
-        gbc.gridx = 1
-        gbc.gridwidth = 2
-        headerPanel.add(resourceClassLabel, gbc)
+        // Metadata row: Job number, duration, resource class
+        val metadataPanel = JBPanel<JBPanel<*>>(FlowLayout(FlowLayout.LEFT, 20, 5))
+        metadataPanel.add(JBLabel("Job #:"))
+        metadataPanel.add(jobNumberLabel)
+        metadataPanel.add(JBLabel("•"))
+        metadataPanel.add(JBLabel("Duration:"))
+        metadataPanel.add(jobDurationLabel)
+        metadataPanel.add(JBLabel("•"))
+        metadataPanel.add(JBLabel("Resource:"))
+        metadataPanel.add(resourceClassLabel)
+        headerPanel.add(metadataPanel)
 
         // Action buttons row
-        gbc.gridx = 0
-        gbc.gridy = 3
-        gbc.gridwidth = 4
-        val buttonPanel = JBPanel<JBPanel<*>>(FlowLayout(FlowLayout.LEFT))
+        val buttonPanel = JBPanel<JBPanel<*>>(FlowLayout(FlowLayout.LEFT, 5, 5))
         buttonPanel.add(rerunButton)
         buttonPanel.add(rerunWithSshButton)
         buttonPanel.add(cancelButton)
         buttonPanel.add(connectSshButton)
         buttonPanel.add(copySshButton)
         buttonPanel.add(openInBrowserButton)
-        headerPanel.add(buttonPanel, gbc)
+        headerPanel.add(buttonPanel)
 
         setupActionButtons()
     }
@@ -560,15 +536,21 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
     }
 
     private fun updateJobMetadata(jobDetails: JobDetails) {
-        jobNameLabel.text = "<html><b>${jobDetails.name ?: "Unknown Job"}</b></html>"
-        jobStatusLabel.text = (jobDetails.status ?: "unknown").uppercase()
+        // Job name with larger font
+        val jobName = jobDetails.name ?: "Unknown Job"
+        jobNameLabel.text = jobName
+        jobNameLabel.font = jobNameLabel.font.deriveFont(16f).deriveFont(java.awt.Font.BOLD)
+
+        // Status with icon
+        val status = (jobDetails.status ?: "unknown").uppercase()
+        jobStatusLabel.text = status
         jobStatusLabel.icon = getStatusIcon(jobDetails.status ?: "unknown")
+        jobStatusLabel.foreground = getStatusColor(jobDetails.status ?: "unknown")
+
+        // Metadata
         jobNumberLabel.text = jobDetails.jobNumber?.toString() ?: "N/A"
         jobDurationLabel.text = jobDetailsService.formatDuration(jobDetails.duration)
         resourceClassLabel.text = jobDetails.resourceClass ?: "N/A"
-
-        // Set status color
-        jobStatusLabel.foreground = getStatusColor(jobDetails.status ?: "unknown")
     }
 
     private fun updateStepsTree(steps: List<JobStep>) {

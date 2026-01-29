@@ -231,9 +231,9 @@ data class JobDetailsInfo(
     val status: String?,
     @SerializedName("type")
     val type: String?,
-    @SerializedName("started_at")
+    @SerializedName("start_time")
     val startedAt: String?,
-    @SerializedName("stopped_at")
+    @SerializedName("stop_time")
     val stoppedAt: String?,
     @SerializedName("duration")
     val duration: Long?,
