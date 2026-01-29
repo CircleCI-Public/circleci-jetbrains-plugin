@@ -311,6 +311,42 @@ class CircleCIApiService {
         }
     }
 
+    /**
+     * Execute a POST request with body and parse response.
+     */
+    private fun <T> executePostRequestWithBody(
+        path: String,
+        body: Any,
+        parser: (com.google.gson.JsonObject) -> T,
+    ): Result<T> {
+        val apiClient = client ?: return Result.failure(IllegalStateException("API client not initialized"))
+
+        val response = apiClient.post(path, body)
+
+        return when (response) {
+            is ApiResponse.Success -> {
+                try {
+                    Result.success(parser(response.data))
+                } catch (e: Exception) {
+                    Result.failure(Exception("Failed to parse response: ${e.message}"))
+                }
+            }
+            is ApiResponse.Error -> Result.failure(Exception(response.message))
+            is ApiResponse.Unauthorized -> Result.failure(Exception("Unauthorized: ${response.message}"))
+            is ApiResponse.RateLimited -> Result.failure(Exception("Rate limited. Retry after ${response.retryAfter}s"))
+        }
+    }
+
+    /**
+     * Validate CircleCI configuration.
+     */
+    fun validateConfig(configYaml: String): Result<ConfigValidationResponse> {
+        val request = ConfigValidationRequest(config = configYaml)
+        return executePostRequestWithBody("/api/v2/pipeline/config/compile-with-defaults", request) { data ->
+            gson.fromJson(data.toString(), ConfigValidationResponse::class.java)
+        }
+    }
+
     companion object {
         fun getInstance(): CircleCIApiService {
             return service()

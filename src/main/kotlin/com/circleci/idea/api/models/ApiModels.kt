@@ -181,6 +181,14 @@ data class ProjectVcsInfo(
 )
 
 /**
+ * Request body for config validation.
+ */
+data class ConfigValidationRequest(
+    @SerializedName("config")
+    val config: String,
+)
+
+/**
  * Config validation response.
  */
 data class ConfigValidationResponse(
