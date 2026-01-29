@@ -82,8 +82,11 @@ class JobDetailsService(private val project: Project) {
                     logger.warn("No steps data in API response for job $jobNumber")
                 }
 
-                val jobDetails = convertToJobDetails(jobDetailsInfo, jobNumber)
-                logger.info("Converted JobDetails: steps=${jobDetails.steps.size}")
+                // Get workflowId from current state
+                val workflowId = stateStore.jobDetails.value.selectedWorkflowId
+
+                val jobDetails = convertToJobDetails(jobDetailsInfo, jobNumber, workflowId)
+                logger.info("Converted JobDetails: steps=${jobDetails.steps.size}, workflowId=$workflowId")
                 jobDetails.steps.forEachIndexed { index, step ->
                     logger.info("  Converted Step $index: name=${step.name}, actions=${step.actions.size}")
                 }
@@ -148,12 +151,14 @@ class JobDetailsService(private val project: Project) {
     private fun convertToJobDetails(
         jobDetailsInfo: JobDetailsInfo,
         jobNumber: Long,
+        workflowId: String? = null,
     ): JobDetails {
         return JobDetails(
             id = jobDetailsInfo.id,
             jobNumber = jobDetailsInfo.jobNumber ?: jobNumber,
             name = jobDetailsInfo.name,
             projectSlug = jobDetailsInfo.projectSlug,
+            workflowId = workflowId,
             status = jobDetailsInfo.status,
             type = jobDetailsInfo.type,
             startedAt = jobDetailsInfo.startedAt,

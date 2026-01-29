@@ -225,13 +225,49 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
             scope.launch {
                 val state = stateStore.jobDetails.value
                 val jobDetails = state.jobDetails
-                if (jobDetails != null) {
-                    // Note: Rerun requires workflow ID which we don't have in JobDetails
-                    // For now, show a message to use the workflow rerun action
-                    Messages.showInfoMessage(
+                val workflowId = jobDetails?.workflowId
+
+                if (jobDetails != null && workflowId != null) {
+                    // Confirm action
+                    val result = Messages.showYesNoDialog(
                         project,
-                        "To rerun a job, use the 'Rerun Workflow' action from the pipelines tree",
-                        "Rerun Job",
+                        "Rerun workflow from start?\n\n" +
+                            "This will rerun the entire workflow that contains job '${jobDetails.name}'.",
+                        "Confirm Rerun",
+                        Messages.getQuestionIcon(),
+                    )
+
+                    if (result == Messages.YES) {
+                        withContext(Dispatchers.IO) {
+                            val apiResult = com.circleci.idea.api.CircleCIApiService.getInstance().rerunWorkflow(
+                                workflowId = workflowId,
+                                fromFailed = false,
+                            )
+
+                            withContext(Dispatchers.Main) {
+                                if (apiResult.isSuccess) {
+                                    Messages.showInfoMessage(
+                                        project,
+                                        "Workflow rerun initiated successfully",
+                                        "Rerun Successful",
+                                    )
+                                } else {
+                                    val error = apiResult.exceptionOrNull()?.message ?: "Unknown error"
+                                    Messages.showErrorDialog(
+                                        project,
+                                        "Failed to rerun workflow: $error",
+                                        "Rerun Failed",
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Messages.showWarningDialog(
+                        project,
+                        "Cannot rerun job: workflow information not available.\n\n" +
+                            "Try opening the job from the pipelines tree.",
+                        "Cannot Rerun",
                     )
                 }
             }
@@ -241,7 +277,7 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
             scope.launch {
                 val state = stateStore.jobDetails.value
                 val jobDetails = state.jobDetails
-                val workflowId = state.selectedWorkflowId
+                val workflowId = jobDetails?.workflowId
 
                 if (jobDetails != null && jobDetails.id != null && workflowId != null) {
                     // Validate SSH availability

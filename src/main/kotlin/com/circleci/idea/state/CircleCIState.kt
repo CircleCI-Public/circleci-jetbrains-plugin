@@ -190,6 +190,7 @@ data class JobDetails(
     val jobNumber: Long?,
     val name: String?,
     val projectSlug: String?,
+    val workflowId: String? = null,
     val status: String?,
     val type: String?,
     val startedAt: String?,
