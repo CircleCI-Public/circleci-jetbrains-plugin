@@ -5,6 +5,22 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-01-29
+
+### Fixed
+- Job duration now displays correctly in job details panel
+  - Fixed API field mapping to use `start_time` and `stop_time` fields
+  - Added fallback duration calculation from timestamps
+- Job details panel layout improvements
+  - Replaced GridBagLayout with cleaner BoxLayout + FlowLayout
+  - Job name displays in larger, bold font
+  - Metadata row uses bullet separators for better readability
+- Manually added projects now persist after clicking refresh button
+  - Projects list properly merges git-detected and manually added projects
+
+### Improved
+- Reduced verbose debug logging for better log readability
+
 ## [1.3.0] - 2026-01-29
 
 ### Added
