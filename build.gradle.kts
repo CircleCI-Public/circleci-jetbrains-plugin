@@ -14,6 +14,7 @@ version = "1.1.2"
 
 repositories {
     mavenCentral()
+    maven { url = uri("https://packages.jetbrains.team/maven/p/ij/intellij-dependencies") }
 }
 
 dependencies {
@@ -34,6 +35,10 @@ dependencies {
     testImplementation("org.opentest4j:opentest4j:1.3.0") // Required by BasePlatformTestCase
     testImplementation("org.mockito:mockito-core:5.8.0")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.1")
+
+    // UI Testing - Remote Robot for E2E tests
+    testImplementation("com.intellij.remoterobot:remote-robot:0.11.23")
+    testImplementation("com.intellij.remoterobot:remote-fixtures:0.11.23")
 
     // Static Analysis
     detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.4")
@@ -86,6 +91,18 @@ tasks {
         // Exclude platform integration test that requires special IDE environment setup
         // TODO: Fix CircleCIStateStoreTest to work with JUnit 4 or convert to lightweight test
         exclude("**/CircleCIStateStoreTest.class")
+    }
+
+    // UI Testing - Configure the existing runIdeForUiTests task
+    runIdeForUiTests {
+        systemProperty("robot-server.port", "8082")
+        systemProperty("ide.mac.message.dialogs.as.sheets", "false")
+        systemProperty("jb.privacy.policy.text", "<!--999.999-->")
+        systemProperty("jb.consents.confirmation.enabled", "false")
+    }
+
+    downloadRobotServerPlugin {
+        version.set("0.11.23")
     }
 }
 

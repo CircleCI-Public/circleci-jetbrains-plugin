@@ -32,9 +32,37 @@ tasks:
       - echo "✅ Plugin built at {{.PLUGIN_ZIP}}"
 
   test:
-    desc: Run tests and verify plugin
+    desc: Run unit tests and verify plugin
     cmds:
       - ./gradlew test verifyPlugin
+
+  ui:start:
+    desc: Start IDE with Remote Robot server for E2E testing
+    cmds:
+      - echo "🚀 Starting IDE with robot-server on port 8082..."
+      - echo "💡 IDE will open in a new window. Keep this terminal running."
+      - echo "💡 To run tests, open another terminal and run 'task ui:test'"
+      - ./gradlew runIdeForUiTests
+
+  ui:test:
+    desc: Run E2E UI tests (requires IDE running via 'task ui:start')
+    cmds:
+      - ./gradlew test --tests "*E2ETest"
+
+  ui:all:
+    desc: Run all UI tests (starts IDE, runs tests, stops IDE)
+    cmds:
+      - echo "🚀 Starting IDE in background..."
+      - ./gradlew runIdeForUiTests > /tmp/circleci-ui-test-ide.log 2>&1 &
+      - echo $! > /tmp/circleci-ui-test-ide.pid
+      - echo "⏳ Waiting for IDE to be ready (30 seconds)..."
+      - sleep 30
+      - echo "🧪 Running UI tests..."
+      - ./gradlew test --tests "*E2ETest" || true
+      - echo "🛑 Stopping IDE..."
+      - kill $(cat /tmp/circleci-ui-test-ide.pid) || true
+      - rm /tmp/circleci-ui-test-ide.pid
+      - echo "✅ UI tests completed"
 
   run:
     desc: Launch IDE with plugin for testing
