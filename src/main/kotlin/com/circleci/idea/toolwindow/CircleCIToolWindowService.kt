@@ -39,6 +39,10 @@ class CircleCIToolWindowService(private val project: Project) {
         treeModel?.reloadRoot()
     }
 
+    fun refreshPipelines() {
+        treeModel?.refreshPipelines()
+    }
+
     /**
      * Show the job details panel.
      * Creates the panel if it doesn't exist and switches to it.

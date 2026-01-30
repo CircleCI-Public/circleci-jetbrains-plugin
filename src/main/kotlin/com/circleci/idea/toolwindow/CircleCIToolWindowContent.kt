@@ -2,8 +2,15 @@ package com.circleci.idea.toolwindow
 
 import com.circleci.idea.auth.CircleCIAuthService
 import com.circleci.idea.job.JobDetailsService
+import com.circleci.idea.polling.PipelinePollingService
 import com.circleci.idea.project.CircleCIProjectService
-import com.circleci.idea.toolwindow.tree.*
+import com.circleci.idea.toolwindow.tree.CircleCITreeCellRenderer
+import com.circleci.idea.toolwindow.tree.CircleCITreeModel
+import com.circleci.idea.toolwindow.tree.CircleCITreeNode
+import com.circleci.idea.toolwindow.tree.JobNode
+import com.circleci.idea.toolwindow.tree.LoadMoreNode
+import com.circleci.idea.toolwindow.tree.PipelineNode
+import com.circleci.idea.toolwindow.tree.WorkflowNode
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionPlaces
@@ -36,10 +43,14 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
     private val projectService = project.getService(CircleCIProjectService::class.java)
     private val authService = CircleCIAuthService.getInstance(project)
     private val jobDetailsService = project.getService(JobDetailsService::class.java)
+    private val pollingService = project.getService(PipelinePollingService::class.java)
 
     init {
         setupTree()
         setupToolbar()
+
+        // Set tree reference in tree model for state management
+        treeModel.setTree(tree)
 
         // Register tree and tree model with service
         val toolWindowService = project.getService(CircleCIToolWindowService::class.java)
@@ -69,16 +80,9 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
 
             // Explicitly reload tree after detection
             treeModel.reloadRoot()
-        }
-    }
 
-    /**
-     * Public method to refresh the tree (called by RefreshAction).
-     */
-    fun refresh() {
-        scope.launch {
-            projectService.refresh()
-            treeModel.reloadRoot()
+            // Start polling for pipeline updates
+            pollingService.startPolling()
         }
     }
 
@@ -150,8 +154,9 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         val actionGroup = DefaultActionGroup()
 
         // Project management actions
-        actionGroup.add(com.circleci.idea.toolwindow.actions.AddProjectAction())
         actionGroup.add(com.circleci.idea.toolwindow.actions.RefreshAction())
+        actionGroup.add(com.circleci.idea.toolwindow.actions.AddProjectAction())
+        actionGroup.add(com.circleci.idea.toolwindow.actions.ToggleAutoRefreshAction())
         actionGroup.addSeparator()
 
         // Filter actions
@@ -267,6 +272,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
     }
 
     override fun dispose() {
+        pollingService.stopPolling()
         scope.cancel()
     }
 }

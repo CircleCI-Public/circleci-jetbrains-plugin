@@ -21,6 +21,11 @@ class CircleCISettings : PersistentStateComponent<CircleCISettings> {
     var logLevel: String = "info"
     var sshKeyPath: String = "" // Path to SSH private key (auto-detected if empty)
 
+    // Auto-refresh settings
+    var autoRefreshEnabled: Boolean = true
+    var fastPollIntervalSeconds: Int = 30 // For pipelines < 1 day old
+    var slowPollIntervalSeconds: Int = 120 // For pipelines > 1 day old
+
     // Language Server settings
     var lspEnabled: Boolean = true
     var lspAutoUpdate: String = "prompt" // "automatic", "prompt", "never"

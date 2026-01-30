@@ -16,18 +16,33 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.Disposer
 import com.intellij.ui.JBColor
-import com.intellij.ui.components.*
+import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBPanel
+import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.JBTabbedPane
+import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.table.JBTable
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.JBUI
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.datatransfer.StringSelection
 import javax.swing.BoxLayout
-import javax.swing.*
+import javax.swing.Icon
+import javax.swing.JButton
+import javax.swing.JSplitPane
+import javax.swing.SwingConstants
 import javax.swing.event.TreeSelectionListener
 import javax.swing.table.DefaultTableModel
 import javax.swing.tree.DefaultMutableTreeNode
@@ -92,10 +107,14 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
     private val copySshButton = JButton("Copy SSH Command")
     private val openInBrowserButton = JButton("Open in Browser")
 
+    // Polling for job updates
+    private var pollingJob: Job? = null
+
     init {
         Disposer.register(project, this)
         setupUI()
         observeState()
+        setupPeriodicRefresh()
     }
 
     private fun setupUI() {
@@ -205,20 +224,22 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
 
                 if (jobDetails != null && workflowId != null) {
                     // Confirm action
-                    val result = Messages.showYesNoDialog(
-                        project,
-                        "Rerun workflow from start?\n\n" +
-                            "This will rerun the entire workflow that contains job '${jobDetails.name}'.",
-                        "Confirm Rerun",
-                        Messages.getQuestionIcon(),
-                    )
+                    val result =
+                        Messages.showYesNoDialog(
+                            project,
+                            "Rerun workflow from start?\n\n" +
+                                "This will rerun the entire workflow that contains job '${jobDetails.name}'.",
+                            "Confirm Rerun",
+                            Messages.getQuestionIcon(),
+                        )
 
                     if (result == Messages.YES) {
                         withContext(Dispatchers.IO) {
-                            val apiResult = com.circleci.idea.api.CircleCIApiService.getInstance().rerunWorkflow(
-                                workflowId = workflowId,
-                                fromFailed = false,
-                            )
+                            val apiResult =
+                                com.circleci.idea.api.CircleCIApiService.getInstance().rerunWorkflow(
+                                    workflowId = workflowId,
+                                    fromFailed = false,
+                                )
 
                             withContext(Dispatchers.Main) {
                                 if (apiResult.isSuccess) {
@@ -268,29 +289,33 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
                         }
                         else -> {
                             // Confirm action
-                            val result = Messages.showYesNoDialog(
-                                project,
-                                "Rerun job '${jobDetails.name}' with SSH enabled?\n\n" +
-                                    "This will rerun the entire workflow with SSH access enabled for this specific job.",
-                                "Confirm Rerun with SSH",
-                                Messages.getQuestionIcon(),
-                            )
+                            val result =
+                                Messages.showYesNoDialog(
+                                    project,
+                                    "Rerun job '${jobDetails.name}' with SSH enabled?\n\n" +
+                                        "This will rerun the entire workflow with SSH access enabled for " +
+                                        "this specific job.",
+                                    "Confirm Rerun with SSH",
+                                    Messages.getQuestionIcon(),
+                                )
 
                             if (result == Messages.YES) {
                                 withContext(Dispatchers.IO) {
-                                    val apiResult = com.circleci.idea.api.CircleCIApiService.getInstance().rerunWorkflow(
-                                        workflowId = workflowId,
-                                        fromFailed = false,
-                                        enableSsh = true,
-                                        jobs = listOf(jobDetails.id),
-                                    )
+                                    val apiResult =
+                                        com.circleci.idea.api.CircleCIApiService.getInstance().rerunWorkflow(
+                                            workflowId = workflowId,
+                                            fromFailed = false,
+                                            enableSsh = true,
+                                            jobs = listOf(jobDetails.id),
+                                        )
 
                                     withContext(Dispatchers.Main) {
                                         if (apiResult.isSuccess) {
                                             Messages.showInfoMessage(
                                                 project,
                                                 "Workflow rerun with SSH initiated successfully.\n\n" +
-                                                    "Once the job starts running, use the 'Connect SSH' button to open a terminal session.",
+                                                    "Once the job starts running, use the 'Connect SSH' button to " +
+                                                    "open a terminal session.",
                                                 "Rerun Successful",
                                             )
                                         } else {
@@ -322,18 +347,24 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
                 val state = stateStore.jobDetails.value
                 val jobDetails = state.jobDetails
 
-                if (jobDetails != null && jobDetails.jobNumber != null && jobDetails.projectSlug != null) {
+                // Use fallback values from state if jobDetails hasn't loaded yet
+                val jobNumber = jobDetails?.jobNumber ?: state.selectedJobNumber
+                val projectSlug = jobDetails?.projectSlug ?: state.selectedProjectSlug
+                val jobName = jobDetails?.name ?: "this job"
+
+                if (jobNumber != null && projectSlug != null) {
                     // Confirm action
-                    val result = Messages.showYesNoDialog(
-                        project,
-                        "Cancel job '${jobDetails.name}'?",
-                        "Confirm Cancel",
-                        Messages.getQuestionIcon(),
-                    )
+                    val result =
+                        Messages.showYesNoDialog(
+                            project,
+                            "Cancel job '$jobName'?",
+                            "Confirm Cancel",
+                            Messages.getQuestionIcon(),
+                        )
 
                     if (result == Messages.YES) {
                         withContext(Dispatchers.IO) {
-                            val apiResult = jobDetailsService.cancelJob(jobDetails.projectSlug, jobDetails.jobNumber)
+                            val apiResult = jobDetailsService.cancelJob(projectSlug, jobNumber)
 
                             withContext(Dispatchers.Main) {
                                 if (apiResult.isSuccess) {
@@ -377,7 +408,8 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
                             Messages.showInfoMessage(
                                 project,
                                 "Opening terminal with SSH command:\n\n$sshCommand\n\n" +
-                                    "If the terminal doesn't open automatically, copy the SSH command using the 'Copy SSH Command' button.",
+                                    "If the terminal doesn't open automatically, copy the SSH command using the " +
+                                    "'Copy SSH Command' button.",
                                 "SSH Connection",
                             )
                         } else {
@@ -460,6 +492,44 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
         }
     }
 
+    /**
+     * Sets up periodic refresh of job details while a job is running.
+     * Polls every 10 seconds to update SSH status, step output, and job state.
+     */
+    private fun setupPeriodicRefresh() {
+        pollingJob?.cancel()
+        pollingJob =
+            scope.launch {
+                while (isActive) {
+                    val state = stateStore.jobDetails.value
+                    val jobDetails = state.jobDetails
+
+                    // Only poll if we have a selected job
+                    if (state.selectedJobId != null) {
+                        val status = jobDetails?.status?.lowercase() ?: ""
+                        val isRunning = status in setOf("running", "queued")
+
+                        if (isRunning) {
+                            // Job is running - poll frequently to catch SSH availability and step updates
+                            try {
+                                logger.debug("Polling job details for running job: ${state.selectedJobId}")
+                                jobDetailsService.refreshJobDetails()
+                            } catch (e: Exception) {
+                                logger.error("Failed to refresh job details during polling", e)
+                            }
+                            delay(10_000L) // Poll every 10 seconds for running jobs
+                        } else {
+                            // Job is not running - check less frequently
+                            delay(30_000L) // Check every 30 seconds
+                        }
+                    } else {
+                        // No job selected - check infrequently
+                        delay(5_000L) // Check every 5 seconds for job selection
+                    }
+                }
+            }
+    }
+
     private fun showEmptyState() {
         headerPanel.isVisible = false
         contentPanel.isVisible = false
@@ -521,6 +591,10 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
         updateJobMetadata(jobDetails)
         updateStepsTree(jobDetails.steps)
         updateActionButtons(jobDetails)
+
+        // Force refresh of header panel to ensure button states are visible
+        headerPanel.revalidate()
+        headerPanel.repaint()
 
         // Load test results if available
         if (jobDetails.projectSlug != null && jobDetails.jobNumber != null) {
@@ -706,6 +780,7 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
     }
 
     override fun dispose() {
+        pollingJob?.cancel()
         scope.cancel()
     }
 }

@@ -1,6 +1,17 @@
 package com.circleci.idea.api
 
-import com.circleci.idea.api.models.*
+import com.circleci.idea.api.models.ArtifactsResponse
+import com.circleci.idea.api.models.ConfigValidationResponse
+import com.circleci.idea.api.models.JobDetailsInfo
+import com.circleci.idea.api.models.JobInfo
+import com.circleci.idea.api.models.PaginatedResponse
+import com.circleci.idea.api.models.PipelineInfo
+import com.circleci.idea.api.models.ProjectInfo
+import com.circleci.idea.api.models.StepOutputResponse
+import com.circleci.idea.api.models.TestResultsResponse
+import com.circleci.idea.api.models.TriggerPipelineResponse
+import com.circleci.idea.api.models.UserInfo
+import com.circleci.idea.api.models.WorkflowInfo
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.intellij.openapi.components.Service
@@ -176,6 +187,7 @@ class CircleCIApiService {
     /**
      * Fetch step output from output URL.
      * Note: This endpoint returns a JSON array directly, not wrapped in an object.
+     * However, it may also return a primitive (empty string, null) if there's no output.
      * We use getRaw() to get the raw JSON string and parse it as an array.
      */
     fun getStepOutput(outputUrl: String): Result<List<StepOutputResponse>> {
@@ -185,10 +197,34 @@ class CircleCIApiService {
         val path = outputUrl.substringAfter("circleci.com")
 
         return apiClient.getRaw(path).mapCatching { body ->
-            // Parse as JSON array directly
-            val jsonArray = gson.fromJson(body, com.google.gson.JsonArray::class.java)
-            jsonArray.map {
-                gson.fromJson(it, StepOutputResponse::class.java)
+            // Handle empty or null responses
+            if (body.isBlank() || body == "null") {
+                return@mapCatching emptyList()
+            }
+
+            try {
+                // Try to parse as JSON element first to check its type
+                val jsonElement = gson.fromJson(body, com.google.gson.JsonElement::class.java)
+
+                when {
+                    jsonElement.isJsonArray -> {
+                        val jsonArray = jsonElement.asJsonArray
+                        jsonArray.map {
+                            gson.fromJson(it, StepOutputResponse::class.java)
+                        }
+                    }
+                    jsonElement.isJsonPrimitive -> {
+                        // If it's a primitive (like empty string), return empty list
+                        emptyList()
+                    }
+                    else -> {
+                        // Unknown format, return empty list
+                        emptyList()
+                    }
+                }
+            } catch (e: Exception) {
+                // If parsing fails, return empty list instead of throwing
+                emptyList()
             }
         }
     }
@@ -334,16 +370,6 @@ class CircleCIApiService {
             is ApiResponse.Error -> Result.failure(Exception(response.message))
             is ApiResponse.Unauthorized -> Result.failure(Exception("Unauthorized: ${response.message}"))
             is ApiResponse.RateLimited -> Result.failure(Exception("Rate limited. Retry after ${response.retryAfter}s"))
-        }
-    }
-
-    /**
-     * Validate CircleCI configuration.
-     */
-    fun validateConfig(configYaml: String): Result<ConfigValidationResponse> {
-        val request = ConfigValidationRequest(config = configYaml)
-        return executePostRequestWithBody("/api/v2/pipeline/config/compile-with-defaults", request) { data ->
-            gson.fromJson(data.toString(), ConfigValidationResponse::class.java)
         }
     }
 

@@ -1,8 +1,19 @@
 package com.circleci.idea.api
 
-import com.circleci.idea.api.models.*
+import com.circleci.idea.api.models.ConfigValidationResponse
+import com.circleci.idea.api.models.JobDetailsInfo
+import com.circleci.idea.api.models.JobInfo
+import com.circleci.idea.api.models.JobStepInfo
+import com.circleci.idea.api.models.PaginatedResponse
+import com.circleci.idea.api.models.PipelineInfo
+import com.circleci.idea.api.models.ProjectInfo
+import com.circleci.idea.api.models.WorkflowInfo
 import com.google.gson.Gson
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CircleCIApiServiceTest {

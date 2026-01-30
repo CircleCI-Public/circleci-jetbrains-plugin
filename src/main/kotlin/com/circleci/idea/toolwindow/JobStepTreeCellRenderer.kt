@@ -28,7 +28,10 @@ class JobStepTreeCellRenderer : ColoredTreeCellRenderer() {
 
         when (userObject) {
             is StepNodeData -> {
-                append("${userObject.stepNumber}. ${userObject.name ?: "Unknown Step"}", SimpleTextAttributes.REGULAR_ATTRIBUTES)
+                append(
+                    "${userObject.stepNumber}. ${userObject.name ?: "Unknown Step"}",
+                    SimpleTextAttributes.REGULAR_ATTRIBUTES,
+                )
                 icon = CircleCIIcons.Status.SUCCESS
             }
             is ActionNodeData -> {

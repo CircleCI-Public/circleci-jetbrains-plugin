@@ -94,15 +94,19 @@ class JobDetailsService(private val project: Project) {
                     logger.warn("No steps data in API response for job $jobNumber")
                 }
 
-                val jobDetails = convertToJobDetails(
-                    jobDetailsInfo,
-                    jobNumber,
-                    workflowId,
-                    jobId,
-                    jobName,
-                    jobStatus,
+                val jobDetails =
+                    convertToJobDetails(
+                        jobDetailsInfo,
+                        jobNumber,
+                        workflowId,
+                        jobId,
+                        jobName,
+                        jobStatus,
+                    )
+                logger.info(
+                    "Converted JobDetails: name=${jobDetails.name}, steps=${jobDetails.steps.size}, " +
+                        "workflowId=$workflowId",
                 )
-                logger.info("Converted JobDetails: name=${jobDetails.name}, steps=${jobDetails.steps.size}, workflowId=$workflowId")
                 jobDetails.steps.forEachIndexed { index, step ->
                     logger.info("  Converted Step $index: name=${step.name}, actions=${step.actions.size}")
                 }
@@ -174,10 +178,11 @@ class JobDetailsService(private val project: Project) {
         fallbackJobStatus: String? = null,
     ): JobDetails {
         // Always calculate duration from timestamps (more reliable than API field)
-        val duration = calculateDuration(
-            jobDetailsInfo.startedAt,
-            jobDetailsInfo.stoppedAt,
-        ) ?: jobDetailsInfo.duration
+        val duration =
+            calculateDuration(
+                jobDetailsInfo.startedAt,
+                jobDetailsInfo.stoppedAt,
+            ) ?: jobDetailsInfo.duration
 
         return JobDetails(
             id = jobDetailsInfo.id ?: fallbackJobId,

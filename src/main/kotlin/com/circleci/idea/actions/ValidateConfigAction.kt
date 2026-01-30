@@ -2,7 +2,9 @@ package com.circleci.idea.actions
 
 import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.auth.CircleCIAuthService
+import com.circleci.idea.git.GitBranchService
 import com.circleci.idea.logging.CircleCILogger
+import com.circleci.idea.project.CircleCIProjectService
 import com.circleci.idea.settings.CircleCISettings
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
@@ -81,22 +83,57 @@ class ValidateConfigAction : AnAction("Validate CircleCI Config") {
         val settings = CircleCISettings.getInstance()
         apiService.initialize(token, settings.hostUrl)
 
+        // Get project information
+        val projectService = project.getService(CircleCIProjectService::class.java)
+        val selectedProjects = projectService.getSelectedProjectObjects()
+
+        if (selectedProjects.isEmpty()) {
+            showErrorNotification(
+                project,
+                "No CircleCI project selected. Please select a project in the CircleCI tool window.",
+            )
+            return
+        }
+
+        // Use the first selected project (or try to match by path)
+        val circleCIProject =
+            selectedProjects.firstOrNull { it.localPath == project.basePath }
+                ?: selectedProjects.firstOrNull()
+
+        if (circleCIProject == null) {
+            showErrorNotification(
+                project,
+                "No CircleCI project found. Please set up your project in CircleCI.",
+            )
+            return
+        }
+
+        // Get current branch
+        val branchService = GitBranchService.getInstance(project)
+        val branch = branchService.getCurrentBranch() ?: branchService.getDefaultBranch()
+
         ProgressManager.getInstance().run(
             object : Task.Backgroundable(project, "Validating CircleCI Configuration", false) {
                 override fun run(indicator: ProgressIndicator) {
                     indicator.text = "Reading configuration..."
 
-                    val configContent = try {
-                        String(file.contentsToByteArray(), Charsets.UTF_8)
-                    } catch (e: Exception) {
-                        logger.error("Failed to read config file", e)
-                        showErrorNotification(project, "Failed to read config file: ${e.message}")
-                        return
-                    }
+                    val configContent =
+                        try {
+                            String(file.contentsToByteArray(), Charsets.UTF_8)
+                        } catch (e: Exception) {
+                            logger.error("Failed to read config file", e)
+                            showErrorNotification(project, "Failed to read config file: ${e.message}")
+                            return
+                        }
 
                     indicator.text = "Sending to CircleCI for validation..."
 
-                    val result = apiService.validateConfig(configContent)
+                    val result =
+                        apiService.validateConfig(
+                            configYaml = configContent,
+                            projectSlug = circleCIProject.slug,
+                            branch = branch,
+                        )
 
                     ApplicationManager.getApplication().invokeLater {
                         result.fold(
@@ -133,16 +170,17 @@ class ValidateConfigAction : AnAction("Validate CircleCI Config") {
         project: Project,
         errors: List<com.circleci.idea.api.models.ConfigError>,
     ) {
-        val errorMessage = buildString {
-            appendLine("Configuration validation failed with ${errors.size} error(s):")
-            appendLine()
-            errors.forEachIndexed { index, error ->
-                appendLine("${index + 1}. ${error.message}")
-                if (error.type != null) {
-                    appendLine("   Type: ${error.type}")
+        val errorMessage =
+            buildString {
+                appendLine("Configuration validation failed with ${errors.size} error(s):")
+                appendLine()
+                errors.forEachIndexed { index, error ->
+                    appendLine("${index + 1}. ${error.message}")
+                    if (error.type != null) {
+                        appendLine("   Type: ${error.type}")
+                    }
                 }
             }
-        }
 
         NotificationGroupManager.getInstance()
             .getNotificationGroup("CircleCI Notifications")

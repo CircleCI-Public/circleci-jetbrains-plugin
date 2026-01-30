@@ -11,7 +11,8 @@ import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
-import javax.swing.*
+import javax.swing.JComponent
+import javax.swing.JPanel
 
 /**
  * Configurable for CircleCI settings page.
@@ -30,6 +31,11 @@ class CircleCIConfigurable : Configurable {
     // Filter settings
     private val branchFilterCombo = ComboBox(arrayOf("Current Branch", "All Branches", "Default Branch"))
     private val myPipelinesOnlyCheck = JBCheckBox("Show only my pipelines")
+
+    // Auto-refresh settings
+    private val autoRefreshEnabledCheck = JBCheckBox("Enable auto-refresh")
+    private val fastPollIntervalField = JBTextField()
+    private val slowPollIntervalField = JBTextField()
 
     // Notification settings
     private val notificationsEnabledCheck = JBCheckBox("Enable notifications")
@@ -77,6 +83,21 @@ class CircleCIConfigurable : Configurable {
         formBuilder.addLabeledComponent(JBLabel("Branch filter:"), branchFilterCombo)
         formBuilder.addComponent(myPipelinesOnlyCheck)
 
+        // Auto-refresh section
+        formBuilder.addSeparator(5)
+        formBuilder.addComponent(JBLabel("<html><b>Auto-Refresh</b></html>"))
+        formBuilder.addComponent(autoRefreshEnabledCheck)
+        formBuilder.addLabeledComponent(
+            JBLabel("Fast poll interval (seconds):"),
+            fastPollIntervalField,
+        )
+        formBuilder.addComponent(JBLabel("<html><font color='gray'>For pipelines less than 1 day old</font></html>"))
+        formBuilder.addLabeledComponent(
+            JBLabel("Slow poll interval (seconds):"),
+            slowPollIntervalField,
+        )
+        formBuilder.addComponent(JBLabel("<html><font color='gray'>For pipelines more than 1 day old</font></html>"))
+
         // Notifications section
         formBuilder.addSeparator(5)
         formBuilder.addComponent(JBLabel("<html><b>Notifications</b></html>"))
@@ -116,6 +137,9 @@ class CircleCIConfigurable : Configurable {
             hostUrlField.text != settings.hostUrl ||
             getBranchFilterValue() != settings.branchFilter ||
             myPipelinesOnlyCheck.isSelected != settings.myPipelinesOnly ||
+            autoRefreshEnabledCheck.isSelected != settings.autoRefreshEnabled ||
+            fastPollIntervalField.text.toIntOrNull() != settings.fastPollIntervalSeconds ||
+            slowPollIntervalField.text.toIntOrNull() != settings.slowPollIntervalSeconds ||
             notificationsEnabledCheck.isSelected != settings.notificationsEnabled ||
             logLevelCombo.selectedItem?.toString()?.lowercase() != settings.logLevel
     }
@@ -134,7 +158,8 @@ class CircleCIConfigurable : Configurable {
                         authStatusLabel.text = "<html><font color='green'>✓ Authenticated</font></html>"
                     },
                     onFailure = { error ->
-                        authStatusLabel.text = "<html><font color='red'>✗ Authentication failed: ${error.message}</font></html>"
+                        authStatusLabel.text =
+                            "<html><font color='red'>✗ Authentication failed: ${error.message}</font></html>"
                     },
                 )
             }
@@ -143,8 +168,21 @@ class CircleCIConfigurable : Configurable {
         settings.hostUrl = hostUrlField.text
         settings.branchFilter = getBranchFilterValue()
         settings.myPipelinesOnly = myPipelinesOnlyCheck.isSelected
+        settings.autoRefreshEnabled = autoRefreshEnabledCheck.isSelected
+        settings.fastPollIntervalSeconds = fastPollIntervalField.text.toIntOrNull() ?: 30
+        settings.slowPollIntervalSeconds = slowPollIntervalField.text.toIntOrNull() ?: 120
         settings.notificationsEnabled = notificationsEnabledCheck.isSelected
         settings.logLevel = logLevelCombo.selectedItem?.toString()?.lowercase() ?: "info"
+
+        // Restart polling with new settings
+        val pollingService = getPollingService()
+        if (pollingService != null) {
+            if (settings.autoRefreshEnabled) {
+                pollingService.restartPolling()
+            } else {
+                pollingService.stopPolling()
+            }
+        }
     }
 
     override fun reset() {
@@ -169,6 +207,9 @@ class CircleCIConfigurable : Configurable {
 
         hostUrlField.text = settings.hostUrl
         myPipelinesOnlyCheck.isSelected = settings.myPipelinesOnly
+        autoRefreshEnabledCheck.isSelected = settings.autoRefreshEnabled
+        fastPollIntervalField.text = settings.fastPollIntervalSeconds.toString()
+        slowPollIntervalField.text = settings.slowPollIntervalSeconds.toString()
         notificationsEnabledCheck.isSelected = settings.notificationsEnabled
 
         // Set branch filter
@@ -210,6 +251,18 @@ class CircleCIConfigurable : Configurable {
         return try {
             val project = ProjectManager.getInstance().defaultProject
             CircleCIAuthService.getInstance(project)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Get polling service from the default project.
+     */
+    private fun getPollingService(): com.circleci.idea.polling.PipelinePollingService? {
+        return try {
+            val project = ProjectManager.getInstance().defaultProject
+            project.getService(com.circleci.idea.polling.PipelinePollingService::class.java)
         } catch (e: Exception) {
             null
         }

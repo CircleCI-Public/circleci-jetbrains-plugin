@@ -4,9 +4,11 @@ import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.auth.CircleCIAuthService
 import com.circleci.idea.filter.PipelineFilterService
 import com.circleci.idea.logging.CircleCILogger
+import com.circleci.idea.polling.PipelinePollingService
 import com.circleci.idea.project.CircleCIProjectService
 import com.circleci.idea.settings.CircleCISettings
 import com.intellij.openapi.project.Project
+import com.intellij.ui.treeStructure.Tree
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -28,6 +30,9 @@ class CircleCITreeModel(
     private val authService = CircleCIAuthService.getInstance(project)
     private val settings = CircleCISettings.getInstance()
     private val filterService = PipelineFilterService.getInstance(project)
+    private val pollingService = project.getService(PipelinePollingService::class.java)
+    private val stateManager = TreeStateManager()
+    private var tree: Tree? = null
 
     init {
         // Listen to project changes and reload root
@@ -52,10 +57,45 @@ class CircleCITreeModel(
     }
 
     /**
+     * Set the tree instance for state management.
+     * Must be called before reloadRoot() to enable state preservation.
+     */
+    fun setTree(tree: Tree) {
+        this.tree = tree
+    }
+
+    /**
+     * Refresh pipeline data for all loaded projects.
+     * This will re-fetch data from the API while preserving tree state.
+     */
+    fun refreshPipelines() {
+        SwingUtilities.invokeLater {
+            val rootNode = root as RootNode
+
+            // Find all ProjectNodes and refresh their pipeline data
+            for (i in 0 until rootNode.childCount) {
+                val child = rootNode.getChildAt(i)
+                if (child is ProjectNode && child.childrenLoaded) {
+                    // Reset the loaded flag and reload pipelines
+                    // State preservation happens automatically in loadPipelinesForProject
+                    child.childrenLoaded = false
+                    child.removeAllChildren()
+                    nodeStructureChanged(child)
+                    loadPipelinesForProject(child)
+                }
+            }
+        }
+    }
+
+    /**
      * Reload the root node with current projects.
      */
     fun reloadRoot() {
         SwingUtilities.invokeLater {
+            // Capture current expansion state
+            val expandedState = tree?.let { stateManager.captureState(it) } ?: emptySet()
+            logger.debug("Captured expansion state: $expandedState")
+
             val rootNode = root as RootNode
             rootNode.removeAllChildren()
 
@@ -71,6 +111,9 @@ class CircleCITreeModel(
                 reload(rootNode)
                 logger.info("Tree reloaded - root child count: ${rootNode.childCount}, root: $rootNode")
                 logger.info("Tree structure: ${dumpTree(rootNode, 0)}")
+
+                // Restore expansion state
+                tree?.let { stateManager.restoreState(it, expandedState) }
             } else {
                 logger.info("No projects selected, showing empty state")
                 val emptyNode = EmptyNode("No CircleCI project selected")
@@ -154,6 +197,9 @@ class CircleCITreeModel(
     }
 
     private fun loadPipelinesForProject(projectNode: ProjectNode) {
+        // Capture expansion state for this project's subtree
+        val expandedState = tree?.let { stateManager.captureState(it) } ?: emptySet()
+
         // Add loading indicator
         SwingUtilities.invokeLater {
             projectNode.removeAllChildren()
@@ -192,6 +238,11 @@ class CircleCITreeModel(
                             "Successfully loaded ${response.items.size} pipelines for ${projectNode.project.slug}",
                         )
 
+                        // Update polling service with newest pipeline time
+                        response.items.firstOrNull()?.let { newestPipeline ->
+                            pollingService.updateNewestPipelineTime(newestPipeline.createdAt)
+                        }
+
                         // Get current user login for filtering
                         val currentUserLogin = getUserLoginForFiltering()
 
@@ -222,6 +273,9 @@ class CircleCITreeModel(
                             }
                             projectNode.childrenLoaded = true
                             nodeStructureChanged(projectNode)
+
+                            // Restore expansion state for this project's subtree
+                            tree?.let { stateManager.restoreState(it, expandedState) }
                         }
                     },
                     onFailure = { error ->
@@ -273,6 +327,11 @@ class CircleCITreeModel(
 
                 result.fold(
                     onSuccess = { response ->
+                        // Update polling service with newest pipeline time
+                        response.items.firstOrNull()?.let { newestPipeline ->
+                            pollingService.updateNewestPipelineTime(newestPipeline.createdAt)
+                        }
+
                         // Get current user login for filtering
                         val currentUserLogin = getUserLoginForFiltering()
 

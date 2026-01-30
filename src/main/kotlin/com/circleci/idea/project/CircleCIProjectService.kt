@@ -47,14 +47,18 @@ class CircleCIProjectService(private val project: Project) {
             val detectedProjects = scanner.scanForProjects()
 
             // Preserve manually added projects that aren't in git scan
-            val existingManualProjects = _projects.value.filter { existing ->
-                detectedProjects.none { detected -> detected.slug == existing.slug }
-            }
+            val existingManualProjects =
+                _projects.value.filter { existing ->
+                    detectedProjects.none { detected -> detected.slug == existing.slug }
+                }
 
             // Merge detected and manual projects
             _projects.value = detectedProjects + existingManualProjects
 
-            logger.info("Auto-detected ${detectedProjects.size} projects (${existingManualProjects.size} manual projects preserved)")
+            logger.info(
+                "Auto-detected ${detectedProjects.size} projects " +
+                    "(${existingManualProjects.size} manual projects preserved)",
+            )
 
             // Auto-select detected projects if none are selected
             if (_selectedProjects.value.isEmpty() && detectedProjects.isNotEmpty()) {

@@ -49,10 +49,11 @@ class CircleCIToolWindowE2ETest {
     @Test
     fun testToolWindowOpens() {
         // Find and click the CircleCI tool window stripe button
-        val toolWindowButton = robot.find(
-            ComponentFixture::class.java,
-            byXpath("//div[@accessiblename='CircleCI' and @class='StripeButton']"),
-        )
+        val toolWindowButton =
+            robot.find(
+                ComponentFixture::class.java,
+                byXpath("//div[@accessiblename='CircleCI' and @class='StripeButton']"),
+            )
 
         toolWindowButton.click()
 
@@ -70,10 +71,11 @@ class CircleCIToolWindowE2ETest {
         openToolWindow()
 
         // Find the pipeline tree
-        val tree = robot.find(
-            JTreeFixture::class.java,
-            byXpath("//div[@class='Tree']"),
-        )
+        val tree =
+            robot.find(
+                JTreeFixture::class.java,
+                byXpath("//div[@class='Tree']"),
+            )
 
         // Verify tree is visible and interactive
         assertTrue("Pipeline tree should be visible", tree.isShowing)
@@ -84,10 +86,11 @@ class CircleCIToolWindowE2ETest {
         openToolWindow()
 
         // Find and interact with tree
-        val tree = robot.find(
-            JTreeFixture::class.java,
-            byXpath("//div[@class='Tree']"),
-        )
+        val tree =
+            robot.find(
+                JTreeFixture::class.java,
+                byXpath("//div[@class='Tree']"),
+            )
 
         // Expand first pipeline node if exists
         // Note: This will need to be adjusted based on actual tree structure
@@ -107,10 +110,11 @@ class CircleCIToolWindowE2ETest {
 
         // Click on a job in the tree
         // This assumes there's data loaded - in real test you'd set up test data
-        val tree = robot.find(
-            JTreeFixture::class.java,
-            byXpath("//div[@class='Tree']"),
-        )
+        val tree =
+            robot.find(
+                JTreeFixture::class.java,
+                byXpath("//div[@class='Tree']"),
+            )
 
         // Try to find and click a job node
         // Note: Actual implementation depends on your tree structure
@@ -131,10 +135,11 @@ class CircleCIToolWindowE2ETest {
         openToolWindow()
 
         // Find and click refresh button
-        val refreshButton = robot.find(
-            ComponentFixture::class.java,
-            byXpath("//div[@myicon='refresh.svg']"),
-        )
+        val refreshButton =
+            robot.find(
+                ComponentFixture::class.java,
+                byXpath("//div[@myicon='refresh.svg']"),
+            )
 
         refreshButton.click()
 
@@ -151,10 +156,11 @@ class CircleCIToolWindowE2ETest {
      */
     private fun openToolWindow() {
         try {
-            val toolWindowButton = robot.find(
-                ComponentFixture::class.java,
-                byXpath("//div[@accessiblename='CircleCI' and @class='StripeButton']"),
-            )
+            val toolWindowButton =
+                robot.find(
+                    ComponentFixture::class.java,
+                    byXpath("//div[@accessiblename='CircleCI' and @class='StripeButton']"),
+                )
             toolWindowButton.click()
 
             // Wait for tool window to appear

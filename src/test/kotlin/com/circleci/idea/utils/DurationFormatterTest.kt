@@ -1,6 +1,6 @@
 package com.circleci.idea.utils
 
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class DurationFormatterTest {
