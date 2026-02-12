@@ -3,15 +3,10 @@ package com.circleci.idea.toolwindow
 import com.circleci.idea.icons.CircleCIIcons
 import com.circleci.idea.job.JobDetailsService
 import com.circleci.idea.logging.CircleCILogger
-import com.circleci.idea.ssh.CircleCISshService
-import com.circleci.idea.ssh.SshValidationResult
 import com.circleci.idea.state.CircleCIStateStore
 import com.circleci.idea.state.JobDetails
 import com.circleci.idea.state.JobStep
-import com.intellij.notification.NotificationGroupManager
-import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
-import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.Disposer
@@ -33,11 +28,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
-import java.awt.datatransfer.StringSelection
 import javax.swing.BoxLayout
 import javax.swing.Icon
 import javax.swing.JButton
@@ -57,7 +50,6 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val stateStore = CircleCIStateStore.getInstance(project)
     private val jobDetailsService = project.getService(JobDetailsService::class.java)
-    private val sshService = CircleCISshService.getInstance(project)
 
     // UI Components
     private val mainPanel = JBPanel<JBPanel<*>>(BorderLayout())
@@ -181,7 +173,7 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
 
         // Add tree selection listener to load step output
         stepsTree.addTreeSelectionListener(
-            TreeSelectionListener { e ->
+            TreeSelectionListener {
                 val selectedNode = stepsTree.lastSelectedPathComponent as? DefaultMutableTreeNode
                 selectedNode?.let { handleStepSelection(it) }
             },
@@ -216,265 +208,75 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
     }
 
     private fun setupActionButtons() {
+        // Create action handlers
+        val rerunHandler = com.circleci.idea.toolwindow.actions.RerunJobHandler(project)
+        val rerunSshHandler = com.circleci.idea.toolwindow.actions.RerunWithSshHandler(project)
+        val cancelHandler = com.circleci.idea.toolwindow.actions.CancelJobHandler(project)
+        val connectSshHandler = com.circleci.idea.toolwindow.actions.ConnectSshHandler(project)
+        val copySshHandler = com.circleci.idea.toolwindow.actions.CopySshHandler(project)
+        val openBrowserHandler = com.circleci.idea.toolwindow.actions.OpenInBrowserHandler(project)
+
+        // Wire up button listeners
         rerunButton.addActionListener {
             scope.launch {
                 val state = stateStore.jobDetails.value
-                val jobDetails = state.jobDetails
-                val workflowId = jobDetails?.workflowId
-
-                if (jobDetails != null && workflowId != null) {
-                    // Confirm action
-                    val result =
-                        Messages.showYesNoDialog(
-                            project,
-                            "Rerun workflow from start?\n\n" +
-                                "This will rerun the entire workflow that contains job '${jobDetails.name}'.",
-                            "Confirm Rerun",
-                            Messages.getQuestionIcon(),
-                        )
-
-                    if (result == Messages.YES) {
-                        withContext(Dispatchers.IO) {
-                            val apiResult =
-                                com.circleci.idea.api.CircleCIApiService.getInstance().rerunWorkflow(
-                                    workflowId = workflowId,
-                                    fromFailed = false,
-                                )
-
-                            withContext(Dispatchers.Main) {
-                                if (apiResult.isSuccess) {
-                                    Messages.showInfoMessage(
-                                        project,
-                                        "Workflow rerun initiated successfully",
-                                        "Rerun Successful",
-                                    )
-                                } else {
-                                    val error = apiResult.exceptionOrNull()?.message ?: "Unknown error"
-                                    Messages.showErrorDialog(
-                                        project,
-                                        "Failed to rerun workflow: $error",
-                                        "Rerun Failed",
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    Messages.showWarningDialog(
-                        project,
-                        "Cannot rerun job: workflow information not available.\n\n" +
-                            "Try opening the job from the pipelines tree.",
-                        "Cannot Rerun",
-                    )
-                }
+                handleAction(rerunHandler, state)
             }
         }
 
         rerunWithSshButton.addActionListener {
             scope.launch {
                 val state = stateStore.jobDetails.value
-                val jobDetails = state.jobDetails
-                val workflowId = jobDetails?.workflowId
-
-                if (jobDetails != null && jobDetails.id != null && workflowId != null) {
-                    // Validate SSH availability
-                    val validation = sshService.validateSshDetails(jobDetails)
-                    when (validation) {
-                        is SshValidationResult.NotSupported -> {
-                            Messages.showWarningDialog(
-                                project,
-                                "SSH is not available for GitHub App or GitLab projects",
-                                "SSH Not Supported",
-                            )
-                        }
-                        else -> {
-                            // Confirm action
-                            val result =
-                                Messages.showYesNoDialog(
-                                    project,
-                                    "Rerun job '${jobDetails.name}' with SSH enabled?\n\n" +
-                                        "This will rerun the entire workflow with SSH access enabled for " +
-                                        "this specific job.",
-                                    "Confirm Rerun with SSH",
-                                    Messages.getQuestionIcon(),
-                                )
-
-                            if (result == Messages.YES) {
-                                withContext(Dispatchers.IO) {
-                                    val apiResult =
-                                        com.circleci.idea.api.CircleCIApiService.getInstance().rerunWorkflow(
-                                            workflowId = workflowId,
-                                            fromFailed = false,
-                                            enableSsh = true,
-                                            jobs = listOf(jobDetails.id),
-                                        )
-
-                                    withContext(Dispatchers.Main) {
-                                        if (apiResult.isSuccess) {
-                                            Messages.showInfoMessage(
-                                                project,
-                                                "Workflow rerun with SSH initiated successfully.\n\n" +
-                                                    "Once the job starts running, use the 'Connect SSH' button to " +
-                                                    "open a terminal session.",
-                                                "Rerun Successful",
-                                            )
-                                        } else {
-                                            val error = apiResult.exceptionOrNull()?.message ?: "Unknown error"
-                                            Messages.showErrorDialog(
-                                                project,
-                                                "Failed to rerun workflow with SSH: $error",
-                                                "Rerun Failed",
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    Messages.showWarningDialog(
-                        project,
-                        "Cannot rerun job: workflow information not available.\n\n" +
-                            "Try opening the job from the pipelines tree.",
-                        "Cannot Rerun",
-                    )
-                }
+                handleAction(rerunSshHandler, state)
             }
         }
 
         cancelButton.addActionListener {
             scope.launch {
                 val state = stateStore.jobDetails.value
-                val jobDetails = state.jobDetails
-
-                // Use fallback values from state if jobDetails hasn't loaded yet
-                val jobNumber = jobDetails?.jobNumber ?: state.selectedJobNumber
-                val projectSlug = jobDetails?.projectSlug ?: state.selectedProjectSlug
-                val jobName = jobDetails?.name ?: "this job"
-
-                if (jobNumber != null && projectSlug != null) {
-                    // Confirm action
-                    val result =
-                        Messages.showYesNoDialog(
-                            project,
-                            "Cancel job '$jobName'?",
-                            "Confirm Cancel",
-                            Messages.getQuestionIcon(),
-                        )
-
-                    if (result == Messages.YES) {
-                        withContext(Dispatchers.IO) {
-                            val apiResult = jobDetailsService.cancelJob(projectSlug, jobNumber)
-
-                            withContext(Dispatchers.Main) {
-                                if (apiResult.isSuccess) {
-                                    Messages.showInfoMessage(
-                                        project,
-                                        "Job cancelled successfully",
-                                        "Cancel Successful",
-                                    )
-                                    jobDetailsService.refreshJobDetails()
-                                } else {
-                                    val error = apiResult.exceptionOrNull()?.message ?: "Unknown error"
-                                    Messages.showErrorDialog(
-                                        project,
-                                        "Failed to cancel job: $error",
-                                        "Cancel Failed",
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    Messages.showWarningDialog(
-                        project,
-                        "Cannot cancel job: job information not available",
-                        "Cannot Cancel",
-                    )
-                }
+                handleAction(cancelHandler, state)
             }
         }
 
         connectSshButton.addActionListener {
-            val state = stateStore.jobDetails.value
-            val jobDetails = state.jobDetails
-            if (jobDetails != null) {
-                // Validate SSH details
-                val validation = sshService.validateSshDetails(jobDetails)
-                when (validation) {
-                    is SshValidationResult.Valid -> {
-                        val sshCommand = sshService.openSshSession(jobDetails)
-                        if (sshCommand != null) {
-                            Messages.showInfoMessage(
-                                project,
-                                "Opening terminal with SSH command:\n\n$sshCommand\n\n" +
-                                    "If the terminal doesn't open automatically, copy the SSH command using the " +
-                                    "'Copy SSH Command' button.",
-                                "SSH Connection",
-                            )
-                        } else {
-                            Messages.showErrorDialog(
-                                project,
-                                "Failed to build SSH command. Check that SSH is enabled for this job.",
-                                "SSH Connection Error",
-                            )
-                        }
-                    }
-                    is SshValidationResult.NotEnabled -> {
-                        Messages.showWarningDialog(
-                            project,
-                            "SSH is not enabled for this job. Use 'Rerun with SSH' to enable it.",
-                            "SSH Not Enabled",
-                        )
-                    }
-                    is SshValidationResult.MissingHost -> {
-                        Messages.showErrorDialog(
-                            project,
-                            "SSH host information is not available for this job",
-                            "SSH Connection Error",
-                        )
-                    }
-                    is SshValidationResult.NotSupported -> {
-                        Messages.showWarningDialog(
-                            project,
-                            "SSH is not available for GitHub App or GitLab projects",
-                            "SSH Not Supported",
-                        )
-                    }
-                }
+            scope.launch {
+                val state = stateStore.jobDetails.value
+                handleAction(connectSshHandler, state)
             }
         }
 
         copySshButton.addActionListener {
-            val state = stateStore.jobDetails.value
-            val jobDetails = state.jobDetails
-            if (jobDetails != null) {
-                val sshCommand = sshService.buildSshCommand(jobDetails)
-                if (sshCommand != null) {
-                    CopyPasteManager.getInstance().setContents(StringSelection(sshCommand))
-                    NotificationGroupManager.getInstance()
-                        .getNotificationGroup("CircleCI Notifications")
-                        .createNotification(
-                            "SSH Command Copied",
-                            "SSH command copied to clipboard",
-                            NotificationType.INFORMATION,
-                        )
-                        .notify(project)
-                } else {
-                    Messages.showWarningDialog(
-                        project,
-                        "SSH is not enabled for this job",
-                        "SSH Not Available",
-                    )
-                }
+            scope.launch {
+                val state = stateStore.jobDetails.value
+                handleAction(copySshHandler, state)
             }
         }
 
         openInBrowserButton.addActionListener {
-            val state = stateStore.jobDetails.value
-            val jobDetails = state.jobDetails
-            if (jobDetails?.webUrl != null) {
-                com.intellij.ide.BrowserUtil.browse(jobDetails.webUrl)
+            scope.launch {
+                val state = stateStore.jobDetails.value
+                handleAction(openBrowserHandler, state)
+            }
+        }
+    }
+
+    /**
+     * Handle an action by checking availability and executing if available.
+     */
+    private suspend fun handleAction(
+        handler: com.circleci.idea.toolwindow.actions.JobActionHandler,
+        state: com.circleci.idea.state.JobDetailsState,
+    ) {
+        when (val availability = handler.isAvailable(state)) {
+            is com.circleci.idea.toolwindow.actions.ActionAvailability.Available -> {
+                handler.execute(state)
+            }
+            is com.circleci.idea.toolwindow.actions.ActionAvailability.Unavailable -> {
+                Messages.showWarningDialog(
+                    project,
+                    availability.reason,
+                    availability.title,
+                )
             }
         }
     }

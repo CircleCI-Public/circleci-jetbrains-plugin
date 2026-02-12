@@ -202,16 +202,10 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
 
     private fun handleJobDoubleClick(jobNode: JobNode) {
         val job = jobNode.job
-        val workflow = (jobNode.parent as? WorkflowNode)?.workflow
+        val workflowNode = jobNode.parent as? WorkflowNode
         scope.launch {
-            jobDetailsService.selectAndFetchJobDetails(
-                jobId = job.id,
-                jobNumber = job.jobNumber,
-                projectSlug = job.projectSlug,
-                workflowId = workflow?.id,
-                jobName = job.name,
-                jobStatus = job.status,
-            )
+            val context = com.circleci.idea.job.JobLookupContext.fromJobNode(job, workflowNode)
+            jobDetailsService.selectAndFetchJobDetails(context)
         }
 
         // Show job details panel in tool window service

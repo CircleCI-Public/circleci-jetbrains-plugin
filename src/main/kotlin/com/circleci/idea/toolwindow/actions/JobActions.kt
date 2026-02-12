@@ -118,15 +118,9 @@ class OpenJobDetailsAction : JobAction(
         val job = jobNode.job
 
         scope.launch {
+            val context = com.circleci.idea.job.JobLookupContext.fromJobNode(job, workflowNode)
             val jobDetailsService = project.getService(JobDetailsService::class.java)
-            jobDetailsService.selectAndFetchJobDetails(
-                jobId = job.id,
-                jobNumber = job.jobNumber,
-                projectSlug = job.projectSlug,
-                workflowId = workflowNode?.workflow?.id,
-                jobName = job.name,
-                jobStatus = job.status,
-            )
+            jobDetailsService.selectAndFetchJobDetails(context)
 
             // Show job details panel in tool window service
             project.getService(CircleCIToolWindowService::class.java).showJobDetailsPanel()

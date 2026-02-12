@@ -9,7 +9,9 @@
       "Bash(./gradlew:*)",
       "Bash(./gradlew classes:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(task format:*)",
+      "Bash(task lint:*)"
     ]
   }
 }

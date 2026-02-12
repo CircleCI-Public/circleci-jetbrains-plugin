@@ -40,7 +40,6 @@
 
     <!-- Product and plugin compatibility requirements -->
     <depends>com.intellij.modules.platform</depends>
-    <depends>com.intellij.modules.ultimate</depends>
     <depends>com.redhat.devtools.lsp4ij</depends>
     <depends optional="true" config-file="git-support.xml">Git4Idea</depends>
     <depends optional="true" config-file="terminal-support.xml">org.jetbrains.plugins.terminal</depends>

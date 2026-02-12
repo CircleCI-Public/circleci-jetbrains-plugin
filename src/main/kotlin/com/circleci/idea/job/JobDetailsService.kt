@@ -29,59 +29,50 @@ class JobDetailsService(private val project: Project) {
     /**
      * Select a job and fetch its details.
      *
-     * @param jobId Job ID
-     * @param jobNumber Job number
-     * @param projectSlug Project slug
-     * @param workflowId Workflow ID (optional, needed for rerun actions)
-     * @param jobName Job name (optional, used as fallback if API doesn't return it)
-     * @param jobStatus Job status (optional, used as fallback if API doesn't return it)
+     * @param context Job lookup context containing all necessary information
      */
-    suspend fun selectAndFetchJobDetails(
-        jobId: String,
-        jobNumber: Long?,
-        projectSlug: String,
-        workflowId: String? = null,
-        jobName: String? = null,
-        jobStatus: String? = null,
-    ) {
-        if (jobNumber == null) {
-            logger.warn("Cannot fetch job details without job number")
-            stateStore.setJobDetailsError("Job number not available")
-            return
-        }
+    suspend fun selectAndFetchJobDetails(context: JobLookupContext) {
+        when (val validationResult = context.validate()) {
+            is ValidationResult.Success -> {
+                // Validation passed, proceed with fetching
+                logger.info(
+                    "Selecting job ${context.jobId} (number: ${context.jobNumber}) " +
+                        "for project ${context.projectSlug}, workflow ${context.workflowId}",
+                )
+                stateStore.selectJob(
+                    context.jobId,
+                    context.jobNumber!!,
+                    context.projectSlug,
+                    context.workflowId,
+                )
 
-        logger.info("Selecting job $jobId (number: $jobNumber) for project $projectSlug, workflow $workflowId")
-        stateStore.selectJob(jobId, jobNumber, projectSlug, workflowId)
+                try {
+                    fetchJobDetails(context)
+                } catch (e: Exception) {
+                    logger.error("Failed to fetch job details for job ${context.jobNumber}", e)
+                    stateStore.setJobDetailsError("Failed to load job details: ${e.message}")
+                }
+            }
 
-        try {
-            fetchJobDetails(projectSlug, jobNumber, jobId, jobName, jobStatus, workflowId)
-        } catch (e: Exception) {
-            logger.error("Failed to fetch job details for job $jobNumber", e)
-            stateStore.setJobDetailsError("Failed to load job details: ${e.message}")
+            is ValidationResult.Failure -> {
+                logger.warn("Cannot fetch job details: ${validationResult.message}")
+                stateStore.setJobDetailsError(validationResult.message)
+            }
         }
     }
 
     /**
-     * Fetch detailed job information.
+     * Fetch detailed job information using the provided context.
      *
-     * @param projectSlug Project slug
-     * @param jobNumber Job number
-     * @param jobId Job ID (fallback if API doesn't return it)
-     * @param jobName Job name (fallback if API doesn't return it)
-     * @param jobStatus Job status (fallback if API doesn't return it)
-     * @param workflowId Workflow ID
+     * @param context Job lookup context containing all necessary information
      */
-    private suspend fun fetchJobDetails(
-        projectSlug: String,
-        jobNumber: Long,
-        jobId: String? = null,
-        jobName: String? = null,
-        jobStatus: String? = null,
-        workflowId: String? = null,
-    ) {
-        logger.info("Fetching job details for job $jobNumber (name: $jobName)")
+    private suspend fun fetchJobDetails(context: JobLookupContext) {
+        // jobNumber is guaranteed to be non-null because validation passed
+        val jobNumber = context.jobNumber!!
 
-        val result = apiService.getJobDetails(projectSlug, jobNumber)
+        logger.info("Fetching job details for job $jobNumber (name: ${context.fallbackJobName})")
+
+        val result = apiService.getJobDetails(context.projectSlug, jobNumber)
 
         result.fold(
             onSuccess = { jobDetailsInfo ->
@@ -94,18 +85,10 @@ class JobDetailsService(private val project: Project) {
                     logger.warn("No steps data in API response for job $jobNumber")
                 }
 
-                val jobDetails =
-                    convertToJobDetails(
-                        jobDetailsInfo,
-                        jobNumber,
-                        workflowId,
-                        jobId,
-                        jobName,
-                        jobStatus,
-                    )
+                val jobDetails = convertToJobDetails(jobDetailsInfo, context)
                 logger.info(
                     "Converted JobDetails: name=${jobDetails.name}, steps=${jobDetails.steps.size}, " +
-                        "workflowId=$workflowId",
+                        "workflowId=${context.workflowId}",
                 )
                 jobDetails.steps.forEachIndexed { index, step ->
                     logger.info("  Converted Step $index: name=${step.name}, actions=${step.actions.size}")
@@ -126,12 +109,13 @@ class JobDetailsService(private val project: Project) {
      */
     suspend fun refreshJobDetails() {
         val currentState = stateStore.jobDetails.value
-        val projectSlug = currentState.selectedProjectSlug
-        val jobNumber = currentState.selectedJobNumber
+        val context = JobLookupContext.fromJobDetailsState(currentState)
 
-        if (projectSlug != null && jobNumber != null) {
-            logger.info("Refreshing job details for job $jobNumber")
-            fetchJobDetails(projectSlug, jobNumber)
+        if (context != null) {
+            logger.info("Refreshing job details for job ${context.jobNumber}")
+            fetchJobDetails(context)
+        } else {
+            logger.warn("Cannot refresh job details: insufficient state information")
         }
     }
 
@@ -167,15 +151,14 @@ class JobDetailsService(private val project: Project) {
 
     /**
      * Convert API JobDetailsInfo to domain JobDetails model.
-     * Uses fallback values if API response doesn't include certain fields.
+     * Uses fallback values from context if API response doesn't include certain fields.
+     *
+     * @param jobDetailsInfo The API response
+     * @param context Job lookup context with fallback values
      */
     private fun convertToJobDetails(
         jobDetailsInfo: JobDetailsInfo,
-        jobNumber: Long,
-        workflowId: String? = null,
-        fallbackJobId: String? = null,
-        fallbackJobName: String? = null,
-        fallbackJobStatus: String? = null,
+        context: JobLookupContext,
     ): JobDetails {
         // Always calculate duration from timestamps (more reliable than API field)
         val duration =
@@ -185,12 +168,12 @@ class JobDetailsService(private val project: Project) {
             ) ?: jobDetailsInfo.duration
 
         return JobDetails(
-            id = jobDetailsInfo.id ?: fallbackJobId,
-            jobNumber = jobDetailsInfo.jobNumber ?: jobNumber,
-            name = jobDetailsInfo.name ?: fallbackJobName,
+            id = jobDetailsInfo.id ?: context.jobId,
+            jobNumber = jobDetailsInfo.jobNumber ?: context.jobNumber!!,
+            name = jobDetailsInfo.name ?: context.fallbackJobName,
             projectSlug = jobDetailsInfo.projectSlug,
-            workflowId = workflowId,
-            status = jobDetailsInfo.status ?: fallbackJobStatus,
+            workflowId = context.workflowId,
+            status = jobDetailsInfo.status ?: context.fallbackJobStatus,
             type = jobDetailsInfo.type,
             startedAt = jobDetailsInfo.startedAt,
             stoppedAt = jobDetailsInfo.stoppedAt,
