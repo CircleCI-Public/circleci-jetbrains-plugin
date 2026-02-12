@@ -120,6 +120,10 @@ class CircleCISshService(private val project: Project) {
         }
 
         // Auto-detect from ~/.ssh
+        return autoDetectSshKeyFromHome()
+    }
+
+    private fun autoDetectSshKeyFromHome(): String? {
         val userHome = System.getProperty("user.home")
         val sshDir = File(userHome, ".ssh")
 
@@ -165,19 +169,16 @@ class CircleCISshService(private val project: Project) {
      * Validate SSH connection details.
      */
     fun validateSshDetails(jobDetails: JobDetails): SshValidationResult {
-        if (!jobDetails.sshEnabled) {
-            return SshValidationResult.NotEnabled
+        return when {
+            !jobDetails.sshEnabled -> SshValidationResult.NotEnabled
+            jobDetails.sshHost == null -> SshValidationResult.MissingHost
+            jobDetails.projectSlug != null &&
+                !isSshAvailable(
+                    jobDetails.projectSlug,
+                )
+            -> SshValidationResult.NotSupported
+            else -> SshValidationResult.Valid
         }
-
-        if (jobDetails.sshHost == null) {
-            return SshValidationResult.MissingHost
-        }
-
-        if (jobDetails.projectSlug != null && !isSshAvailable(jobDetails.projectSlug)) {
-            return SshValidationResult.NotSupported
-        }
-
-        return SshValidationResult.Valid
     }
 
     companion object {

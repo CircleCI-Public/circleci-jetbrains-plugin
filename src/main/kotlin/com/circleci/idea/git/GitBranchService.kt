@@ -46,9 +46,7 @@ class GitBranchService(private val project: Project) {
      */
     fun getDefaultBranch(
         @Suppress("UNUSED_PARAMETER") _projectSlug: String? = null,
-    ): String {
-        return "main" // Simple fallback for now
-    }
+    ): String = DEFAULT_BRANCH
 
     /**
      * Check if Git is available in this project.
@@ -68,6 +66,8 @@ class GitBranchService(private val project: Project) {
     }
 
     companion object {
+        private const val DEFAULT_BRANCH = "main"
+
         fun getInstance(project: Project): GitBranchService {
             return project.getService(GitBranchService::class.java)
         }

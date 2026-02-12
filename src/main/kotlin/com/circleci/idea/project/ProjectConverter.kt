@@ -13,9 +13,8 @@ object ProjectConverter {
      */
     fun fromApiModel(projectInfo: ProjectInfo): CircleCIProject? {
         // Try to extract from slug first
-        if (projectInfo.slug != null) {
-            val project = CircleCIProject.fromSlug(projectInfo.slug)
-            if (project != null) {
+        projectInfo.slug?.let { slug ->
+            CircleCIProject.fromSlug(slug)?.let { project ->
                 return project.copy(
                     defaultBranch = projectInfo.defaultBranch,
                     followed = projectInfo.followed,
@@ -25,8 +24,16 @@ object ProjectConverter {
         }
 
         // Fallback to extracting from reponame/username
-        val reponame = projectInfo.reponame ?: return null
-        val username = projectInfo.username ?: return null
+        return buildFromRepoInfo(projectInfo)
+    }
+
+    private fun buildFromRepoInfo(projectInfo: ProjectInfo): CircleCIProject? {
+        val reponame = projectInfo.reponame
+        val username = projectInfo.username
+        if (reponame == null || username == null) {
+            return null
+        }
+
         val vcsType =
             when (projectInfo.vcsType) {
                 "github" -> VcsType.GITHUB

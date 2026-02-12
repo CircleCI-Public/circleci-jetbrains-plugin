@@ -21,22 +21,14 @@ object GitRemoteParser {
     fun parseRemoteUrl(url: String): CircleCIProject? {
         val cleanUrl = url.trim()
 
-        // Try HTTPS pattern
-        HTTPS_PATTERN.find(cleanUrl)?.let { match ->
-            return createProject(match.groupValues[1], match.groupValues[2], match.groupValues[3], cleanUrl)
-        }
+        // Try all patterns in sequence
+        val match =
+            HTTPS_PATTERN.find(cleanUrl)
+                ?: SSH_PATTERN.find(cleanUrl)
+                ?: SSH_PROTOCOL_PATTERN.find(cleanUrl)
+                ?: return null
 
-        // Try SSH pattern
-        SSH_PATTERN.find(cleanUrl)?.let { match ->
-            return createProject(match.groupValues[1], match.groupValues[2], match.groupValues[3], cleanUrl)
-        }
-
-        // Try SSH with protocol pattern
-        SSH_PROTOCOL_PATTERN.find(cleanUrl)?.let { match ->
-            return createProject(match.groupValues[1], match.groupValues[2], match.groupValues[3], cleanUrl)
-        }
-
-        return null
+        return createProject(match.groupValues[1], match.groupValues[2], match.groupValues[3], cleanUrl)
     }
 
     /**

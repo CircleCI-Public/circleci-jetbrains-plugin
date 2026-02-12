@@ -335,10 +335,15 @@ class CircleCIWebSocketService {
                 val data = json.getAsJsonObject("data")
                 val dataContent = gson.fromJson(data.get("data")?.asString, JsonObject::class.java)
 
-                val workflowId = dataContent.get("workflow_id")?.asString ?: return
-                val status = dataContent.get("status")?.asString ?: return
-                val projectSlug = dataContent.get("project_slug")?.asString ?: return
-                val pipelineId = dataContent.get("pipeline_id")?.asString ?: return
+                val workflowId = dataContent.get("workflow_id")?.asString
+                val status = dataContent.get("status")?.asString
+                val projectSlug = dataContent.get("project_slug")?.asString
+                val pipelineId = dataContent.get("pipeline_id")?.asString
+
+                if (workflowId == null || status == null || projectSlug == null || pipelineId == null) {
+                    logger.debug("Incomplete workflow.completed event data, skipping")
+                    return
+                }
 
                 logger.logWebSocketEvent("workflow.completed", "workflow:$workflowId")
 
@@ -389,11 +394,16 @@ class CircleCIWebSocketService {
                 val data = json.getAsJsonObject("data")
                 val dataContent = gson.fromJson(data.get("data")?.asString, JsonObject::class.java)
 
-                val jobId = dataContent.get("job_id")?.asString ?: return
+                val jobId = dataContent.get("job_id")?.asString
                 val jobNumber = dataContent.get("job_number")?.asLong
-                val status = dataContent.get("status")?.asString ?: return
-                val workflowId = dataContent.get("workflow_id")?.asString ?: return
-                val projectSlug = dataContent.get("project_slug")?.asString ?: return
+                val status = dataContent.get("status")?.asString
+                val workflowId = dataContent.get("workflow_id")?.asString
+                val projectSlug = dataContent.get("project_slug")?.asString
+
+                if (jobId == null || status == null || workflowId == null || projectSlug == null) {
+                    logger.debug("Incomplete job.completed event data, skipping")
+                    return
+                }
 
                 logger.logWebSocketEvent("job.completed", "job:$jobId")
 

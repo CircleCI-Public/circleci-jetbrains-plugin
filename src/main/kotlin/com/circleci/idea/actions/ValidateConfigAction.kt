@@ -63,50 +63,8 @@ class ValidateConfigAction : AnAction("Validate CircleCI Config") {
         project: Project,
         file: VirtualFile,
     ) {
-        // Check authentication first
-        val authService = CircleCIAuthService.getInstance(project)
-        if (!authService.isAuthenticated()) {
-            showErrorNotification(
-                project,
-                "Please login to CircleCI first (Tools → CircleCI → Login)",
-            )
-            return
-        }
-
-        // Initialize API service with token and host
-        val token = authService.getToken()
-        if (token == null) {
-            showErrorNotification(project, "No authentication token found. Please login to CircleCI.")
-            return
-        }
-
-        val settings = CircleCISettings.getInstance()
-        apiService.initialize(token, settings.hostUrl)
-
-        // Get project information
-        val projectService = project.getService(CircleCIProjectService::class.java)
-        val selectedProjects = projectService.getSelectedProjectObjects()
-
-        if (selectedProjects.isEmpty()) {
-            showErrorNotification(
-                project,
-                "No CircleCI project selected. Please select a project in the CircleCI tool window.",
-            )
-            return
-        }
-
-        // Use the first selected project (or try to match by path)
-        val circleCIProject =
-            selectedProjects.firstOrNull { it.localPath == project.basePath }
-                ?: selectedProjects.firstOrNull()
-
-        if (circleCIProject == null) {
-            showErrorNotification(
-                project,
-                "No CircleCI project found. Please set up your project in CircleCI.",
-            )
-            return
-        }
+        // Validate prerequisites and get necessary data
+        val validationData = validatePrerequisites(project) ?: return
 
         // Get current branch
         val branchService = GitBranchService.getInstance(project)
@@ -131,7 +89,7 @@ class ValidateConfigAction : AnAction("Validate CircleCI Config") {
                     val result =
                         apiService.validateConfig(
                             configYaml = configContent,
-                            projectSlug = circleCIProject.slug,
+                            projectSlug = validationData.circleCIProject.slug,
                             branch = branch,
                         )
 
@@ -153,6 +111,73 @@ class ValidateConfigAction : AnAction("Validate CircleCI Config") {
                 }
             },
         )
+    }
+
+    private data class ValidationData(
+        val circleCIProject: com.circleci.idea.project.models.CircleCIProject,
+    )
+
+    private fun validatePrerequisites(project: Project): ValidationData? {
+        // Check authentication and get token
+        val authService = CircleCIAuthService.getInstance(project)
+        val token = getValidatedToken(project, authService) ?: return null
+
+        // Initialize API service
+        val settings = CircleCISettings.getInstance()
+        apiService.initialize(token, settings.hostUrl)
+
+        // Get and validate project
+        val circleCIProject = getSelectedProject(project) ?: return null
+
+        return ValidationData(circleCIProject)
+    }
+
+    private fun getValidatedToken(
+        project: Project,
+        authService: CircleCIAuthService,
+    ): String? {
+        if (!authService.isAuthenticated()) {
+            showErrorNotification(
+                project,
+                "Please login to CircleCI first (Tools → CircleCI → Login)",
+            )
+            return null
+        }
+
+        val token = authService.getToken()
+        if (token == null) {
+            showErrorNotification(project, "No authentication token found. Please login to CircleCI.")
+            return null
+        }
+
+        return token
+    }
+
+    private fun getSelectedProject(project: Project): com.circleci.idea.project.models.CircleCIProject? {
+        val projectService = project.getService(CircleCIProjectService::class.java)
+        val selectedProjects = projectService.getSelectedProjectObjects()
+
+        if (selectedProjects.isEmpty()) {
+            showErrorNotification(
+                project,
+                "No CircleCI project selected. Please select a project in the CircleCI tool window.",
+            )
+            return null
+        }
+
+        val circleCIProject =
+            selectedProjects.firstOrNull { it.localPath == project.basePath }
+                ?: selectedProjects.firstOrNull()
+
+        if (circleCIProject == null) {
+            showErrorNotification(
+                project,
+                "No CircleCI project found. Please set up your project in CircleCI.",
+            )
+            return null
+        }
+
+        return circleCIProject
     }
 
     private fun showSuccessNotification(project: Project) {

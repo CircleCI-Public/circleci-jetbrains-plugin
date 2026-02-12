@@ -153,9 +153,46 @@ class RerunWorkflowWithSshAction : WorkflowAction(
     AllIcons.Actions.RestartDebugger,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
-        val project = e.project ?: return
-        val workflowNode = getWorkflowNode(e) ?: return
+        val context = prepareRerunContext(e) ?: return
 
+        val confirmMessage =
+            "Rerun workflow '${context.workflowNode.workflow.name}' " +
+                "with SSH enabled for job '${context.selectedJob.name}'?\n\n" +
+                "This will rerun the entire workflow with SSH access enabled for this specific job."
+
+        executeAction(
+            e,
+            confirmMessage,
+            { workflowId ->
+                CircleCIApiService.getInstance().rerunWorkflow(
+                    workflowId,
+                    fromFailed = false,
+                    enableSsh = true,
+                    jobs = listOf(context.selectedJob.id),
+                )
+            },
+        )
+    }
+
+    private data class RerunContext(
+        val workflowNode: WorkflowNode,
+        val selectedJob: com.circleci.idea.api.models.JobInfo,
+    )
+
+    private fun prepareRerunContext(e: AnActionEvent): RerunContext? {
+        val project = e.project
+        val workflowNode = getWorkflowNode(e)
+        if (project == null || workflowNode == null) {
+            return null
+        }
+
+        return validateAndSelectJob(project, workflowNode)
+    }
+
+    private fun validateAndSelectJob(
+        project: com.intellij.openapi.project.Project,
+        workflowNode: WorkflowNode,
+    ): RerunContext? {
         // Get jobs from workflow node's children
         val jobNodes =
             workflowNode.children().asSequence()
@@ -168,10 +205,19 @@ class RerunWorkflowWithSshAction : WorkflowAction(
                 "No jobs found in this workflow. Load the workflow details first.",
                 "No Jobs Available",
             )
-            return
+            return null
         }
 
-        // Show dialog to select which job to enable SSH for
+        // Get selected job from user
+        val selectedJob = selectJobForSsh(project, jobNodes) ?: return null
+
+        return RerunContext(workflowNode, selectedJob)
+    }
+
+    private fun selectJobForSsh(
+        project: com.intellij.openapi.project.Project,
+        jobNodes: List<com.circleci.idea.toolwindow.tree.JobNode>,
+    ): com.circleci.idea.api.models.JobInfo? {
         val jobNames = jobNodes.map { it.job.name }.toTypedArray()
         val selectedIndex =
             Messages.showChooseDialog(
@@ -183,25 +229,7 @@ class RerunWorkflowWithSshAction : WorkflowAction(
                 jobNames[0],
             )
 
-        if (selectedIndex == -1) {
-            return // User canceled
-        }
-
-        val selectedJob = jobNodes[selectedIndex].job
-
-        executeAction(
-            e,
-            "Rerun workflow '${workflowNode.workflow.name}' with SSH enabled for job '${selectedJob.name}'?\n\n" +
-                "This will rerun the entire workflow with SSH access enabled for this specific job.",
-            { workflowId ->
-                CircleCIApiService.getInstance().rerunWorkflow(
-                    workflowId,
-                    fromFailed = false,
-                    enableSsh = true,
-                    jobs = listOf(selectedJob.id),
-                )
-            },
-        )
+        return if (selectedIndex == -1) null else jobNodes[selectedIndex].job
     }
 
     override fun isEnabledForWorkflow(workflow: WorkflowNode): Boolean {
