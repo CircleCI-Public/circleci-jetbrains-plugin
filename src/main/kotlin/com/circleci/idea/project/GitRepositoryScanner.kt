@@ -42,7 +42,7 @@ class GitRepositoryScanner(private val project: Project) {
 
             logger.info("Detected ${projects.size} CircleCI projects in workspace")
         } catch (e: ClassNotFoundException) {
-            logger.warn("Git plugin not available, skipping git repository detection")
+            logger.warn("Git plugin not available, skipping git repository detection", e)
         } catch (e: Exception) {
             logger.error("Failed to scan for projects", e)
         }
@@ -99,7 +99,7 @@ class GitRepositoryScanner(private val project: Project) {
                 }
             }
         } catch (e: Exception) {
-            logger.error("Failed to detect projects in repository", e)
+            logger.warn("Failed to detect projects in repository", e)
         }
 
         return projects.distinctBy { it.slug }

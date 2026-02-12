@@ -1,5 +1,6 @@
 package com.circleci.idea.auth
 
+import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.settings.CircleCISettings
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
@@ -10,7 +11,10 @@ import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
 import java.awt.event.ActionEvent
-import javax.swing.*
+import javax.swing.AbstractAction
+import javax.swing.Action
+import javax.swing.JComponent
+import javax.swing.JPanel
 
 /**
  * Login dialog for CircleCI authentication.
@@ -19,6 +23,7 @@ import javax.swing.*
 class CircleCILoginDialog(
     private val project: Project,
 ) : DialogWrapper(project) {
+    private val logger = CircleCILogger.getInstance()
     private val tokenField = JBPasswordField()
     private val hostUrlField = JBTextField()
     private val authService = CircleCIAuthService.getInstance(project)
@@ -33,7 +38,8 @@ class CircleCILoginDialog(
         val instructionsLabel =
             JBLabel(
                 "<html>Enter your CircleCI personal API token.<br>" +
-                    "You can create one at: <a href='https://app.circleci.com/settings/user/tokens'>CircleCI Settings</a></html>",
+                    "You can create one at: " +
+                    "<a href='https://app.circleci.com/settings/user/tokens'>CircleCI Settings</a></html>",
             )
         instructionsLabel.setCopyable(true)
 
@@ -126,6 +132,7 @@ class CircleCILoginDialog(
             java.net.URL(normalized)
             true
         } catch (e: Exception) {
+            logger.debug("Invalid URL format during validation: $url", e)
             false
         }
     }

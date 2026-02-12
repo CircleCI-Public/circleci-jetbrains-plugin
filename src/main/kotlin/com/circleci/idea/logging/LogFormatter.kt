@@ -1,7 +1,7 @@
 package com.circleci.idea.logging
 
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
 
 /**
  * Formats log messages with timestamp, level, and context.
@@ -40,7 +40,7 @@ object LogFormatter {
      * Format a log message for console output (IDE log).
      */
     fun formatForConsole(
-        level: LogLevel,
+        @Suppress("UNUSED_PARAMETER") _level: LogLevel,
         message: String,
         throwable: Throwable? = null,
     ): String {

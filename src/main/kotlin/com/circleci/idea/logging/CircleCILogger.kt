@@ -26,7 +26,8 @@ class CircleCILogger private constructor() {
         fileLogger =
             FileLogger(
                 logDirectory = FileLogger.getDefaultLogDirectory(),
-                maxFileSizeBytes = 10 * 1024 * 1024, // 10 MB
+                // 10 MB max file size
+                maxFileSizeBytes = 10 * 1024 * 1024,
                 maxFiles = 5,
             )
         context = LogContext.create()
@@ -47,6 +48,8 @@ class CircleCILogger private constructor() {
             val settings = CircleCISettings.getInstance()
             LogLevel.fromString(settings.logLevel)
         } catch (e: Exception) {
+            // Settings not available, default to INFO level
+            ideLogger.debug("Failed to get log level from settings, using INFO", e)
             LogLevel.INFO
         }
     }

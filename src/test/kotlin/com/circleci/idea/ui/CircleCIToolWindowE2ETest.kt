@@ -34,6 +34,8 @@ class CircleCIToolWindowE2ETest {
                 try {
                     robot.findAll<ComponentFixture>(byXpath("//div[@class='IdeFrameImpl']")).isNotEmpty()
                 } catch (e: Exception) {
+                    // IDE not ready yet, expected during startup
+                    println("Waiting for IDE to be ready: ${e.message}")
                     false
                 }
             }
@@ -170,7 +172,8 @@ class CircleCIToolWindowE2ETest {
                 ).isNotEmpty()
             }
         } catch (e: Exception) {
-            // Already open or different state - handle accordingly
+            // Tool window already open or not available - this is acceptable in test context
+            println("Tool window may already be open or unavailable: ${e.message}")
         }
     }
 }

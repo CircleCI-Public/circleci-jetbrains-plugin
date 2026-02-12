@@ -11,9 +11,6 @@ object SensitiveDataRedactor {
     private val PASSWORD_PATTERN = Regex("""(?i)(password|passwd|pwd)\s*[:=]\s*([^\s,}"']+)""")
     private val HEADER_TOKEN_PATTERN = Regex("""Circle-Token:\s*([^\s,}"']+)""", RegexOption.IGNORE_CASE)
 
-    // Patterns for long alphanumeric strings that might be tokens
-    private val LONG_ALNUM_PATTERN = Regex("""[a-zA-Z0-9]{32,}""")
-
     /**
      * Redact sensitive data from a log message.
      */

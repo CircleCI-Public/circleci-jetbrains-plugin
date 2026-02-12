@@ -283,9 +283,9 @@ class JobDetailsService(private val project: Project) {
         val hours = minutes / 60
 
         return when {
-            hours > 0 -> String.format("%dh %dm %ds", hours, minutes % 60, seconds % 60)
-            minutes > 0 -> String.format("%dm %ds", minutes, seconds % 60)
-            else -> String.format("%ds", seconds)
+            hours > 0 -> String.format(java.util.Locale.ROOT, "%dh %dm %ds", hours, minutes % 60, seconds % 60)
+            minutes > 0 -> String.format(java.util.Locale.ROOT, "%dm %ds", minutes, seconds % 60)
+            else -> String.format(java.util.Locale.ROOT, "%ds", seconds)
         }
     }
 

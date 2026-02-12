@@ -12,6 +12,7 @@ import com.circleci.idea.api.models.TestResultsResponse
 import com.circleci.idea.api.models.TriggerPipelineResponse
 import com.circleci.idea.api.models.UserInfo
 import com.circleci.idea.api.models.WorkflowInfo
+import com.circleci.idea.logging.CircleCILogger
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.intellij.openapi.components.Service
@@ -23,6 +24,7 @@ import com.intellij.openapi.components.service
  */
 @Service(Service.Level.APP)
 class CircleCIApiService {
+    private val logger = CircleCILogger.getInstance()
     private val gson = Gson()
     private var client: CircleCIApiClient? = null
 
@@ -167,7 +169,7 @@ class CircleCIApiService {
      */
     fun rerunJobWithSsh(
         workflowId: String,
-        jobId: String,
+        @Suppress("UNUSED_PARAMETER") _jobId: String,
     ): Result<Unit> {
         return executePostRequest("/api/v2/workflow/$workflowId/rerun") { Unit }
     }
@@ -223,7 +225,7 @@ class CircleCIApiService {
                     }
                 }
             } catch (e: Exception) {
-                // If parsing fails, return empty list instead of throwing
+                logger.warn("Failed to parse JSON element, returning empty list", e)
                 emptyList()
             }
         }
@@ -333,7 +335,7 @@ class CircleCIApiService {
      */
     private fun executePostRequest(
         path: String,
-        parser: (com.google.gson.JsonObject) -> Unit,
+        @Suppress("UNUSED_PARAMETER") _parser: (com.google.gson.JsonObject) -> Unit,
     ): Result<Unit> {
         val apiClient = client ?: return Result.failure(IllegalStateException("API client not initialized"))
 
@@ -341,32 +343,6 @@ class CircleCIApiService {
 
         return when (response) {
             is ApiResponse.Success -> Result.success(Unit)
-            is ApiResponse.Error -> Result.failure(Exception(response.message))
-            is ApiResponse.Unauthorized -> Result.failure(Exception("Unauthorized: ${response.message}"))
-            is ApiResponse.RateLimited -> Result.failure(Exception("Rate limited. Retry after ${response.retryAfter}s"))
-        }
-    }
-
-    /**
-     * Execute a POST request with body and parse response.
-     */
-    private fun <T> executePostRequestWithBody(
-        path: String,
-        body: Any,
-        parser: (com.google.gson.JsonObject) -> T,
-    ): Result<T> {
-        val apiClient = client ?: return Result.failure(IllegalStateException("API client not initialized"))
-
-        val response = apiClient.post(path, body)
-
-        return when (response) {
-            is ApiResponse.Success -> {
-                try {
-                    Result.success(parser(response.data))
-                } catch (e: Exception) {
-                    Result.failure(Exception("Failed to parse response: ${e.message}"))
-                }
-            }
             is ApiResponse.Error -> Result.failure(Exception(response.message))
             is ApiResponse.Unauthorized -> Result.failure(Exception("Unauthorized: ${response.message}"))
             is ApiResponse.RateLimited -> Result.failure(Exception("Rate limited. Retry after ${response.retryAfter}s"))

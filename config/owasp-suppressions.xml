@@ -23,13 +23,4 @@
     </suppress>
     -->
 
-    <!-- IntelliJ Platform dependencies are managed by JetBrains -->
-    <suppress>
-        <notes><![CDATA[
-        IntelliJ Platform bundled dependencies are managed and patched by JetBrains.
-        These are not directly under our control.
-        ]]></notes>
-        <gav regex="true">^com\.jetbrains.*:.*:.*$</gav>
-    </suppress>
-
 </suppressions>

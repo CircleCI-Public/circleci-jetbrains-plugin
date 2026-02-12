@@ -6,14 +6,21 @@ import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.state.CircleCIStateStore
 import com.circleci.idea.websocket.CircleCIWebSocketEvent
 import com.circleci.idea.websocket.CircleCIWebSocketService
-import com.intellij.notification.*
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -240,7 +247,7 @@ class CircleCINotificationService(private val project: Project) {
      */
     private fun buildNotificationContent(
         details: WorkflowNotificationData,
-        status: String,
+        @Suppress("UNUSED_PARAMETER") _status: String,
     ): String {
         val parts = mutableListOf<String>()
 

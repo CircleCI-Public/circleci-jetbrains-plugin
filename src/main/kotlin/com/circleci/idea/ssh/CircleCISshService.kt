@@ -162,25 +162,6 @@ class CircleCISshService(private val project: Project) {
     }
 
     /**
-     * Get platform-specific SSH executable.
-     */
-    private fun getSshExecutable(): String {
-        return when {
-            SystemInfo.isWindows -> {
-                // Check for WSL
-                val wslPath = File("C:\\Windows\\System32\\wsl.exe")
-                if (wslPath.exists()) {
-                    "wsl ssh"
-                } else {
-                    // Use Windows SSH (Windows 10+)
-                    "ssh"
-                }
-            }
-            else -> "ssh"
-        }
-    }
-
-    /**
      * Validate SSH connection details.
      */
     fun validateSshDetails(jobDetails: JobDetails): SshValidationResult {

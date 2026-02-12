@@ -5,7 +5,11 @@ import com.circleci.idea.state.BranchFilter
 import com.circleci.idea.state.CircleCIStateStore
 import com.circleci.idea.toolwindow.CircleCIToolWindowService
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.actionSystem.*
+import com.intellij.openapi.actionSystem.ActionUpdateThread
+import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.actionSystem.ToggleAction
 import com.intellij.openapi.actionSystem.ex.ComboBoxAction
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.ui.Messages
@@ -124,7 +128,8 @@ class SetCustomBranchFilterAction : AnAction("Custom Branch..."), DumbAware {
         stateStore.updateFilters {
             it.copy(
                 branchFilter = BranchFilter.CUSTOM,
-                authorFilter = branchName, // Reusing authorFilter for custom branch name
+                // Reusing authorFilter for custom branch name
+                authorFilter = branchName,
             )
         }
         stateStore.persist()

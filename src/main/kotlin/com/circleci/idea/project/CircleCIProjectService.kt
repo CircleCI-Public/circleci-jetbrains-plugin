@@ -130,34 +130,6 @@ class CircleCIProjectService(private val project: Project) {
     }
 
     /**
-     * Merge followed projects with detected projects.
-     */
-    private fun mergeWithDetectedProjects(followedProjects: List<CircleCIProject>) {
-        val detectedProjects = _projects.value.toMutableList()
-        val detectedSlugs = detectedProjects.map { it.slug }.toSet()
-
-        // Add followed projects that weren't detected locally
-        for (followedProject in followedProjects) {
-            if (followedProject.slug !in detectedSlugs) {
-                detectedProjects.add(followedProject.copy(followed = true))
-            } else {
-                // Update followed status for detected projects
-                val index = detectedProjects.indexOfFirst { it.slug == followedProject.slug }
-                if (index >= 0) {
-                    detectedProjects[index] =
-                        detectedProjects[index].copy(
-                            followed = true,
-                            defaultBranch = followedProject.defaultBranch ?: detectedProjects[index].defaultBranch,
-                        )
-                }
-            }
-        }
-
-        _projects.value = detectedProjects
-        logger.debug("Merged projects: ${detectedProjects.size} total")
-    }
-
-    /**
      * Select projects to monitor.
      */
     fun selectProjects(projectSlugs: Set<String>) {

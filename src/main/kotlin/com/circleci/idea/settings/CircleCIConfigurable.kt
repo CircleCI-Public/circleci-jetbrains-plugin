@@ -1,6 +1,7 @@
 package com.circleci.idea.settings
 
 import com.circleci.idea.auth.CircleCIAuthService
+import com.circleci.idea.logging.CircleCILogger
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.ComboBox
@@ -19,6 +20,7 @@ import javax.swing.JPanel
  * Provides comprehensive settings UI for the CircleCI plugin.
  */
 class CircleCIConfigurable : Configurable {
+    private val logger = CircleCILogger.getInstance()
     private var settingsPanel: JPanel? = null
 
     // Authentication settings
@@ -252,6 +254,7 @@ class CircleCIConfigurable : Configurable {
             val project = ProjectManager.getInstance().defaultProject
             CircleCIAuthService.getInstance(project)
         } catch (e: Exception) {
+            logger.warn("Failed to get auth service from default project", e)
             null
         }
     }
@@ -264,6 +267,7 @@ class CircleCIConfigurable : Configurable {
             val project = ProjectManager.getInstance().defaultProject
             project.getService(com.circleci.idea.polling.PipelinePollingService::class.java)
         } catch (e: Exception) {
+            logger.warn("Failed to get polling service from default project", e)
             null
         }
     }

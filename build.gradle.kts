@@ -6,7 +6,7 @@ plugins {
     // Static Analysis Tools
     id("io.gitlab.arturbosch.detekt") version "1.23.4"
     id("org.jlleitschuh.gradle.ktlint") version "12.1.0"
-    id("org.owasp.dependencycheck") version "9.0.9"
+    id("org.owasp.dependencycheck") version "12.1.0"
 }
 
 group = "com.circleci"
@@ -18,6 +18,13 @@ repositories {
 }
 
 dependencies {
+    constraints {
+        add("implementation", "com.fasterxml.jackson:jackson-bom:2.16.1")
+
+        // org.owasp.dependencycheck needs these versions. Other plugins pull in older versions..
+        add("implementation", "org.apache.commons:commons-lang3:3.14.0")
+        add("implementation", "org.apache.commons:commons-text:1.11.0")
+    }
     // HTTP Client
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
@@ -46,7 +53,7 @@ dependencies {
 
 intellij {
     version.set("2024.3")
-    type.set("IU") // IntelliJ IDEA Ultimate Edition
+    type.set("IC") // IntelliJ IDEA Ultimate Edition
 
     // LSP4IJ for Language Server Protocol support
     // Downloaded from JetBrains Marketplace
@@ -123,6 +130,7 @@ detekt {
 }
 
 tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    jvmTarget = "17"
     reports {
         html.required.set(true)
         xml.required.set(true)
@@ -149,8 +157,12 @@ ktlint {
 
 // OWASP Dependency-Check - Security Vulnerability Scanning
 dependencyCheck {
+    nvd.apiKey = System.getenv("NVD_API_KEY")
     formats = listOf("HTML", "JSON")
     suppressionFile = "$projectDir/config/owasp-suppressions.xml"
+    analyzers {
+        ossIndexEnabled = false
+    }
 }
 
 // Aggregate task to run all static analysis

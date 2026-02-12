@@ -750,7 +750,14 @@ class JobDetailsPanel(private val project: Project) : JBPanel<JobDetailsPanel>(B
                                     status
                                 }
 
-                            val duration = test.runTime?.let { String.format("%.2fs", it) } ?: "N/A"
+                            val duration =
+                                test.runTime?.let {
+                                    String.format(
+                                        java.util.Locale.ROOT,
+                                        "%.2fs",
+                                        it,
+                                    )
+                                } ?: "N/A"
                             val file = test.file ?: test.classname ?: "N/A"
 
                             testResultsTableModel.addRow(

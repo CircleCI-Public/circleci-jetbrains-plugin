@@ -9,12 +9,15 @@ import java.util.concurrent.ConcurrentHashMap
  * @param defaultTtlMs Default time-to-live for cached items in milliseconds
  */
 class ResponseCache<K, V>(
-    private val defaultTtlMs: Long = 30_000, // 30 seconds
+    // Default time-to-live: 30 seconds
+    private val defaultTtlMs: Long = 30_000,
 ) {
     private val logger: CircleCILogger? =
         try {
             CircleCILogger.getInstance()
         } catch (e: Exception) {
+            // Logger initialization failed, will operate without logging
+            System.err.println("Warning: Failed to initialize CircleCILogger in ResponseCache: ${e.message}")
             null
         }
     private val cache = ConcurrentHashMap<K, CacheEntry<V>>()

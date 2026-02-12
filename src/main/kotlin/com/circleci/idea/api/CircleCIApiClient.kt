@@ -3,9 +3,13 @@ package com.circleci.idea.api
 import com.circleci.idea.logging.CircleCILogger
 import com.google.gson.Gson
 import com.google.gson.JsonObject
-import okhttp3.*
+import okhttp3.Call
+import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -238,6 +242,7 @@ class CircleCIApiClient(
                         val json = gson.fromJson(body, JsonObject::class.java)
                         json.get("message")?.asString ?: "Request failed"
                     } catch (e: Exception) {
+                        logger.warn("Failed to parse error response JSON", e)
                         "Request failed: $body"
                     }
                 logger.logApiError(request.method, request.url.toString(), code, errorMessage)

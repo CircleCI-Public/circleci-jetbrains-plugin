@@ -438,8 +438,8 @@ class CircleCITreeModel(
     }
 
     private fun loadMoreWorkflows(
-        pipelineNode: PipelineNode,
-        loadMoreNode: LoadMoreNode,
+        @Suppress("UNUSED_PARAMETER") _pipelineNode: PipelineNode,
+        @Suppress("UNUSED_PARAMETER") _loadMoreNode: LoadMoreNode,
     ) {
         // Workflows don't support pagination via the API service, so this is a no-op
         logger.debug("Load more workflows not supported")
@@ -505,8 +505,8 @@ class CircleCITreeModel(
     }
 
     private fun loadMoreJobs(
-        workflowNode: WorkflowNode,
-        loadMoreNode: LoadMoreNode,
+        @Suppress("UNUSED_PARAMETER") _workflowNode: WorkflowNode,
+        @Suppress("UNUSED_PARAMETER") _loadMoreNode: LoadMoreNode,
     ) {
         // Jobs don't support pagination via the API service, so this is a no-op
         logger.debug("Load more jobs not supported")

@@ -61,7 +61,8 @@ class CircleCIStreamConnectionProvider(private val project: Project) : StreamCon
                     logger.info("Using schema file: ${schemaFile.absolutePath}")
                 } else {
                     logger.warn(
-                        "Schema file not found at ${schemaFile.absolutePath}, language server may have limited functionality",
+                        "Schema file not found at ${schemaFile.absolutePath}, " +
+                            "language server may have limited functionality",
                     )
                 }
 

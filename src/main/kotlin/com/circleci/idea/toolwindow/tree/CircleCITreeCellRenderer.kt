@@ -1,6 +1,7 @@
 package com.circleci.idea.toolwindow.tree
 
 import com.circleci.idea.icons.CircleCIIcons
+import com.circleci.idea.logging.CircleCILogger
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.SimpleTextAttributes
 import javax.swing.JTree
@@ -10,6 +11,8 @@ import javax.swing.JTree
  * Displays status icons and formatted text for each node type.
  */
 class CircleCITreeCellRenderer : ColoredTreeCellRenderer() {
+    private val logger = CircleCILogger.getInstance()
+
     override fun customizeCellRenderer(
         tree: JTree,
         value: Any?,
@@ -97,6 +100,7 @@ class CircleCITreeCellRenderer : ColoredTreeCellRenderer() {
                 else -> "just now"
             }
         } catch (e: Exception) {
+            logger.debug("Failed to parse timestamp for time ago display: $timestamp", e)
             ""
         }
     }

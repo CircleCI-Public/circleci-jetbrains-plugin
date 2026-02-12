@@ -12,7 +12,10 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.datatransfer.StringSelection
@@ -21,7 +24,18 @@ import java.awt.event.MouseEvent
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URL
-import javax.swing.*
+import javax.swing.DefaultListCellRenderer
+import javax.swing.DefaultListModel
+import javax.swing.Icon
+import javax.swing.JFileChooser
+import javax.swing.JLabel
+import javax.swing.JList
+import javax.swing.JMenuItem
+import javax.swing.JPanel
+import javax.swing.JPopupMenu
+import javax.swing.ListSelectionModel
+import javax.swing.SwingConstants
+import javax.swing.SwingUtilities
 
 /**
  * Panel for displaying and managing job artifacts.

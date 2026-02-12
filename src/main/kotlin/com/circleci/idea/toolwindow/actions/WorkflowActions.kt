@@ -60,8 +60,6 @@ abstract class WorkflowAction(
         }
 
         scope.launch {
-            val apiService = CircleCIApiService.getInstance()
-
             // Execute action
             val result =
                 withContext(Dispatchers.IO) {

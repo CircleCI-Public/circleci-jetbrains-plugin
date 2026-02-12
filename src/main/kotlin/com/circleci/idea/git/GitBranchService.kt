@@ -1,5 +1,6 @@
 package com.circleci.idea.git
 
+import com.circleci.idea.logging.CircleCILogger
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 
@@ -8,12 +9,16 @@ import com.intellij.openapi.project.Project
  */
 @Service(Service.Level.PROJECT)
 class GitBranchService(private val project: Project) {
+    private val logger = CircleCILogger.getInstance()
+
     /**
      * Get the current branch name for the given project slug.
      * Returns null if no git repository is found or if there's an error.
      * Requires Git4Idea plugin to be installed.
      */
-    fun getCurrentBranch(projectSlug: String? = null): String? {
+    fun getCurrentBranch(
+        @Suppress("UNUSED_PARAMETER") _projectSlug: String? = null,
+    ): String? {
         return try {
             // Use reflection to access Git4Idea classes to avoid hard dependency
             val gitRepositoryManagerClass = Class.forName("git4idea.repo.GitRepositoryManager")
@@ -30,6 +35,7 @@ class GitBranchService(private val project: Project) {
                 null
             }
         } catch (e: Exception) {
+            logger.debug("Failed to get current branch (Git4Idea not available or no repository)", e)
             null
         }
     }
@@ -38,7 +44,9 @@ class GitBranchService(private val project: Project) {
      * Get default branch for a repository.
      * Returns "main" as fallback.
      */
-    fun getDefaultBranch(projectSlug: String? = null): String {
+    fun getDefaultBranch(
+        @Suppress("UNUSED_PARAMETER") _projectSlug: String? = null,
+    ): String {
         return "main" // Simple fallback for now
     }
 
@@ -54,6 +62,7 @@ class GitBranchService(private val project: Project) {
             val repositories = getRepositoriesMethod.invoke(manager) as List<*>
             repositories.isNotEmpty()
         } catch (e: Exception) {
+            logger.debug("Git not available (Git4Idea plugin not found or no repository)", e)
             false
         }
     }

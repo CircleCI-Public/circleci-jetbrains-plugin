@@ -1,5 +1,6 @@
 package com.circleci.idea.state
 
+import com.circleci.idea.logging.CircleCILogger
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.intellij.ide.util.PropertiesComponent
@@ -12,6 +13,7 @@ import com.intellij.openapi.project.Project
  */
 @Service(Service.Level.PROJECT)
 class CircleCIStatePersistence(private val project: Project) {
+    private val logger = CircleCILogger.getInstance()
     private val properties: PropertiesComponent
         get() = PropertiesComponent.getInstance(project)
 
@@ -51,6 +53,7 @@ class CircleCIStatePersistence(private val project: Project) {
                 statusFilter = statusFilter,
             )
         } catch (e: Exception) {
+            logger.warn("Failed to load filters from persistence", e)
             null
         }
     }
@@ -72,6 +75,7 @@ class CircleCIStatePersistence(private val project: Project) {
             val json = properties.getValue(KEY_SELECTED_PROJECTS, "[]")
             gson.fromJson(json, object : TypeToken<List<String>>() {}.type)
         } catch (e: Exception) {
+            logger.warn("Failed to load selected projects from persistence", e)
             emptyList()
         }
     }
@@ -118,6 +122,7 @@ class CircleCIStatePersistence(private val project: Project) {
                     ),
             )
         } catch (e: Exception) {
+            logger.warn("Failed to load UI state from persistence", e)
             null
         }
     }
