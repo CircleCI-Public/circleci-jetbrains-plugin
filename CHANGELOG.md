@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Improved
 - Reduced verbose debug logging for better log readability
 
+### Infrastructure
+- Migrated to IntelliJ Platform Gradle Plugin 2.0
+  - Updated from plugin 1.17.4 to 2.11.0 for official IntelliJ Platform 2024.3+ support
+  - Upgraded Gradle from 8.5 to 8.13 (required for plugin 2.0)
+  - Modernized build configuration using new explicit dependency model
+  - Updated environment variable handling to use Gradle providers API
+  - All developer workflows and Taskfile commands remain unchanged
+
 ## [1.3.0] - 2026-01-29
 
 ### Added

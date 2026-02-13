@@ -1,7 +1,10 @@
+import org.gradle.process.CommandLineArgumentProvider
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "1.9.21"
-    id("org.jetbrains.intellij") version "1.17.4"
+    id("org.jetbrains.intellij.platform") version "2.11.0"
 
     // Static Analysis Tools
     id("io.gitlab.arturbosch.detekt") version "1.23.4"
@@ -14,7 +17,11 @@ version = "1.3.1"
 
 repositories {
     mavenCentral()
-    maven { url = uri("https://packages.jetbrains.team/maven/p/ij/intellij-dependencies") }
+
+    // IntelliJ Platform repositories (includes marketplace and dependencies)
+    intellijPlatform {
+        defaultRepositories()
+    }
 }
 
 dependencies {
@@ -49,23 +56,17 @@ dependencies {
 
     // Static Analysis
     detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.4")
-}
 
-intellij {
-    version.set("2024.3")
-    type.set("IC") // IntelliJ IDEA Ultimate Edition
+    // IntelliJ Platform Dependencies (replaces intellij {} block)
+    intellijPlatform {
+        // Platform version and type (was: version.set("2024.3"), type.set("IC"))
+        create("IC", "2024.3")
 
-    // LSP4IJ for Language Server Protocol support
-    // Downloaded from JetBrains Marketplace
-    plugins.set(
-        listOf(
-            "com.redhat.devtools.lsp4ij:0.19.1",
-        ),
-    )
+        // Marketplace plugins - LSP4IJ for Language Server Protocol support
+        plugin("com.redhat.devtools.lsp4ij", "0.19.1")
 
-    // Add marketplace URL for plugin downloads
-    pluginsRepositories {
-        marketplace()
+        // Test framework (required - no longer automatic)
+        testFramework(TestFrameworkType.Platform)
     }
 }
 
@@ -79,21 +80,6 @@ tasks {
         kotlinOptions.jvmTarget = "21"
     }
 
-    patchPluginXml {
-        sinceBuild.set("243")
-        untilBuild.set("253.*")
-    }
-
-    signPlugin {
-        certificateChain.set(System.getenv("CERTIFICATE_CHAIN"))
-        privateKey.set(System.getenv("PRIVATE_KEY"))
-        password.set(System.getenv("PRIVATE_KEY_PASSWORD"))
-    }
-
-    publishPlugin {
-        token.set(System.getenv("PUBLISH_TOKEN"))
-    }
-
     test {
         // Exclude platform integration test that requires special IDE environment setup
         // TODO: Fix CircleCIStateStoreTest to work with JUnit 4 or convert to lightweight test
@@ -103,17 +89,60 @@ tasks {
         // Run these separately with: task ui:test
         exclude("**/*E2ETest.class")
     }
+}
 
-    // UI Testing - Configure the existing runIdeForUiTests task
-    runIdeForUiTests {
-        systemProperty("robot-server.port", "8082")
-        systemProperty("ide.mac.message.dialogs.as.sheets", "false")
-        systemProperty("jb.privacy.policy.text", "<!--999.999-->")
-        systemProperty("jb.consents.confirmation.enabled", "false")
+// ===========================
+// IntelliJ Platform Configuration
+// ===========================
+
+// IntelliJ Platform Configuration (replaces patchPluginXml, signPlugin, publishPlugin)
+intellijPlatform {
+    pluginConfiguration {
+        name = "CircleCI"
+        version = "1.3.1"
+
+        ideaVersion {
+            sinceBuild = "243"
+            untilBuild = "253.*"
+        }
     }
 
-    downloadRobotServerPlugin {
-        version.set("0.11.23")
+    signing {
+        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
+        privateKey = providers.environmentVariable("PRIVATE_KEY")
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+    }
+
+    publishing {
+        token = providers.environmentVariable("PUBLISH_TOKEN")
+    }
+
+    pluginVerification {
+        ides {
+            recommended()
+        }
+    }
+}
+
+// UI Testing Configuration (replaces runIdeForUiTests task)
+intellijPlatformTesting {
+    runIde {
+        register("runIdeForUiTests") {
+            task {
+                jvmArgumentProviders += CommandLineArgumentProvider {
+                    listOf(
+                        "-Drobot-server.port=8082",
+                        "-Dide.mac.message.dialogs.as.sheets=false",
+                        "-Djb.privacy.policy.text=<!--999.999-->",
+                        "-Djb.consents.confirmation.enabled=false",
+                    )
+                }
+            }
+
+            plugins {
+                robotServerPlugin()
+            }
+        }
     }
 }
 
@@ -157,7 +186,7 @@ ktlint {
 
 // OWASP Dependency-Check - Security Vulnerability Scanning
 dependencyCheck {
-    nvd.apiKey = System.getenv("NVD_API_KEY")
+    nvd.apiKey = providers.environmentVariable("NVD_API_KEY").orNull
     formats = listOf("HTML", "JSON")
     suppressionFile = "$projectDir/config/owasp-suppressions.xml"
     analyzers {

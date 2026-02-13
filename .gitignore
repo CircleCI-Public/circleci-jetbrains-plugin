@@ -5,6 +5,7 @@
 *.ipr
 out/
 .idea_modules/
+.intellijPlatform/
 
 # Gradle
 .gradle/
