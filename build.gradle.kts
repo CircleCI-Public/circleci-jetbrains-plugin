@@ -1,7 +1,7 @@
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "1.9.21"
-    id("org.jetbrains.intellij") version "1.17.0"
+    id("org.jetbrains.intellij") version "1.17.4"
 
     // Static Analysis Tools
     id("io.gitlab.arturbosch.detekt") version "1.23.4"
@@ -71,16 +71,16 @@ intellij {
 
 tasks {
     withType<JavaCompile> {
-        sourceCompatibility = "17"
-        targetCompatibility = "17"
+        sourceCompatibility = "21"
+        targetCompatibility = "21"
     }
 
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        kotlinOptions.jvmTarget = "17"
+        kotlinOptions.jvmTarget = "21"
     }
 
     patchPluginXml {
-        sinceBuild.set("232")
+        sinceBuild.set("243")
         untilBuild.set("253.*")
     }
 
@@ -130,7 +130,7 @@ detekt {
 }
 
 tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
-    jvmTarget = "17"
+    jvmTarget = "21"
     reports {
         html.required.set(true)
         xml.required.set(true)

@@ -1,26 +1,60 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
     <!--
-    This file contains suppression rules for OWASP Dependency-Check.
+    OWASP Dependency-Check Suppressions
 
-    Add suppressions for false positives or accepted vulnerabilities.
-
-    Example:
-    <suppress>
-        <notes><![CDATA[
-        False positive - this CVE doesn't apply to our usage
-        ]]></notes>
-        <cve>CVE-2021-12345</cve>
-    </suppress>
-
-    Suppress by GAV (Group, Artifact, Version):
-    <suppress>
-        <notes><![CDATA[
-        Accepted risk - vulnerability doesn't affect our use case
-        ]]></notes>
-        <gav regex="true">^com\.example:.*:.*$</gav>
-        <cve>CVE-2021-12345</cve>
-    </suppress>
+    This file suppresses false positive CVE reports and platform dependencies
+    that cannot be fixed without upgrading the IntelliJ Platform version.
     -->
+
+    <!-- ==================================================================== -->
+    <!-- INTELLIJ PLATFORM - Exclude All Bundled Dependencies                 -->
+    <!-- ==================================================================== -->
+
+    <suppress>
+        <notes>
+            All IntelliJ Platform bundled dependencies (Netty, Protobuf, Commons-IO,
+            XStream, etc.) cannot be upgraded without upgrading the entire platform.
+            Current: IntelliJ IDEA 2024.3
+            Will be resolved when upgrading to: 2025.1+
+        </notes>
+        <filePath regex="true">.*ideaIC-2024\.3.*</filePath>
+        <cvssBelow>10</cvssBelow>
+    </suppress>
+
+    <!-- ==================================================================== -->
+    <!-- FALSE POSITIVES - Misidentified Dependencies                        -->
+    <!-- ==================================================================== -->
+
+    <suppress>
+        <notes>False positive: jsch-agent-proxy misidentified as netcat</notes>
+        <packageUrl regex="true">^pkg:maven/com\.jcraft/jsch\.agentproxy.*$</packageUrl>
+        <cvssBelow>10</cvssBelow>
+    </suppress>
+
+    <suppress>
+        <notes>False positive: cli-parser misidentified as GitHub CLI</notes>
+        <packageUrl regex="true">^pkg:maven/com\.github\.spullara\.cli-parser.*$</packageUrl>
+        <cvssBelow>10</cvssBelow>
+    </suppress>
+
+    <suppress>
+        <notes>False positive: ktlint reporter misidentified as Checkstyle</notes>
+        <packageUrl regex="true">^pkg:maven/com\.pinterest\.ktlint/ktlint-cli-reporter.*$</packageUrl>
+        <cvssBelow>10</cvssBelow>
+    </suppress>
+
+    <!-- ==================================================================== -->
+    <!-- KNOWN ISSUES - Low Risk                                             -->
+    <!-- ==================================================================== -->
+
+    <suppress until="2026-06-01">
+        <notes>
+            lsp4ij 0.19.1 - Old Eclipse Platform CVE from 2020
+            Already on latest version. Will re-evaluate when newer version is available.
+        </notes>
+        <packageUrl regex="true">.*lsp4ij.*</packageUrl>
+        <cve>CVE-2020-27225</cve>
+    </suppress>
 
 </suppressions>
