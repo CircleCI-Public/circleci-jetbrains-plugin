@@ -5,6 +5,10 @@
 
     This file suppresses false positive CVE reports and platform dependencies
     that cannot be fixed without upgrading the IntelliJ Platform version.
+
+    Maintenance: Review each suppression when upgrading IntelliJ Platform or
+    when the suppression's until date approaches. Remove entries whose CVEs have
+    been fixed by a dependency upgrade. Add a comment for every new entry.
     -->
 
     <!-- ==================================================================== -->
@@ -14,44 +18,67 @@
     <suppress>
         <notes>
             All IntelliJ Platform bundled dependencies (Netty, Protobuf, Commons-IO,
-            XStream, etc.) cannot be upgraded without upgrading the entire platform.
-            Current: IntelliJ IDEA 2024.3
-            Will be resolved when upgrading to: 2025.1+
+            XStream, etc.) are shipped as part of the platform distribution and cannot
+            be upgraded independently. Vulnerabilities in these libraries must be
+            addressed by JetBrains in a platform release. This plugin runs inside
+            the IDE JVM process and does not expose platform internals over a network
+            boundary or to untrusted input. Review when upgrading to IntelliJ IDEA
+            2025.1+ where JetBrains may have addressed outstanding CVEs.
+            Current platform: IntelliJ IDEA 2024.3 (build 243).
         </notes>
         <filePath regex="true">.*ideaIC-2024\.3.*</filePath>
         <cvssBelow>10</cvssBelow>
     </suppress>
 
     <!-- ==================================================================== -->
-    <!-- FALSE POSITIVES - Misidentified Dependencies                        -->
+    <!-- FALSE POSITIVES - Misidentified Dependencies                         -->
     <!-- ==================================================================== -->
 
     <suppress>
-        <notes>False positive: jsch-agent-proxy misidentified as netcat</notes>
+        <notes>
+            False positive: OWASP misidentifies jsch-agent-proxy as the netcat
+            utility (nc). jsch-agent-proxy is a Java SSH-agent proxy library used
+            by the IntelliJ Platform's Git integration; it shares no code with
+            netcat and none of the netcat CVEs apply.
+        </notes>
         <packageUrl regex="true">^pkg:maven/com\.jcraft/jsch\.agentproxy.*$</packageUrl>
         <cvssBelow>10</cvssBelow>
     </suppress>
 
     <suppress>
-        <notes>False positive: cli-parser misidentified as GitHub CLI</notes>
+        <notes>
+            False positive: OWASP misidentifies cli-parser (a Java CLI argument
+            parsing library) as the GitHub CLI tool (gh). The CVEs assigned to
+            the GitHub CLI binary do not apply to this pure-Java library.
+        </notes>
         <packageUrl regex="true">^pkg:maven/com\.github\.spullara\.cli-parser.*$</packageUrl>
         <cvssBelow>10</cvssBelow>
     </suppress>
 
     <suppress>
-        <notes>False positive: ktlint reporter misidentified as Checkstyle</notes>
+        <notes>
+            False positive: OWASP misidentifies ktlint-cli-reporter (a Kotlin
+            linting report formatter) as Apache Checkstyle. ktlint shares no code
+            with Checkstyle and none of the Checkstyle CVEs apply.
+        </notes>
         <packageUrl regex="true">^pkg:maven/com\.pinterest\.ktlint/ktlint-cli-reporter.*$</packageUrl>
         <cvssBelow>10</cvssBelow>
     </suppress>
 
     <!-- ==================================================================== -->
-    <!-- KNOWN ISSUES - Low Risk                                             -->
+    <!-- KNOWN ISSUES - Accepted Risk with Expiry                             -->
     <!-- ==================================================================== -->
 
     <suppress until="2026-06-01">
         <notes>
-            lsp4ij 0.19.1 - Old Eclipse Platform CVE from 2020
-            Already on latest version. Will re-evaluate when newer version is available.
+            CVE-2020-27225 is a remote code execution vulnerability in Eclipse
+            Platform's XML external entity processing. lsp4ij 0.19.1 embeds an
+            Eclipse LSP4E component that triggers this CVE match. This plugin uses
+            lsp4ij only as a client-side IDE integration layer; it does not parse
+            untrusted XML or expose any Eclipse Platform HTTP endpoints. The CVE
+            affects the Eclipse IDE application shell, not the LSP client library.
+            Suppressed until 2026-06-01; re-evaluate if a newer lsp4ij release
+            ships with an updated Eclipse component.
         </notes>
         <packageUrl regex="true">.*lsp4ij.*</packageUrl>
         <cve>CVE-2020-27225</cve>

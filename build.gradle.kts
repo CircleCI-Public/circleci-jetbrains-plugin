@@ -5,6 +5,7 @@ plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "1.9.21"
     id("org.jetbrains.intellij.platform") version "2.11.0"
+    id("org.jetbrains.kotlinx.kover") version "0.9.4"
 
     // Static Analysis Tools
     id("io.gitlab.arturbosch.detekt") version "1.23.4"
@@ -81,13 +82,12 @@ tasks {
     }
 
     test {
-        // Exclude platform integration test that requires special IDE environment setup
-        // TODO: Fix CircleCIStateStoreTest to work with JUnit 4 or convert to lightweight test
-        exclude("**/CircleCIStateStoreTest.class")
-
         // Exclude E2E tests that require running IDE with robot-server
         // Run these separately with: task ui:test
         exclude("**/*E2ETest.class")
+        // Force IntelliJ to use the standard class loader so Kover's agent can
+        // instrument plugin classes (otherwise PathClassLoader bypasses it).
+        systemProperty("idea.force.use.core.classloader", "true")
     }
 }
 
@@ -186,6 +186,7 @@ ktlint {
 
 // OWASP Dependency-Check - Security Vulnerability Scanning
 dependencyCheck {
+    failBuildOnCVSS = 7.0f
     nvd.apiKey = providers.environmentVariable("NVD_API_KEY").orNull
     formats = listOf("HTML", "JSON")
     suppressionFile = "$projectDir/config/owasp-suppressions.xml"
@@ -204,4 +205,41 @@ tasks.register("staticAnalysis") {
         "ktlintCheck",
         "dependencyCheckAnalyze",
     )
+}
+
+// ===========================
+// Kover Coverage Configuration
+// ===========================
+//
+// Kover (JetBrains' Kotlin coverage tool) is used instead of JaCoCo because it works
+// correctly with the IntelliJ Platform test harness. The key enabler is:
+//   systemProperty("idea.force.use.core.classloader", "true")
+// on the `test` task — this tells IntelliJ's test infrastructure to use the standard
+// JVM class loader rather than PathClassLoader, so Kover's agent can instrument
+// plugin classes loaded by BasePlatformTestCase tests.
+
+kover {
+    reports {
+        total {
+            xml {
+                onCheck = false
+            }
+            html {
+                onCheck = false
+            }
+        }
+        verify {
+            // Global threshold across all measured classes.
+            // Kover uses offline bytecode instrumentation so it captures coverage from
+            // BasePlatformTestCase (platform-harness) tests, unlike JaCoCo which was
+            // blocked by PathClassLoader. Observed baseline: ~12% (state 52%, logging 79%,
+            // project.models 100%, api.models 30%; toolwindow/actions/job are 0% — those
+            // require E2E tests driving a running IDE).
+            // Per-package rules require Kover variants; this global floor guards against
+            // major regressions in the meantime.
+            rule {
+                minBound(10)
+            }
+        }
+    }
 }

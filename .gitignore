@@ -44,3 +44,8 @@ coverage/
 # Static Analysis
 config/detekt/baseline.xml
 dependency-check-data/
+
+# Code signing key material (never commit these)
+*.pem
+*.crt
+*.b64

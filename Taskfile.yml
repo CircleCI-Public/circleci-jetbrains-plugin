@@ -9,6 +9,7 @@ vars:
     sh: grep '^version = ' build.gradle.kts | sed 's/version = "\(.*\)"/\1/'
   BUILD_DIR: build/distributions
   PLUGIN_ZIP: "{{.BUILD_DIR}}/circleci-idea-plugin-{{.VERSION}}.zip"
+  SIGNED_PLUGIN_ZIP: "{{.BUILD_DIR}}/circleci-idea-plugin-{{.VERSION}}-signed.zip"
   DOCS_DIR: docs
   UPDATE_XML: "{{.DOCS_DIR}}/updatePlugins.xml"
 
@@ -32,9 +33,9 @@ tasks:
       - echo "✅ Plugin built at {{.PLUGIN_ZIP}}"
 
   test:
-    desc: Run unit tests and verify plugin
+    desc: Run unit tests, verify plugin, and generate coverage report
     cmds:
-      - ./gradlew test verifyPlugin
+      - ./gradlew test koverHtmlReport koverVerify verifyPlugin
 
   ui:start:
     desc: Start IDE with Remote Robot server for E2E testing
@@ -81,12 +82,25 @@ tasks:
       - ./gradlew ktlintFormat
 
   # Release Tasks
+  sign:
+    desc: Sign the plugin artifact (requires CERTIFICATE_CHAIN, PRIVATE_KEY, PRIVATE_KEY_PASSWORD env vars)
+    cmds:
+      - ./gradlew signPlugin
+      - echo "✅ Signed artifact at build/distributions/"
+
+  publish-marketplace:
+    desc: Publish signed plugin to JetBrains Marketplace (requires PUBLISH_TOKEN env var)
+    cmds:
+      - ./gradlew publishPlugin
+      - echo "✅ Plugin published to JetBrains Marketplace"
+
   release:
-    desc: Full release (clean, test, build, publish to GitHub)
+    desc: Full release (clean, test, build, sign, publish to Marketplace and GitHub)
     cmds:
       - task: clean
       - task: test
       - task: _build-release
+      - task: publish-marketplace
       - task: _publish-release
       - echo ""
       - echo "✅ Release v{{.VERSION}} completed!"
@@ -96,6 +110,7 @@ tasks:
     desc: Quick release (skip tests, useful for docs/minor fixes)
     cmds:
       - task: _build-release
+      - task: publish-marketplace
       - task: _publish-release
       - echo ""
       - echo "✅ Release v{{.VERSION}} completed!"
@@ -106,6 +121,7 @@ tasks:
     internal: true
     cmds:
       - ./gradlew buildPlugin
+      - task: sign
       - mkdir -p {{.DOCS_DIR}}
       - |
         cat > {{.UPDATE_XML}} << 'EOF'
@@ -130,7 +146,7 @@ tasks:
     internal: true
     cmds:
       - |
-        # Create GitHub release
+        # Create GitHub release with signed artifact
         if gh release view v{{.VERSION}} &> /dev/null; then
           echo "⚠️  Release v{{.VERSION}} exists, deleting..."
           gh release delete v{{.VERSION}} -y
@@ -138,7 +154,7 @@ tasks:
         gh release create v{{.VERSION}} \
           --title "{{.PLUGIN_NAME}} v{{.VERSION}}" \
           --notes-file CHANGELOG.md \
-          {{.PLUGIN_ZIP}}
+          {{.SIGNED_PLUGIN_ZIP}}
       - |
         # Update plugin repository
         git add {{.DOCS_DIR}}

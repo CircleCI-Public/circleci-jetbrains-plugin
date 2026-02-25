@@ -6,7 +6,7 @@ orbs:
 jobs:
   build-and-test:
     docker:
-      - image: cimg/openjdk:17.0
+      - image: cimg/openjdk:21.0
 
     resource_class: large
 
@@ -39,6 +39,11 @@ jobs:
           name: Verify plugin
           command: ./gradlew verifyPlugin
 
+      # Run static analysis (hard gate; NVD_API_KEY sourced from jetbrains-release context)
+      - run:
+          name: Static analysis
+          command: ./gradlew staticAnalysis
+
       # Save Gradle cache
       - save_cache:
           key: gradle-cache-v1-{{ checksum "build.gradle.kts" }}-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}
@@ -50,28 +55,136 @@ jobs:
       - store_test_results:
           path: build/test-results
 
-      # Store test reports
+      # Store all analysis reports (tests, detekt, ktlint, OWASP, jacoco)
       - store_artifacts:
-          path: build/reports/tests
-          destination: test-reports
+          path: build/reports
+          destination: analysis-reports
 
       # Store plugin distribution
       - store_artifacts:
           path: build/distributions
           destination: plugin-distribution
 
-      # Store verification results
-      - store_artifacts:
-          path: build/reports/pluginVerifier
-          destination: verification-reports
+  publish:
+    docker:
+      - image: cimg/openjdk:21.0
+
+    resource_class: large
+
+    steps:
+      - checkout
+
+      # Restore Gradle cache
+      - restore_cache:
+          keys:
+            - gradle-cache-v1-{{ checksum "build.gradle.kts" }}-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}
+            - gradle-cache-v1-
+
+      # Make gradlew executable
+      - run:
+          name: Make gradlew executable
+          command: chmod +x gradlew
+
+      # Install GitHub CLI
+      - run:
+          name: Install GitHub CLI
+          command: |
+            type -p curl >/dev/null || sudo apt install curl -y
+            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+              | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+            sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) \
+              signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
+              https://cli.github.com/packages stable main" \
+              | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+            sudo apt update && sudo apt install gh -y
+
+      # Build plugin
+      - run:
+          name: Build plugin
+          command: ./gradlew buildPlugin
+
+      # Sign plugin
+      - run:
+          name: Sign plugin
+          command: ./gradlew signPlugin
+
+      # Publish to JetBrains Marketplace
+      - run:
+          name: Publish to JetBrains Marketplace
+          command: ./gradlew publishPlugin
+
+      # Create GitHub Release and update updatePlugins.xml
+      - run:
+          name: Create GitHub Release and update plugin repository
+          command: |
+            VERSION=$(grep '^version = ' build.gradle.kts | sed 's/version = "\(.*\)"/\1/')
+            SIGNED_ZIP="build/distributions/circleci-idea-plugin-${VERSION}-signed.zip"
+
+            # Create GitHub release with signed artifact
+            if gh release view "v${VERSION}" &> /dev/null; then
+              echo "Release v${VERSION} exists, deleting..."
+              gh release delete "v${VERSION}" -y
+            fi
+            gh release create "v${VERSION}" \
+              --title "CircleCI v${VERSION}" \
+              --notes-file CHANGELOG.md \
+              "${SIGNED_ZIP}"
+
+            # Update plugin repository XML
+            mkdir -p docs
+            cat > docs/updatePlugins.xml << EOF
+            <?xml version="1.0" encoding="UTF-8"?>
+            <plugins>
+              <plugin id="com.circleci.idea" url="https://github.com/circleci-petri/circleci-idea-plugin/releases/download/v${VERSION}/circleci-idea-plugin-${VERSION}-signed.zip" version="${VERSION}">
+                <name>CircleCI</name>
+                <description><![CDATA[
+                  CircleCI integration for JetBrains IDEs.
+                  Monitor, manage, and debug CircleCI pipelines directly within your IDE.
+                ]]></description>
+                <vendor email="support@circleci.com" url="https://circleci.com">CircleCI</vendor>
+                <idea-version since-build="243" until-build="253.*"/>
+                <change-notes><![CDATA[
+                  See https://github.com/circleci-petri/circleci-idea-plugin/releases/tag/v${VERSION} for release notes.
+                ]]></change-notes>
+              </plugin>
+            </plugins>
+            EOF
+
+            git config user.email "ci@circleci.com"
+            git config user.name "CircleCI"
+            git add docs/updatePlugins.xml
+            if ! git diff --cached --quiet; then
+              git commit -m "Update plugin repository for v${VERSION}"
+              git push origin main
+            fi
 
 workflows:
   version: 2
-  build-test-verify:
+  build-test-publish:
     jobs:
       - build-and-test:
+          context: jetbrains-release
           filters:
+            tags:
+              only: /^v.*/
             branches:
-              only:
-                - main
-                - develop
+              only: /.*/
+      - hold:
+          type: approval
+          requires:
+            - build-and-test
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+      - publish:
+          requires:
+            - hold
+          context: jetbrains-release
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
