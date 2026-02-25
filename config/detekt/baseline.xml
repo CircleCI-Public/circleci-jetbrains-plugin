@@ -1,0 +1,62 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:CircleCIWebSocketService.kt$CircleCIWebSocketService.PusherWebSocketListener$jobId == null || status == null || workflowId == null || projectSlug == null</ID>
+    <ID>ComplexCondition:CircleCIWebSocketService.kt$CircleCIWebSocketService.PusherWebSocketListener$workflowId == null || status == null || projectSlug == null || pipelineId == null</ID>
+    <ID>CyclomaticComplexMethod:CircleCITreeCellRenderer.kt$CircleCITreeCellRenderer$override fun customizeCellRenderer( tree: JTree, value: Any?, selected: Boolean, expanded: Boolean, leaf: Boolean, row: Int, hasFocus: Boolean, )</ID>
+    <ID>CyclomaticComplexMethod:JobDetailsPanel.kt$JobDetailsPanel$private fun loadTestResults( projectSlug: String, jobNumber: Long, )</ID>
+    <ID>FunctionParameterNaming:CircleCINotificationService.kt$CircleCINotificationService$@Suppress("UNUSED_PARAMETER") _status: String</ID>
+    <ID>FunctionParameterNaming:CircleCITreeModel.kt$CircleCITreeModel$@Suppress("UNUSED_PARAMETER") _loadMoreNode: LoadMoreNode</ID>
+    <ID>FunctionParameterNaming:CircleCITreeModel.kt$CircleCITreeModel$@Suppress("UNUSED_PARAMETER") _pipelineNode: PipelineNode</ID>
+    <ID>FunctionParameterNaming:CircleCITreeModel.kt$CircleCITreeModel$@Suppress("UNUSED_PARAMETER") _workflowNode: WorkflowNode</ID>
+    <ID>FunctionParameterNaming:GitBranchService.kt$GitBranchService$@Suppress("UNUSED_PARAMETER") _projectSlug: String? = null</ID>
+    <ID>FunctionParameterNaming:LogFormatter.kt$LogFormatter$@Suppress("UNUSED_PARAMETER") _level: LogLevel</ID>
+    <ID>Indentation:CircleCIStatePersistence.kt$CircleCIStatePersistence$ </ID>
+    <ID>Indentation:CircleCIStateStore.kt$CircleCIStateStore$ </ID>
+    <ID>Indentation:PipelineDataService.kt$PipelineDataService$ </ID>
+    <ID>Indentation:RerunJobHandler.kt$RerunJobHandler$ </ID>
+    <ID>Indentation:RerunWithSshHandler.kt$RerunWithSshHandler$ </ID>
+    <ID>LongMethod:CircleCITreeModel.kt$CircleCITreeModel$private fun loadPipelinesForProject(projectNode: ProjectNode)</ID>
+    <ID>NestedBlockDepth:ArtifactsPanel.kt$ArtifactsPanel$private fun downloadArtifact(artifact: Artifact)</ID>
+    <ID>NestedBlockDepth:CircleCILanguageServerManager.kt$CircleCILanguageServerManager$private fun downloadFile( version: String, fileName: String, targetDir: File, ): Boolean</ID>
+    <ID>NestedBlockDepth:GitRepositoryScanner.kt$GitRepositoryScanner$private fun detectProjectsInRepository(repository: Any): List&lt;CircleCIProject></ID>
+    <ID>ReturnCount:JobLookupContext.kt$JobLookupContext.Companion$fun fromJobDetailsState(state: JobDetailsState): JobLookupContext?</ID>
+    <ID>ReturnCount:RerunWithSshHandler.kt$RerunWithSshHandler$override suspend fun execute(state: JobDetailsState)</ID>
+    <ID>TooGenericExceptionCaught:ArtifactsPanel.kt$ArtifactsPanel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ArtifactsPanel.kt$ArtifactsPanel.&lt;no name provided>$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CircleCIApiClient.kt$CircleCIApiClient$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CircleCIApiClientBase.kt$CircleCIApiClientBase$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CircleCIConfigurable.kt$CircleCIConfigurable$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CircleCILanguageServerManager.kt$CircleCILanguageServerManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CircleCILogger.kt$CircleCILogger$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CircleCILoginDialog.kt$CircleCILoginDialog$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CircleCINotificationService.kt$CircleCINotificationService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CircleCIProjectService.kt$CircleCIProjectService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CircleCISshService.kt$CircleCISshService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CircleCIStatePersistence.kt$CircleCIStatePersistence$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CircleCITreeCellRenderer.kt$CircleCITreeCellRenderer$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CircleCITreeModel.kt$CircleCITreeModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CircleCIWebSocketService.kt$CircleCIWebSocketService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CircleCIWebSocketService.kt$CircleCIWebSocketService.PusherWebSocketListener$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:FileLogger.kt$FileLogger$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GitBranchService.kt$GitBranchService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GitRepositoryScanner.kt$GitRepositoryScanner$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:JobApiClient.kt$JobApiClient$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:JobDataService.kt$JobDataService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:JobDetailsPanel.kt$JobDetailsPanel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:JobDetailsService.kt$JobDetailsService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PipelineDataService.kt$PipelineDataService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PipelinePollingService.kt$PipelinePollingService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ResponseCache.kt$ResponseCache$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ValidateConfigAction.kt$ValidateConfigAction.&lt;no name provided>$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:WorkflowDataService.kt$WorkflowDataService$e: Exception</ID>
+    <ID>TooManyFunctions:CircleCIApiService.kt$CircleCIApiService</ID>
+    <ID>TooManyFunctions:CircleCILogger.kt$CircleCILogger</ID>
+    <ID>TooManyFunctions:CircleCINotificationService.kt$CircleCINotificationService</ID>
+    <ID>TooManyFunctions:CircleCIStateStore.kt$CircleCIStateStore : CircleCIState</ID>
+    <ID>TooManyFunctions:CircleCITreeModel.kt$CircleCITreeModel : DefaultTreeModel</ID>
+    <ID>TooManyFunctions:JobDetailsPanel.kt$JobDetailsPanel : JBPanelDisposable</ID>
+    <ID>TooManyFunctions:JobDetailsService.kt$JobDetailsService</ID>
+  </CurrentIssues>
+</SmellBaseline>
