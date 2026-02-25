@@ -321,8 +321,9 @@ data class TestInfo(
     val classname: String?,
     @SerializedName("file")
     val file: String?,
+    // "success", "failure", "skipped"
     @SerializedName("result")
-    val result: String?, // "success", "failure", "skipped"
+    val result: String?,
     @SerializedName("message")
     val message: String?,
     @SerializedName("source")

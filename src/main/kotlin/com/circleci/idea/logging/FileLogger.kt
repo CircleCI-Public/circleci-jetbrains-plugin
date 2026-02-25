@@ -16,7 +16,8 @@ import kotlin.concurrent.withLock
  */
 class FileLogger(
     private val logDirectory: Path,
-    private val maxFileSizeBytes: Long = 10 * 1024 * 1024, // 10 MB
+    // 10 MB
+    private val maxFileSizeBytes: Long = 10 * 1024 * 1024,
     private val maxFiles: Int = 5,
 ) {
     private val lock = ReentrantLock()

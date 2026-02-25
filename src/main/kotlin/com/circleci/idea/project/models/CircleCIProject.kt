@@ -4,14 +4,16 @@ package com.circleci.idea.project.models
  * Represents a CircleCI project.
  */
 data class CircleCIProject(
-    val slug: String, // Format: vcs/org/repo (e.g., "gh/circleci/circleci")
+    // Format: vcs/org/repo (e.g., "gh/circleci/circleci")
+    val slug: String,
     val vcsType: VcsType,
     val organization: String,
     val repository: String,
     val defaultBranch: String? = null,
     val followed: Boolean = false,
     val vcsUrl: String? = null,
-    val localPath: String? = null, // Local workspace path if detected
+    // Local workspace path if detected
+    val localPath: String? = null,
 ) {
     companion object {
         /**

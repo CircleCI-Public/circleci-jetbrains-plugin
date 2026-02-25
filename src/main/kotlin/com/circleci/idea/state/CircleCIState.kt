@@ -37,7 +37,8 @@ data class User(
  * Projects state - list of selected/followed projects.
  */
 data class ProjectsState(
-    val selectedProjects: List<String> = emptyList(), // Project slugs
+    // Project slugs
+    val selectedProjects: List<String> = emptyList(),
     val followedProjects: List<Project> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -56,7 +57,8 @@ data class Project(
  * Projects data state - actual pipeline/workflow/job data for each project.
  */
 data class ProjectsDataState(
-    val data: Map<String, ProjectData> = emptyMap(), // Key: project slug
+    // Key: project slug
+    val data: Map<String, ProjectData> = emptyMap(),
     val isRefreshing: Boolean = false,
     val lastRefresh: Long? = null,
     val error: String? = null,
@@ -145,7 +147,8 @@ data class ConfigError(
 data class FiltersState(
     val branchFilter: BranchFilter = BranchFilter.CURRENT,
     val myPipelinesOnly: Boolean = false,
-    val statusFilter: Set<String> = emptySet(), // Empty = all statuses
+    // Empty = all statuses
+    val statusFilter: Set<String> = emptySet(),
     val authorFilter: String? = null,
 )
 
@@ -160,8 +163,10 @@ enum class BranchFilter {
  * UI state - transient UI-specific state.
  */
 data class UIState(
-    val expandedItems: Set<String> = emptySet(), // Item IDs that are expanded in tree
-    val selectedItem: String? = null, // Currently selected item ID
+    // Item IDs that are expanded in tree
+    val expandedItems: Set<String> = emptySet(),
+    // Currently selected item ID
+    val selectedItem: String? = null,
     val isToolWindowVisible: Boolean = false,
     val notificationPreferences: NotificationPreferences = NotificationPreferences(),
 )
@@ -229,7 +234,8 @@ data class TestResult(
     val name: String?,
     val classname: String?,
     val file: String?,
-    val result: String?, // "success", "failure", "skipped"
+    // "success", "failure", "skipped"
+    val result: String?,
     val message: String?,
     val source: String?,
     val runTime: Double?,

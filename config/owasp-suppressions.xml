@@ -66,6 +66,26 @@
     </suppress>
 
     <!-- ==================================================================== -->
+    <!-- BUILD-TOOL DEPENDENCIES - Not Shipped in Plugin                      -->
+    <!-- ==================================================================== -->
+
+    <suppress until="2026-12-01">
+        <notes>
+            CVE-2023-6378 is a deserialization vulnerability in Logback 1.4.7
+            (logback-classic and logback-core). These are bundled inside
+            verifier-cli-1.400-all.jar, which is the JetBrains IntelliJ Plugin
+            Verifier tool used only at build time to validate plugin compatibility.
+            This JAR is never shipped as part of the plugin distribution and is
+            not present at plugin runtime. The vulnerability requires an attacker
+            to control the Logback configuration file, which is not possible in a
+            build-time-only tool. Suppressed until 2026-12-01; re-evaluate if a
+            newer verifier-cli release ships with a patched Logback version.
+        </notes>
+        <filePath regex="true">.*verifier-cli.*\.jar.*</filePath>
+        <cve>CVE-2023-6378</cve>
+    </suppress>
+
+    <!-- ==================================================================== -->
     <!-- KNOWN ISSUES - Accepted Risk with Expiry                             -->
     <!-- ==================================================================== -->
 
