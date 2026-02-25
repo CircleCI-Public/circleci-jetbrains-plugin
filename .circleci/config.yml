@@ -133,7 +133,7 @@ jobs:
 
             # Update plugin repository XML
             mkdir -p docs
-            cat > docs/updatePlugins.xml << EOF
+            cat > docs/updatePlugins.xml \<< EOF
             <?xml version="1.0" encoding="UTF-8"?>
             <plugins>
               <plugin id="com.circleci.idea" url="https://github.com/circleci-petri/circleci-idea-plugin/releases/download/v${VERSION}/circleci-idea-plugin-${VERSION}-signed.zip" version="${VERSION}">
