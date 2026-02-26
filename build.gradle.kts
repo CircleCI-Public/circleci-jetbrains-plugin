@@ -109,7 +109,9 @@ intellijPlatform {
 
     signing {
         certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
+            .map { String(java.util.Base64.getDecoder().decode(it)) }
         privateKey = providers.environmentVariable("PRIVATE_KEY")
+            .map { String(java.util.Base64.getDecoder().decode(it)) }
         password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
     }
 

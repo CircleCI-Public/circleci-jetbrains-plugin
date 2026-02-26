@@ -1,0 +1,9 @@
+# Copy this file to ../.claude-env and fill in your values.
+# Keep .claude-env out of git (it is already in .gitignore).
+#
+#   cp scripts/.claude-env.example .claude-env
+#   chmod 600 .claude-env
+
+# National Vulnerability Database API key — used by OWASP Dependency-Check.
+# Register for free at: https://nvd.nist.gov/developers/request-an-api-key
+NVD_API_KEY=
