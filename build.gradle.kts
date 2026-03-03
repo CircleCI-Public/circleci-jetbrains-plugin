@@ -1,3 +1,4 @@
+import java.util.Base64
 import org.gradle.process.CommandLineArgumentProvider
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
@@ -109,9 +110,9 @@ intellijPlatform {
 
     signing {
         certificateChain.set(providers.environmentVariable("CERTIFICATE_CHAIN")
-            .map { String(java.util.Base64.getDecoder().decode(it)) })
+            .map { String(Base64.getDecoder().decode(it)) })
         privateKey.set(providers.environmentVariable("PRIVATE_KEY")
-            .map { String(java.util.Base64.getDecoder().decode(it)) })
+            .map { String(Base64.getDecoder().decode(it)) })
         password.set(providers.environmentVariable("PRIVATE_KEY_PASSWORD"))
     }
 
