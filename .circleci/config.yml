@@ -16,7 +16,8 @@ jobs:
       # Restore Gradle cache
       - restore_cache:
           keys:
-            - gradle-cache-v1-{{ checksum "build.gradle.kts" }}-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}
+            - gradle-cache-v1-{{ checksum "build.gradle.kts" }}-{{ checksum
+              "gradle/wrapper/gradle-wrapper.properties" }}
             - gradle-cache-v1-
 
       # Generate weekly cache key for OWASP NVD data
@@ -50,7 +51,7 @@ jobs:
           name: Verify plugin
           command: ./gradlew verifyPlugin
 
-      # Run static analysis (hard gate; NVD_API_KEY sourced from jetbrains-release context)
+      # Run static analysis (hard gate; NVD_API_KEY sourced from intellij-plugin-publication context)
       - run:
           name: Static analysis
           no_output_timeout: 20m
@@ -58,7 +59,8 @@ jobs:
 
       # Save Gradle cache
       - save_cache:
-          key: gradle-cache-v1-{{ checksum "build.gradle.kts" }}-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}
+          key: gradle-cache-v1-{{ checksum "build.gradle.kts" }}-{{ checksum
+            "gradle/wrapper/gradle-wrapper.properties" }}
           paths:
             - ~/.gradle/caches
             - ~/.gradle/wrapper
@@ -95,7 +97,8 @@ jobs:
       # Restore Gradle cache
       - restore_cache:
           keys:
-            - gradle-cache-v1-{{ checksum "build.gradle.kts" }}-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}
+            - gradle-cache-v1-{{ checksum "build.gradle.kts" }}-{{ checksum
+              "gradle/wrapper/gradle-wrapper.properties" }}
             - gradle-cache-v1-
 
       # Make gradlew executable
@@ -182,7 +185,7 @@ workflows:
   build-test-publish:
     jobs:
       - build-and-test:
-          context: jetbrains-release
+          context: intellij-plugin-publication
           filters:
             tags:
               only: /^v.*/
@@ -200,7 +203,7 @@ workflows:
       - publish:
           requires:
             - hold
-          context: jetbrains-release
+          context: intellij-plugin-publication
           filters:
             tags:
               only: /^v.*/
