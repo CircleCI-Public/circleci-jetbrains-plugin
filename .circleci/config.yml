@@ -139,47 +139,56 @@ jobs:
           name: Sign plugin
           command: ./gradlew signPlugin
 
-      # Create GitHub Release and update updatePlugins.xml
+      # Create GitHub Release
+      # RC tags (v*-rc.*) create a pre-release and skip updatePlugins.xml.
+      # Release tags (v*.*.*) create a full release and update updatePlugins.xml.
       - run:
-          name: Create GitHub Release and update plugin repository
+          name: Create GitHub Release
           command: |
+            TAG="${CIRCLE_TAG}"
             VERSION=$(grep '^version = ' build.gradle.kts | sed 's/version = "\(.*\)"/\1/')
             SIGNED_ZIP="build/distributions/circleci-idea-plugin-${VERSION}-signed.zip"
 
-            if gh release view "v${VERSION}" &> /dev/null; then
-              echo "Release v${VERSION} exists, deleting..."
-              gh release delete "v${VERSION}" -y
+            if [[ "$TAG" == *-rc.* ]]; then
+              PRERELEASE_FLAG="--prerelease"
+            else
+              PRERELEASE_FLAG=""
             fi
-            gh release create "v${VERSION}" \
-              --title "CircleCI v${VERSION}" \
+
+            gh release create "${TAG}" \
+              --title "CircleCI ${TAG}" \
               --notes-file CHANGELOG.md \
+              ${PRERELEASE_FLAG} \
               "${SIGNED_ZIP}"
 
-            mkdir -p docs
-            cat > docs/updatePlugins.xml \<< EOF
-            <?xml version="1.0" encoding="UTF-8"?>
-            <plugins>
-              <plugin id="com.circleci.idea" url="https://github.com/circleci-petri/circleci-idea-plugin/releases/download/v${VERSION}/circleci-idea-plugin-${VERSION}-signed.zip" version="${VERSION}">
-                <name>CircleCI</name>
-                <description><![CDATA[
-                  CircleCI integration for JetBrains IDEs.
-                  Monitor, manage, and debug CircleCI pipelines directly within your IDE.
-                ]]></description>
-                <vendor email="support@circleci.com" url="https://circleci.com">CircleCI</vendor>
-                <idea-version since-build="243" until-build="253.*"/>
-                <change-notes><![CDATA[
-                  See https://github.com/circleci-petri/circleci-idea-plugin/releases/tag/v${VERSION} for release notes.
-                ]]></change-notes>
-              </plugin>
-            </plugins>
-            EOF
+            # Only update the plugin repository XML for full releases
+            if [[ "$TAG" != *-rc.* ]]; then
+              mkdir -p docs
+              cat > docs/updatePlugins.xml \<< EOF
+              <?xml version="1.0" encoding="UTF-8"?>
+              <plugins>
+                <plugin id="com.circleci.idea" url="https://github.com/circleci-petri/circleci-idea-plugin/releases/download/${TAG}/circleci-idea-plugin-${VERSION}-signed.zip" version="${VERSION}">
+                  <name>CircleCI</name>
+                  <description><![CDATA[
+                    CircleCI integration for JetBrains IDEs.
+                    Monitor, manage, and debug CircleCI pipelines directly within your IDE.
+                  ]]></description>
+                  <vendor email="support@circleci.com" url="https://circleci.com">CircleCI</vendor>
+                  <idea-version since-build="243" until-build="253.*"/>
+                  <change-notes><![CDATA[
+                    See https://github.com/circleci-petri/circleci-idea-plugin/releases/tag/${TAG} for release notes.
+                  ]]></change-notes>
+                </plugin>
+              </plugins>
+              EOF
 
-            git config user.email "ci@circleci.com"
-            git config user.name "CircleCI"
-            git add docs/updatePlugins.xml
-            if ! git diff --cached --quiet; then
-              git commit -m "Update plugin repository for v${VERSION}"
-              git push origin main
+              git config user.email "ci@circleci.com"
+              git config user.name "CircleCI"
+              git add docs/updatePlugins.xml
+              if ! git diff --cached --quiet; then
+                git commit -m "Update plugin repository for ${TAG}"
+                git push origin main
+              fi
             fi
 
   publish-marketplace:
@@ -218,22 +227,34 @@ jobs:
 
 workflows:
   version: 2
-  build-test-publish:
+
+  # Branch builds: run tests on every push, no publish steps
+  ci:
+    jobs:
+      - build-and-test:
+          context: intellij-plugin-publication
+          filters:
+            branches:
+              only: /.*/
+
+  # RC tags (e.g. v1.3.1-rc.1): test, then optionally create a GitHub pre-release.
+  # Never publishes to the JetBrains Marketplace.
+  rc:
     jobs:
       - build-and-test:
           context: intellij-plugin-publication
           filters:
             tags:
-              only: /^v.*/
+              only: /^v.*-rc\..*/
             branches:
-              only: /.*/
+              ignore: /.*/
       - hold-github:
           type: approval
           requires:
             - build-and-test
           filters:
             tags:
-              only: /^v.*/
+              only: /^v.*-rc\..*/
             branches:
               ignore: /.*/
       - publish-github:
@@ -242,7 +263,37 @@ workflows:
           context: intellij-plugin-publication
           filters:
             tags:
-              only: /^v.*/
+              only: /^v.*-rc\..*/
+            branches:
+              ignore: /.*/
+
+  # Release tags (e.g. v1.3.1): test, create GitHub release, then optionally publish
+  # to the JetBrains Marketplace — each step behind its own approval gate.
+  release:
+    jobs:
+      - build-and-test:
+          context: intellij-plugin-publication
+          filters:
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+            branches:
+              ignore: /.*/
+      - hold-github:
+          type: approval
+          requires:
+            - build-and-test
+          filters:
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+            branches:
+              ignore: /.*/
+      - publish-github:
+          requires:
+            - hold-github
+          context: intellij-plugin-publication
+          filters:
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
             branches:
               ignore: /.*/
       - hold-marketplace:
@@ -251,7 +302,7 @@ workflows:
             - publish-github
           filters:
             tags:
-              only: /^v.*/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
             branches:
               ignore: /.*/
       - publish-marketplace:
@@ -260,6 +311,6 @@ workflows:
           context: intellij-plugin-publication
           filters:
             tags:
-              only: /^v.*/
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
             branches:
               ignore: /.*/
