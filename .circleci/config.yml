@@ -54,7 +54,7 @@ jobs:
       # Run static analysis (hard gate; NVD_API_KEY sourced from intellij-plugin-publication context)
       - run:
           name: Static analysis
-          no_output_timeout: 20m
+          no_output_timeout: 45m
           command: ./gradlew staticAnalysis
 
       # Save Gradle cache
@@ -80,7 +80,17 @@ jobs:
           path: build/reports
           destination: analysis-reports
 
-      # Store plugin distribution
+      # Sign plugin (requires signing credentials from context; skipped if unavailable)
+      - run:
+          name: Sign plugin
+          command: |
+            if [ -n "${CERTIFICATE_CHAIN:-}" ]; then
+              ./gradlew signPlugin
+            else
+              echo "Signing credentials not available, skipping."
+            fi
+
+      # Store plugin distribution (includes signed zip when credentials are available)
       - store_artifacts:
           path: build/distributions
           destination: plugin-distribution
