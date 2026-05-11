@@ -95,7 +95,7 @@ jobs:
           path: build/distributions
           destination: plugin-distribution
 
-  publish:
+  publish-github:
     docker:
       - image: cimg/openjdk:21.0
 
@@ -130,20 +130,14 @@ jobs:
               | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
             sudo apt update && sudo apt install gh -y
 
-      # Build plugin
+      # Build and sign plugin
       - run:
           name: Build plugin
           command: ./gradlew buildPlugin
 
-      # Sign plugin
       - run:
           name: Sign plugin
           command: ./gradlew signPlugin
-
-      # Publish to JetBrains Marketplace
-      - run:
-          name: Publish to JetBrains Marketplace
-          command: ./gradlew publishPlugin
 
       # Create GitHub Release and update updatePlugins.xml
       - run:
@@ -152,7 +146,6 @@ jobs:
             VERSION=$(grep '^version = ' build.gradle.kts | sed 's/version = "\(.*\)"/\1/')
             SIGNED_ZIP="build/distributions/circleci-idea-plugin-${VERSION}-signed.zip"
 
-            # Create GitHub release with signed artifact
             if gh release view "v${VERSION}" &> /dev/null; then
               echo "Release v${VERSION} exists, deleting..."
               gh release delete "v${VERSION}" -y
@@ -162,7 +155,6 @@ jobs:
               --notes-file CHANGELOG.md \
               "${SIGNED_ZIP}"
 
-            # Update plugin repository XML
             mkdir -p docs
             cat > docs/updatePlugins.xml \<< EOF
             <?xml version="1.0" encoding="UTF-8"?>
@@ -190,6 +182,40 @@ jobs:
               git push origin main
             fi
 
+  publish-marketplace:
+    docker:
+      - image: cimg/openjdk:21.0
+
+    resource_class: large
+
+    steps:
+      - checkout
+
+      # Restore Gradle cache
+      - restore_cache:
+          keys:
+            - gradle-cache-v1-{{ checksum "build.gradle.kts" }}-{{ checksum
+              "gradle/wrapper/gradle-wrapper.properties" }}
+            - gradle-cache-v1-
+
+      # Make gradlew executable
+      - run:
+          name: Make gradlew executable
+          command: chmod +x gradlew
+
+      # Build, sign, and publish to JetBrains Marketplace
+      - run:
+          name: Build plugin
+          command: ./gradlew buildPlugin
+
+      - run:
+          name: Sign plugin
+          command: ./gradlew signPlugin
+
+      - run:
+          name: Publish to JetBrains Marketplace
+          command: ./gradlew publishPlugin
+
 workflows:
   version: 2
   build-test-publish:
@@ -201,7 +227,7 @@ workflows:
               only: /^v.*/
             branches:
               only: /.*/
-      - hold:
+      - hold-github:
           type: approval
           requires:
             - build-and-test
@@ -210,9 +236,27 @@ workflows:
               only: /^v.*/
             branches:
               ignore: /.*/
-      - publish:
+      - publish-github:
           requires:
-            - hold
+            - hold-github
+          context: intellij-plugin-publication
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+      - hold-marketplace:
+          type: approval
+          requires:
+            - publish-github
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+      - publish-marketplace:
+          requires:
+            - hold-marketplace
           context: intellij-plugin-publication
           filters:
             tags:
