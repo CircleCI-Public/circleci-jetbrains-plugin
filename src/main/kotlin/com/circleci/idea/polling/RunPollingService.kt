@@ -2,7 +2,9 @@ package com.circleci.idea.polling
 
 import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.project.CircleCIProjectService
+import com.circleci.idea.run.RunScope
 import com.circleci.idea.settings.CircleCISettings
+import com.circleci.idea.state.CircleCIStateStore
 import com.circleci.idea.toolwindow.CircleCIToolWindowService
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
@@ -31,6 +33,7 @@ class RunPollingService(private val project: Project) : Disposable {
     private val settings = CircleCISettings.getInstance()
     private val projectService = project.getService(CircleCIProjectService::class.java)
     private val toolWindowService = project.getService(CircleCIToolWindowService::class.java)
+    private val stateStore = CircleCIStateStore.getInstance(project)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var pollingJob: Job? = null
@@ -104,20 +107,17 @@ class RunPollingService(private val project: Project) : Disposable {
     fun isPolling(): Boolean = pollingJob?.isActive == true
 
     /**
-     * Poll runs for all selected projects.
+     * Poll the runs the tool window lists.
      */
     private suspend fun pollRuns() {
-        val selectedProjects = projectService.getSelectedProjectObjects()
-        if (selectedProjects.isEmpty()) {
-            logger.debug("No selected projects, skipping poll")
+        if (projectService.getSelectedProject() == null && stateStore.filters.value.scope != RunScope.MY_RUNS) {
+            logger.debug("No project to list runs for, skipping poll")
             return
         }
 
-        logger.debug("Polling runs for ${selectedProjects.size} projects")
         lastPollTime = Instant.now()
 
-        // Refresh run data for all loaded projects
-        // This will re-fetch from API while preserving tree state via TreeStateManager
+        // Re-fetch from the API, keeping the tree's state
         toolWindowService.refreshRuns()
     }
 

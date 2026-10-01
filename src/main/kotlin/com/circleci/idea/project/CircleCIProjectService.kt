@@ -27,8 +27,9 @@ class CircleCIProjectService(
     private val _projects = MutableStateFlow<List<CircleCIProject>>(emptyList())
     val projects: StateFlow<List<CircleCIProject>> = _projects.asStateFlow()
 
-    private val _selectedProjects = MutableStateFlow<Set<String>>(emptySet())
-    val selectedProjects: StateFlow<Set<String>> = _selectedProjects.asStateFlow()
+    // The project whose runs the tool window lists, by slug.
+    private val _selectedProject = MutableStateFlow<String?>(null)
+    val selectedProject: StateFlow<String?> = _selectedProject.asStateFlow()
 
     private val _followedProjects = MutableStateFlow<List<CircleCIProject>>(emptyList())
     val followedProjects: StateFlow<List<CircleCIProject>> = _followedProjects.asStateFlow()
@@ -65,11 +66,12 @@ class CircleCIProjectService(
                     "(${existingManualProjects.size} manual projects preserved)",
             )
 
-            // Auto-select detected projects if none are selected
-            if (_selectedProjects.value.isEmpty() && detectedProjects.isNotEmpty()) {
-                val slugs = detectedProjects.map { it.slug }.toSet()
-                selectProjects(slugs)
-                logger.info("Auto-selected ${slugs.size} detected projects")
+            // Select the first detected project if none is, or the selected one is gone
+            if (getSelectedProject() == null) {
+                detectedProjects.firstOrNull()?.let {
+                    selectProject(it.slug)
+                    logger.info("Auto-selected detected project ${it.slug}")
+                }
             }
         } catch (e: Exception) {
             logger.error("Failed to detect projects", e)
@@ -142,18 +144,17 @@ class CircleCIProjectService(
     }
 
     /**
-     * Select projects to monitor.
+     * Select the project whose runs to list.
      */
-    fun selectProjects(projectSlugs: Set<String>) {
-        logger.info("Selecting ${projectSlugs.size} projects: ${projectSlugs.joinToString()}")
-        _selectedProjects.value = projectSlugs
-        persistSelection(projectSlugs)
-
-        logger.logStateChange("selectedProjects", _selectedProjects.value.size, projectSlugs.size)
+    fun selectProject(slug: String?) {
+        if (slug == _selectedProject.value) return
+        logger.logStateChange("selectedProject", _selectedProject.value, slug)
+        _selectedProject.value = slug
+        persistSelection(slug)
     }
 
     /**
-     * Add a project by slug.
+     * Add a project by slug and select it.
      */
     fun addProjectBySlug(slug: String): Boolean {
         logger.info("Adding project by slug: $slug")
@@ -164,30 +165,12 @@ class CircleCIProjectService(
             return false
         }
 
-        // Check if already exists
-        val existingSlugs = _projects.value.map { it.slug }
-        if (slug in existingSlugs) {
-            logger.debug("Project already exists: $slug")
-        } else {
-            // Add to projects list
+        if (_projects.value.none { it.slug == slug }) {
             _projects.value = _projects.value + project
             logger.info("Added project: $slug")
         }
-
-        // Add to selection
-        val newSelection = _selectedProjects.value + slug
-        selectProjects(newSelection)
-
+        selectProject(slug)
         return true
-    }
-
-    /**
-     * Remove a project from selection.
-     */
-    fun removeProject(slug: String) {
-        logger.info("Removing project: $slug")
-        val newSelection = _selectedProjects.value - slug
-        selectProjects(newSelection)
     }
 
     /**
@@ -198,18 +181,11 @@ class CircleCIProjectService(
     }
 
     /**
-     * Get currently selected projects.
+     * The selected project, or null if it's not (or no longer) among the known projects.
      */
-    fun getSelectedProjectObjects(): List<CircleCIProject> {
-        val selectedSlugs = _selectedProjects.value
-        return _projects.value.filter { it.slug in selectedSlugs }
-    }
-
-    /**
-     * Check if a project is selected.
-     */
-    fun isProjectSelected(slug: String): Boolean {
-        return slug in _selectedProjects.value
+    fun getSelectedProject(): CircleCIProject? {
+        val selected = _selectedProject.value ?: return null
+        return _projects.value.firstOrNull { it.slug == selected }
     }
 
     /**
@@ -222,27 +198,25 @@ class CircleCIProjectService(
     }
 
     /**
-     * Persist selected projects to state.
+     * Persist the selected project to state.
      */
-    private fun persistSelection(projectSlugs: Set<String>) {
+    private fun persistSelection(slug: String?) {
         try {
-            stateStore.updateProjects { it.copy(selectedProjects = projectSlugs.toList()) }
+            stateStore.updateProjects { it.copy(selectedProject = slug) }
             stateStore.persist()
-            logger.debug("Persisted ${projectSlugs.size} selected projects")
         } catch (e: Exception) {
             logger.error("Failed to persist project selection", e)
         }
     }
 
     /**
-     * Load persisted project selection.
+     * Load the persisted project selection.
      */
     private fun loadPersistedSelection() {
         try {
-            val persisted = stateStore.projects.value.selectedProjects.toSet()
-            if (persisted.isNotEmpty()) {
-                _selectedProjects.value = persisted
-                logger.info("Loaded ${persisted.size} persisted projects")
+            stateStore.projects.value.selectedProject?.let {
+                _selectedProject.value = it
+                logger.info("Loaded persisted project $it")
             }
         } catch (e: Exception) {
             logger.error("Failed to load persisted project selection", e)

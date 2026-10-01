@@ -80,7 +80,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         observeAuth()
 
         // Note: Tree will auto-reload via StateFlow listeners in CircleCITreeModel
-        // when projects are detected and selectedProjects is updated
+        // when projects are detected and selectedProject is updated
 
         // Register for disposal
         Disposer.register(project, this)
@@ -194,11 +194,11 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
 
         // Project management actions
         actionGroup.add(com.circleci.idea.toolwindow.actions.RefreshAction())
-        actionGroup.add(com.circleci.idea.toolwindow.actions.AddProjectAction())
         actionGroup.add(com.circleci.idea.toolwindow.actions.ToggleAutoRefreshAction())
         actionGroup.addSeparator()
 
-        // Filter actions
+        // What to list: the project (unless listing my runs), then the filters
+        actionGroup.add(com.circleci.idea.toolwindow.actions.ProjectChooserAction())
         actionGroup.add(com.circleci.idea.toolwindow.actions.RunScopeFilterAction())
         actionGroup.add(com.circleci.idea.toolwindow.actions.RunStatusFilterAction())
         actionGroup.add(com.circleci.idea.toolwindow.actions.RunCreatedFilterAction())

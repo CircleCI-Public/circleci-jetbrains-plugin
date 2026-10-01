@@ -1,6 +1,5 @@
 package com.circleci.idea.toolwindow.tree
 
-import com.circleci.idea.project.models.CircleCIProject
 import com.circleci.idea.run.RunStatus
 import com.circleci.idea.state.Job
 import com.circleci.idea.state.Run
@@ -39,28 +38,10 @@ sealed class CircleCITreeNode(userObject: Any?) : DefaultMutableTreeNode(userObj
 }
 
 /**
- * Root node for the tree.
+ * The tree's (hidden) root, whose children are the runs listed.
  */
 class RootNode : CircleCITreeNode(null) {
-    override fun getDisplayText(): String = "CircleCI Projects"
-
-    override fun canLoadChildren(): Boolean = true // Root can contain project nodes
-}
-
-/**
- * Node listing a CircleCI project's runs.
- */
-class ProjectNode(val project: CircleCIProject) : CircleCITreeNode(project) {
-    override fun getDisplayText(): String = project.getDisplayName()
-
-    override fun canLoadChildren(): Boolean = true
-}
-
-/**
- * Node listing the authenticated user's runs across all projects.
- */
-class MyRunsNode : CircleCITreeNode(null) {
-    override fun getDisplayText(): String = "My runs"
+    override fun getDisplayText(): String = "Runs"
 
     override fun canLoadChildren(): Boolean = true
 }

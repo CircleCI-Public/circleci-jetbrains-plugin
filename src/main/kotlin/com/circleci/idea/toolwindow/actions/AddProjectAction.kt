@@ -8,12 +8,12 @@ import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.ui.Messages
 
 /**
- * Action to manually add a CircleCI project by slug.
+ * Action to list another CircleCI project's runs, entered by slug.
  */
 class AddProjectAction :
     AnAction(
-        "Add Project",
-        "Manually add a CircleCI project by slug (e.g., gh/org/repo)",
+        "Other Project...",
+        "List the runs of a CircleCI project by its slug (e.g., gh/org/repo)",
         AllIcons.General.Add,
     ),
     DumbAware {
@@ -31,13 +31,7 @@ class AddProjectAction :
 
         if (slug != null && slug.isNotBlank()) {
             val success = projectService.addProjectBySlug(slug.trim())
-            if (success) {
-                Messages.showInfoMessage(
-                    project,
-                    "Project '$slug' has been added and selected.",
-                    "Project Added",
-                )
-            } else {
+            if (!success) {
                 Messages.showErrorDialog(
                     project,
                     "Invalid project slug format. Please use: vcs/org/repo\n" +

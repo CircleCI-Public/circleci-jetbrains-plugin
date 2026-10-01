@@ -123,8 +123,6 @@ class TreeStateManager {
      */
     private fun getNodeIdentifier(node: CircleCITreeNode): String? {
         return when (node) {
-            is ProjectNode -> "project:${node.project.slug}"
-            is MyRunsNode -> "my-runs"
             is RunNode -> "run:${node.run.id}"
             is WorkflowNode -> "workflow:${node.workflow.id}"
             is JobNode -> "job:${node.job.id}"

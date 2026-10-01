@@ -2,7 +2,6 @@ package com.circleci.idea.toolwindow.tree
 
 import com.circleci.idea.icons.CircleCIIcons
 import com.circleci.idea.run.elapsedSince
-import com.intellij.icons.AllIcons
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.SimpleTextAttributes
 import java.time.Duration
@@ -31,8 +30,6 @@ class CircleCITreeCellRenderer : ColoredTreeCellRenderer() {
         icon =
             when (value) {
                 is RootNode -> CircleCIIcons.PLUGIN_ICON
-                is ProjectNode -> CircleCIIcons.PLUGIN_ICON
-                is MyRunsNode -> AllIcons.General.User
                 is LoadingNode -> null
                 is LoadMoreNode -> null
                 is EmptyNode -> null

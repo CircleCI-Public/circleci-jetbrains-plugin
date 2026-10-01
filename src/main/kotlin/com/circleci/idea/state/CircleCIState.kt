@@ -41,8 +41,8 @@ data class User(
  * Projects state - list of selected/followed projects.
  */
 data class ProjectsState(
-    // Project slugs
-    val selectedProjects: List<String> = emptyList(),
+    // The slug of the project whose runs are listed
+    val selectedProject: String? = null,
     val followedProjects: List<Project> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,

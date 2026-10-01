@@ -87,7 +87,7 @@ class CircleCIStateStoreTest : BasePlatformTestCase() {
             assertTrue(projectsData.data.isEmpty())
 
             val projects = stateStore.projects.first()
-            assertTrue(projects.selectedProjects.isEmpty())
+            assertNull(projects.selectedProject)
         }
 
     private fun run(id: String) =

@@ -222,7 +222,7 @@ data class Run(
 ### Tree View
 
 The main tree view displays:
-- Projects (root nodes), or "My runs" across all projects
+- Runs (at the top level) of the selected project, or "My runs" across all projects
 - Runs
 - Workflows
 - Jobs

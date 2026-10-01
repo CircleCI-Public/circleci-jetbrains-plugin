@@ -56,8 +56,8 @@ class CircleCITreeModel(
     init {
         // Listen to project changes and reload root
         scope.launch {
-            projectService.selectedProjects.collect { selectedSlugs ->
-                logger.info("StateFlow: selectedProjects changed, size=${selectedSlugs.size}, slugs=$selectedSlugs")
+            projectService.selectedProject.collect { slug ->
+                logger.info("StateFlow: selectedProject changed to $slug")
                 reloadRoot()
             }
         }
@@ -80,18 +80,12 @@ class CircleCITreeModel(
     }
 
     /**
-     * Re-fetch every loaded level of the tree in place.
+     * Re-fetch every loaded level of the tree in place. A run list whose last
+     * load failed is retried.
      */
     fun refreshRuns() {
         SwingUtilities.invokeLater {
-            val rootNode = root as RootNode
-            for (i in 0 until rootNode.childCount) {
-                val child = rootNode.getChildAt(i) as? CircleCITreeNode ?: continue
-                // Expanded but not loaded is a list whose last load failed: retry it.
-                if (child.childrenLoaded || tree?.isExpanded(TreePath(child.path)) == true) {
-                    loadChildren(child, refresh = true)
-                }
-            }
+            if (runFetcher() != null) loadRuns(refresh = true)
         }
     }
 
@@ -112,30 +106,17 @@ class CircleCITreeModel(
             val hadFocus = tree?.hasFocus() == true
 
             val rootNode = root as RootNode
-            rootNode.removeAllChildren()
-
-            if (stateStore.filters.value.scope == RunScope.MY_RUNS) {
-                rootNode.add(MyRunsNode())
+            if (runFetcher() != null) {
+                loadRuns(refresh = false)
             } else {
-                val selectedProjects = projectService.getSelectedProjectObjects()
-                logger.info("Reloading root with ${selectedProjects.size} selected projects")
-                if (selectedProjects.isEmpty()) {
-                    rootNode.add(EmptyNode("No CircleCI project selected"))
-                } else {
-                    selectedProjects.forEach { rootNode.add(ProjectNode(it)) }
-                }
+                rootNode.loadGeneration++
+                rootNode.childrenLoaded = false
+                rootNode.removeAllChildren()
+                rootNode.add(EmptyNode("No CircleCI project found in this workspace"))
+                reload(rootNode)
             }
-            reload(rootNode)
 
-            if (tree == null) return@invokeLater
-            stateManager.restoreState(tree, rootNode, expandedBeforeReload)
-            restoreSelection(rootNode)
-            if (hadFocus) tree.requestFocusInWindow()
-            // A lone list has nothing to choose between, so open it.
-            val lone = rootNode.firstChild as? CircleCITreeNode
-            if (rootNode.childCount == 1 && lone != null && lone.canLoadChildren()) {
-                tree.expandPath(TreePath(lone.path))
-            }
+            if (tree != null && hadFocus) tree.requestFocusInWindow()
         }
     }
 
@@ -162,8 +143,8 @@ class CircleCITreeModel(
      * Load the next page of runs in place of [loadMoreNode].
      */
     fun loadMore(loadMoreNode: LoadMoreNode) {
-        val parent = loadMoreNode.parent as? CircleCITreeNode ?: return
-        val fetch = runFetcher(parent) ?: return
+        val parent = loadMoreNode.parent as? RootNode ?: return
+        val fetch = runFetcher() ?: return
         val generation = parent.loadGeneration
 
         val index = parent.getIndex(loadMoreNode)
@@ -182,7 +163,7 @@ class CircleCITreeModel(
             parent.remove(loadingNode)
             result.fold(
                 onSuccess = { page ->
-                    page.items.forEach { parent.add(RunNode(it, showProject = parent is MyRunsNode)) }
+                    page.items.forEach { parent.add(RunNode(it, showProject = isMyRuns())) }
                     page.nextCursor?.let { parent.add(LoadMoreNode(it)) }
                 },
                 onFailure = { error ->
@@ -201,47 +182,50 @@ class CircleCITreeModel(
         refresh: Boolean,
     ) {
         when (node) {
-            is ProjectNode, is MyRunsNode -> loadRuns(node, refresh)
+            is RootNode -> loadRuns(refresh)
             is RunNode -> loadWorkflows(node, refresh)
             is WorkflowNode -> loadJobs(node, refresh)
             else -> {}
         }
     }
 
-    /** Fetches a page of the runs a list node shows, or null for a node that isn't a run list. */
-    private fun runFetcher(node: CircleCITreeNode): (suspend (String?) -> Result<V3Page<Run>>)? {
-        return when (node) {
-            is ProjectNode -> { cursor -> runListService.fetchProjectRuns(node.project, cursor) }
-            is MyRunsNode -> { cursor -> runListService.fetchMyRuns(cursor) }
-            else -> null
-        }
+    private fun isMyRuns(): Boolean = stateStore.filters.value.scope == RunScope.MY_RUNS
+
+    /**
+     * Fetches a page of the runs the tree lists: the user's own across every
+     * project, or the selected project's. Null when there's no project to list.
+     */
+    private fun runFetcher(): (suspend (String?) -> Result<V3Page<Run>>)? {
+        if (isMyRuns()) return { cursor -> runListService.fetchMyRuns(cursor) }
+        val selected = projectService.getSelectedProject() ?: return null
+        return { cursor -> runListService.fetchProjectRuns(selected, cursor) }
     }
 
-    private fun loadRuns(
-        node: CircleCITreeNode,
-        refresh: Boolean,
-    ) {
-        val fetch = runFetcher(node) ?: return
+    /** List the runs at the top of the tree. */
+    private fun loadRuns(refresh: Boolean) {
+        val fetch = runFetcher() ?: return
+        val node = root as RootNode
+        val myRuns = isMyRuns()
         loadInto(node, refresh, "runs", { fetch(null) }) { page, previous ->
             val existing = existingChildren<RunNode, String>(previous) { it.run.id }
             if (page.items.isEmpty()) {
-                node.add(EmptyNode(emptyRunsMessage(node)))
+                node.add(EmptyNode(emptyRunsMessage()))
             }
             page.items.forEach { run ->
                 val reused = existing[run.id]
-                if (reused != null) {
+                if (reused != null && reused.showProject == myRuns) {
                     // Keep a slug the workflows load resolved, which the listing lacks.
                     reused.run = run.copy(projectSlug = run.projectSlug ?: reused.run.projectSlug)
                     node.add(reused)
                 } else {
-                    node.add(RunNode(run, showProject = node is MyRunsNode))
+                    node.add(RunNode(run, showProject = myRuns))
                 }
             }
             page.nextCursor?.let { node.add(LoadMoreNode(it)) }
 
             page.items.firstNotNullOfOrNull { it.createdAt }?.let { pollingService.updateNewestRunTime(it) }
             page.items.filter { it.projectSlug != null }.groupBy { it.projectSlug!! }.forEach { (slug, runs) ->
-                stateStore.setRuns(slug, runs, page.nextCursor.takeIf { node is ProjectNode })
+                stateStore.setRuns(slug, runs, page.nextCursor.takeIf { !myRuns })
             }
         }
     }
@@ -314,7 +298,8 @@ class CircleCITreeModel(
 
         scope.launch {
             val result = authenticated(fetch)
-            if (generation != node.loadGeneration || node.parent == null) return@launch
+            // Stale, or for a node no longer in the tree.
+            if (generation != node.loadGeneration || (node !== root && node.parent == null)) return@launch
             if (refresh && result.isFailure) {
                 // Keep showing what loaded last; the next refresh tries again.
                 logger.warn("Failed to refresh $what: ${result.exceptionOrNull()?.message}")
@@ -397,16 +382,15 @@ class CircleCITreeModel(
         return tree?.let { stateManager.captureState(it) } ?: emptySet()
     }
 
-    private fun emptyRunsMessage(node: CircleCITreeNode): String {
+    private fun emptyRunsMessage(): String {
         val filters = stateStore.filters.value
         if (filters.status != null || filters.created != null) {
             return "No runs match the current filters"
         }
-        if (node is ProjectNode) {
-            return when (val scope = runListService.branchScope(node.project)) {
-                is RunListService.BranchScope.Branch -> "No runs on ${scope.name}"
-                else -> "No runs found"
-            }
+        val selected = projectService.getSelectedProject()
+        if (!isMyRuns() && selected != null) {
+            val scope = runListService.branchScope(selected)
+            if (scope is RunListService.BranchScope.Branch) return "No runs on ${scope.name}"
         }
         return "No runs found"
     }

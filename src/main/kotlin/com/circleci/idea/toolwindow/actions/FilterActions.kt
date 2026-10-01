@@ -107,16 +107,14 @@ class RunScopeFilterAction : RunFilterComboAction() {
 }
 
 /**
- * The current branch to name in the toolbar: the selected projects' branch
- * when they agree, otherwise null (each project lists its own repo's branch).
+ * The current branch to name in the toolbar: that of the selected project's repository.
  */
 private fun currentBranch(
     project: Project,
     gitService: GitBranchService,
 ): String? {
-    val projects = project.getService(CircleCIProjectService::class.java).getSelectedProjectObjects()
-    if (projects.isEmpty()) return gitService.getCurrentBranch()
-    return projects.map { gitService.getCurrentBranch(it.localPath) }.distinct().singleOrNull()
+    val selected = project.getService(CircleCIProjectService::class.java).getSelectedProject()
+    return gitService.getCurrentBranch(selected?.localPath)
 }
 
 private class SetRunScopeAction(private val scope: RunScope) : SetRunFilterAction(scope.label) {

@@ -180,7 +180,7 @@ class CircleCIStateStore(private val project: Project) : CircleCIState {
         // Load selected projects
         val persistedProjects = persistence.loadSelectedProjects()
         if (persistedProjects.isNotEmpty()) {
-            updateProjects { it.copy(selectedProjects = persistedProjects) }
+            updateProjects { it.copy(selectedProject = persistedProjects.first()) }
         }
 
         // Load UI preferences
@@ -197,7 +197,7 @@ class CircleCIStateStore(private val project: Project) : CircleCIState {
         val persistence = project.service<CircleCIStatePersistence>()
 
         persistence.saveFilters(_filters.value)
-        persistence.saveSelectedProjects(_projects.value.selectedProjects)
+        persistence.saveSelectedProjects(listOfNotNull(_projects.value.selectedProject))
         persistence.saveUIState(_ui.value)
     }
 

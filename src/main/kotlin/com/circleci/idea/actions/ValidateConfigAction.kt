@@ -155,19 +155,11 @@ class ValidateConfigAction : AnAction("Validate CircleCI Config") {
 
     private fun getSelectedProject(project: Project): com.circleci.idea.project.models.CircleCIProject? {
         val projectService = project.getService(CircleCIProjectService::class.java)
-        val selectedProjects = projectService.getSelectedProjectObjects()
 
-        if (selectedProjects.isEmpty()) {
-            showErrorNotification(
-                project,
-                "No CircleCI project selected. Please select a project in the CircleCI tool window.",
-            )
-            return null
-        }
-
+        // The project this workspace's repository is, else the one the tool window lists.
         val circleCIProject =
-            selectedProjects.firstOrNull { it.localPath == project.basePath }
-                ?: selectedProjects.firstOrNull()
+            projectService.getAllProjects().firstOrNull { it.localPath == project.basePath }
+                ?: projectService.getSelectedProject()
 
         if (circleCIProject == null) {
             showErrorNotification(

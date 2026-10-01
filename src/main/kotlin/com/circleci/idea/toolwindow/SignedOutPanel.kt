@@ -41,7 +41,7 @@ class SignedOutPanel(private val project: Project) : JBPanel<SignedOutPanel>(Gri
             renderer = ProjectRenderer()
             addActionListener {
                 if (refilling) return@addActionListener
-                (selectedItem as? CircleCIProject)?.let { projectService.selectProjects(setOf(it.slug)) }
+                (selectedItem as? CircleCIProject)?.let { projectService.selectProject(it.slug) }
             }
         }
     private val projectRow =
@@ -100,7 +100,7 @@ class SignedOutPanel(private val project: Project) : JBPanel<SignedOutPanel>(Gri
     /** Show the projects detected now, and why the last login failed, if it did. */
     fun refresh(error: String?) {
         val detected = projectService.projects.value
-        val selected = projectService.getSelectedProjectObjects().firstOrNull()
+        val selected = projectService.getSelectedProject()
         refilling = true
         try {
             projects.removeAllElements()

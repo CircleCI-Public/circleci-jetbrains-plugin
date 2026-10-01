@@ -162,8 +162,6 @@ tree.addTreeExpansionListener(object : TreeExpansionListener {
 ```kotlin
 sealed class CircleCITreeNode {
     class RootNode : CircleCITreeNode()
-    class ProjectNode(val project: CircleCIProject) : CircleCITreeNode()
-    class MyRunsNode : CircleCITreeNode()          // the user's runs across projects
     class RunNode(var run: Run) : CircleCITreeNode()
     class WorkflowNode(var workflow: Workflow) : CircleCITreeNode()
     class JobNode(val job: Job) : CircleCITreeNode()
