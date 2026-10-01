@@ -5,6 +5,7 @@ import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.run.RunMapper
 import com.circleci.idea.state.Artifact
 import com.circleci.idea.state.JobDetail
+import com.circleci.idea.state.TestOutcome
 import com.circleci.idea.state.TestResult
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.fileEditor.FileEditorManager
@@ -59,28 +60,20 @@ class JobDetailsService(private val project: Project) {
     }
 
     /**
-     * Fetch test results for a job.
+     * Fetch a job's test results.
      */
-    suspend fun fetchTestResults(
-        projectSlug: String,
-        jobNumber: Long,
-    ): Result<List<TestResult>> {
-        logger.info("Fetching test results for job $jobNumber")
-
+    suspend fun fetchTests(jobId: String): Result<List<TestResult>> {
         return withContext(Dispatchers.IO) {
-            apiService.getTestResults(projectSlug, jobNumber).map { response ->
-                response.items?.map { testInfo ->
+            apiService.getJobTests(jobId).map { tests ->
+                tests.map {
                     TestResult(
-                        name = testInfo.name,
-                        classname = testInfo.classname,
-                        file = testInfo.file,
-                        result = testInfo.result,
-                        message = testInfo.message,
-                        source = testInfo.source,
-                        runTime = testInfo.runTime,
-                        flaky = testInfo.flaky,
+                        classname = it.classname.orEmpty(),
+                        name = it.name.orEmpty(),
+                        outcome = TestOutcome.of(it.result),
+                        runTime = it.runTime,
+                        message = it.message.orEmpty(),
                     )
-                } ?: emptyList()
+                }
             }
         }
     }

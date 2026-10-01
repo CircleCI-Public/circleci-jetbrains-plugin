@@ -13,7 +13,7 @@ import com.circleci.idea.api.models.JobDetailWire
 import com.circleci.idea.api.models.JobWire
 import com.circleci.idea.api.models.ProjectInfo
 import com.circleci.idea.api.models.RunWire
-import com.circleci.idea.api.models.TestResultsResponse
+import com.circleci.idea.api.models.TestResultWire
 import com.circleci.idea.api.models.UserInfo
 import com.circleci.idea.api.models.WorkflowWire
 import com.circleci.idea.logging.CircleCILogger
@@ -105,7 +105,7 @@ class CircleCIApiService {
      * Get a job with its steps.
      */
     fun getJob(jobId: String): Result<JobDetailWire> {
-        return withClient { runClient.getJob(it, jobId) }
+        return withClient { jobClient.getJob(it, jobId) }
     }
 
     /**
@@ -117,7 +117,7 @@ class CircleCIApiService {
         stepNum: Int,
         offset: Long,
     ): Result<StepOutputChunk> {
-        return withClient { runClient.getStepStdout(it, jobId, execution, stepNum, offset) }
+        return withClient { jobClient.getStepStdout(it, jobId, execution, stepNum, offset) }
     }
 
     /**
@@ -128,7 +128,14 @@ class CircleCIApiService {
         execution: Int,
         stepNum: Int,
     ): Result<ByteArray> {
-        return withClient { runClient.getStepStderr(it, jobId, execution, stepNum) }
+        return withClient { jobClient.getStepStderr(it, jobId, execution, stepNum) }
+    }
+
+    /**
+     * Get a job's test results.
+     */
+    fun getJobTests(jobId: String): Result<List<TestResultWire>> {
+        return withClient { jobClient.getJobTests(it, jobId) }
     }
 
     /**
@@ -202,16 +209,6 @@ class CircleCIApiService {
         jobNumber: Long,
     ): Result<Unit> {
         return withClient { jobClient.cancelJob(it, projectSlug, jobNumber) }
-    }
-
-    /**
-     * Get test results for a job.
-     */
-    fun getTestResults(
-        projectSlug: String,
-        jobNumber: Long,
-    ): Result<TestResultsResponse> {
-        return withClient { jobClient.getTestResults(it, projectSlug, jobNumber) }
     }
 
     /**

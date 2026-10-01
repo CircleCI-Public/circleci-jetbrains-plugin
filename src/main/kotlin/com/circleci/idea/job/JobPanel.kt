@@ -7,7 +7,6 @@ import com.circleci.idea.run.elapsedSince
 import com.circleci.idea.state.JobDetail
 import com.circleci.idea.state.JobExecution
 import com.circleci.idea.state.Step
-import com.circleci.idea.state.TestResult
 import com.circleci.idea.toolwindow.ArtifactsPanel
 import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.process.AnsiEscapeDecoder
@@ -28,7 +27,6 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTabbedPane
-import com.intellij.ui.table.JBTable
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.tree.TreeUtil
@@ -42,11 +40,9 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.awt.BorderLayout
-import java.util.Locale
 import javax.swing.BoxLayout
 import javax.swing.JComponent
 import javax.swing.JTree
-import javax.swing.table.DefaultTableModel
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 import javax.swing.tree.TreePath
@@ -88,7 +84,7 @@ class JobPanel(
     private val console: ConsoleView =
         TextConsoleBuilderFactory.getInstance().createBuilder(project).apply { setViewer(true) }.console
 
-    private val testsModel = DefaultTableModel(arrayOf("Name", "Status", "Duration", "File"), 0)
+    private val testsPanel = TestsPanel(project, this)
     private val artifactsPanel = ArtifactsPanel(project)
 
     private var pollJob: Job? = null
@@ -170,11 +166,6 @@ class JobPanel(
         stepsTree.emptyText.text = "Loading steps..."
         stepsTree.addTreeSelectionListener { selectedStep()?.let { streamStep(it) } }
 
-        val testsTable =
-            JBTable(testsModel).apply {
-                fillsViewportHeight = true
-                autoCreateRowSorter = true
-            }
         val steps =
             OnePixelSplitter(false, STEPS_PROPORTION).apply {
                 firstComponent = JBScrollPane(stepsTree)
@@ -183,7 +174,7 @@ class JobPanel(
 
         return JBTabbedPane().apply {
             addTab("Steps", steps)
-            addTab("Tests", JBScrollPane(testsTable))
+            addTab("Tests", testsPanel)
             addTab("Artifacts", artifactsPanel)
         }
     }
@@ -296,37 +287,15 @@ class JobPanel(
     }
 
     private fun loadTestsAndArtifacts() {
+        scope.launch {
+            service.fetchTests(ref.jobId).fold(
+                onSuccess = { testsPanel.setTests(it) },
+                onFailure = { testsPanel.showError(it.message ?: "Unknown error") },
+            )
+        }
         val projectSlug = ref.projectSlug ?: return
         val jobNumber = ref.number ?: return
         artifactsPanel.loadArtifacts(projectSlug, jobNumber)
-        scope.launch {
-            testsModel.rowCount = 0
-            service.fetchTestResults(projectSlug, jobNumber).fold(
-                onSuccess = { tests ->
-                    tests.forEach { testsModel.addRow(testRow(it)) }
-                    if (tests.isEmpty()) testsModel.addRow(arrayOf("No tests found", "", "", ""))
-                },
-                onFailure = { error ->
-                    testsModel.addRow(arrayOf("Failed to load tests: ${error.message}", "", "", ""))
-                },
-            )
-        }
-    }
-
-    private fun testRow(test: TestResult): Array<String> {
-        val status =
-            when (test.result?.lowercase()) {
-                "success" -> "✓ PASSED"
-                "failure" -> "✗ FAILED"
-                "skipped" -> "⊘ SKIPPED"
-                else -> test.result ?: "UNKNOWN"
-            }
-        return arrayOf(
-            test.name ?: "Unknown Test",
-            if (test.flaky == true) "$status [FLAKY]" else status,
-            test.runTime?.let { String.format(Locale.ROOT, "%.2fs", it) } ?: "N/A",
-            test.file ?: test.classname ?: "N/A",
-        )
     }
 
     override fun dispose() {

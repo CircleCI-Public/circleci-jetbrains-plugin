@@ -79,39 +79,6 @@ data class ConfigError(
 )
 
 /**
- * Test results response
- */
-data class TestResultsResponse(
-    @SerializedName("items")
-    val items: List<TestInfo>?,
-    @SerializedName("next_page_token")
-    val nextPageToken: String?,
-)
-
-/**
- * Individual test result information
- */
-data class TestInfo(
-    @SerializedName("name")
-    val name: String?,
-    @SerializedName("classname")
-    val classname: String?,
-    @SerializedName("file")
-    val file: String?,
-    // "success", "failure", "skipped"
-    @SerializedName("result")
-    val result: String?,
-    @SerializedName("message")
-    val message: String?,
-    @SerializedName("source")
-    val source: String?,
-    @SerializedName("run_time")
-    val runTime: Double?,
-    @SerializedName("flaky")
-    val flaky: Boolean?,
-)
-
-/**
  * Artifacts response
  */
 data class ArtifactsResponse(

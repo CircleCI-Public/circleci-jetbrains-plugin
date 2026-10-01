@@ -205,19 +205,30 @@ data class Step(
 )
 
 /**
- * Test result information
+ * One test a job ran.
  */
 data class TestResult(
-    val name: String?,
-    val classname: String?,
-    val file: String?,
-    // "success", "failure", "skipped"
-    val result: String?,
-    val message: String?,
-    val source: String?,
+    val classname: String,
+    val name: String,
+    val outcome: TestOutcome,
+    // Seconds
     val runTime: Double?,
-    val flaky: Boolean?,
+    // Failure or skip detail; empty on success
+    val message: String,
 )
+
+enum class TestOutcome(val token: String, val label: String) {
+    FAILURE("failure", "Failed"),
+    SKIPPED("skipped", "Skipped"),
+    SUCCESS("success", "Passed"),
+    OTHER("", "Other"),
+    ;
+
+    companion object {
+        fun of(result: String?): TestOutcome =
+            entries.firstOrNull { it.token.isNotEmpty() && it.token == result } ?: OTHER
+    }
+}
 
 /**
  * Artifact information

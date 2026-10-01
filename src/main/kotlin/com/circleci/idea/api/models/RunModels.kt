@@ -275,3 +275,19 @@ data class StepWire(
     @SerializedName("stderr_bytes")
     val stderrBytes: Long? = null,
 )
+
+/** One line of GET /api/v3/jobs/{id}/tests, which is JSON Lines. */
+data class TestResultWire(
+    @SerializedName("classname")
+    val classname: String? = null,
+    @SerializedName("name")
+    val name: String? = null,
+    // "success", "failure" or "skipped"
+    @SerializedName("result")
+    val result: String? = null,
+    // Seconds
+    @SerializedName("run_time")
+    val runTime: Double? = null,
+    @SerializedName("message")
+    val message: String? = null,
+)
