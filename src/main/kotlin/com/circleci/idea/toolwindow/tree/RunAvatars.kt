@@ -11,6 +11,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.ui.JBColor
 import com.intellij.util.io.HttpRequests
+import com.intellij.util.ui.ImageUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -56,6 +57,10 @@ class RunAvatars(scope: CoroutineScope) {
                     null
                 }
             }
+
+        // GitHub serves square avatars; the ring is drawn around a circle, so crop to one.
+        override suspend fun postProcess(image: Image): Image =
+            ImageUtil.createCircleImage(ImageUtil.toBufferedImage(image))
     }
 
     companion object {

@@ -5,6 +5,7 @@ import com.circleci.idea.run.elapsedSince
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.RowIcon
 import com.intellij.ui.SimpleTextAttributes
+import com.intellij.ui.icons.RowIcon.Alignment
 import com.intellij.util.ui.EmptyIcon
 import java.time.Duration
 import java.time.Instant
@@ -82,7 +83,13 @@ class CircleCITreeCellRenderer : ColoredTreeCellRenderer() {
     private fun runIcon(node: RunNode): Icon {
         val status = CircleCIIcons.getStatusIcon(node.run.status)
         val avatar = RunAvatars.getInstance().iconFor(node.run) ?: return status
-        return RowIcon(status, EmptyIcon.create(AVATAR_GAP), avatar)
+        // Centred: the ringed avatar is taller than the status icon, which
+        // RowIcon would otherwise align to the top.
+        return RowIcon(ICONS_IN_ROW, Alignment.CENTER).apply {
+            setIcon(status, 0)
+            setIcon(EmptyIcon.create(AVATAR_GAP), 1)
+            setIcon(avatar, 2)
+        }
     }
 
     private fun appendDetail(text: String) {
@@ -106,5 +113,6 @@ class CircleCITreeCellRenderer : ColoredTreeCellRenderer() {
     private companion object {
         const val SHORT_REVISION_LENGTH = 7
         const val AVATAR_GAP = 4
+        const val ICONS_IN_ROW = 3
     }
 }
