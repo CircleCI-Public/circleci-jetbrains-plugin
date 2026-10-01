@@ -12,6 +12,7 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectManager
 
 /**
  * Service for managing CircleCI authentication.
@@ -29,6 +30,31 @@ class CircleCIAuthService(private val project: Project) {
 
         fun getInstance(project: Project): CircleCIAuthService {
             return project.service()
+        }
+
+        /**
+         * The token is shared by every project, but each tracks its own auth
+         * state, which its tool window follows; so a change made outside a
+         * project (in Settings, say) has to reach them all. The default
+         * project is included so the token goes even with none open.
+         */
+        private fun allProjects(): List<Project> {
+            val projects = ProjectManager.getInstance()
+            return (projects.openProjects.toList() + projects.defaultProject).filterNot { it.isDisposed }.distinct()
+        }
+
+        /** Log out of CircleCI in every project. */
+        fun logOutEverywhere() {
+            allProjects().forEach { getInstance(it).logout() }
+        }
+
+        /**
+         * After logging in in one project, have every other open project pick
+         * up the token. Validates it with the API, so call it off the EDT.
+         */
+        fun restoreEverywhere(except: Project) {
+            ProjectManager.getInstance().openProjects.filter { it != except && !it.isDisposed }
+                .forEach { getInstance(it).restoreAuthentication() }
         }
     }
 

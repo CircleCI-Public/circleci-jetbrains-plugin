@@ -2,9 +2,11 @@ package com.circleci.idea.settings
 
 import com.circleci.idea.auth.CircleCIAuthService
 import com.circleci.idea.logging.CircleCILogger
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
@@ -12,6 +14,9 @@ import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
+import java.awt.FlowLayout
+import javax.swing.Box
+import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
 
@@ -26,6 +31,7 @@ class CircleCIConfigurable : Configurable {
     // Authentication settings
     private val apiTokenField = JBPasswordField()
     private val authStatusLabel = JBLabel()
+    private val logOutButton = JButton("Log Out").apply { addActionListener { logOut() } }
 
     // General settings
     private val hostUrlField = JBTextField()
@@ -68,7 +74,13 @@ class CircleCIConfigurable : Configurable {
         formBuilder.addSeparator(5)
         formBuilder.addComponent(JBLabel("<html><b>Authentication</b></html>"))
         formBuilder.addLabeledComponent(JBLabel("API Token:"), apiTokenField)
-        formBuilder.addComponent(authStatusLabel)
+        formBuilder.addComponent(
+            JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+                add(authStatusLabel)
+                add(Box.createHorizontalStrut(JBUI.scale(10)))
+                add(logOutButton)
+            },
+        )
 
         // General section
         formBuilder.addSeparator(5)
@@ -145,7 +157,13 @@ class CircleCIConfigurable : Configurable {
                 val result = authService.login(token, hostUrlField.text)
                 result.fold(
                     onSuccess = {
-                        authStatusLabel.text = "<html><font color='green'>✓ Authenticated</font></html>"
+                        showAuthStatus(true)
+                        apiTokenField.text = ""
+                        // The login above was in the default project; let open projects' tool windows know.
+                        val loggedInProject = ProjectManager.getInstance().defaultProject
+                        ApplicationManager.getApplication().executeOnPooledThread {
+                            CircleCIAuthService.restoreEverywhere(except = loggedInProject)
+                        }
                     },
                     onFailure = { error ->
                         authStatusLabel.text =
@@ -162,9 +180,8 @@ class CircleCIConfigurable : Configurable {
         settings.notificationsEnabled = notificationsEnabledCheck.isSelected
         settings.logLevel = logLevelCombo.selectedItem?.toString()?.lowercase() ?: "info"
 
-        // Restart polling with new settings
-        val pollingService = getPollingService()
-        if (pollingService != null) {
+        // Restart polling with the new settings, in every open project
+        for (pollingService in getPollingServices()) {
             if (settings.autoRefreshEnabled) {
                 pollingService.restartPolling()
             } else {
@@ -186,12 +203,7 @@ class CircleCIConfigurable : Configurable {
         apiTokenField.text = ""
 
         // Update auth status
-        val authService = getAuthService()
-        if (authService?.isAuthenticated() == true) {
-            authStatusLabel.text = "<html><font color='green'>✓ Authenticated</font></html>"
-        } else {
-            authStatusLabel.text = "<html><font color='gray'>Not authenticated</font></html>"
-        }
+        showAuthStatus(getAuthService()?.isAuthenticated() == true)
 
         hostUrlField.text = settings.hostUrl
         autoRefreshEnabledCheck.isSelected = settings.autoRefreshEnabled
@@ -210,6 +222,33 @@ class CircleCIConfigurable : Configurable {
             }
     }
 
+    private fun showAuthStatus(authenticated: Boolean) {
+        authStatusLabel.text =
+            if (authenticated) {
+                "<html><font color='green'>✓ Authenticated</font></html>"
+            } else {
+                "<html><font color='gray'>Not authenticated</font></html>"
+            }
+        logOutButton.isEnabled = authenticated
+    }
+
+    /**
+     * Log out of CircleCI everywhere: the token is shared by every project.
+     */
+    private fun logOut() {
+        val answer =
+            Messages.showYesNoDialog(
+                logOutButton,
+                "Log out of CircleCI? You'll need to log in again to see your runs.",
+                "Log Out",
+                Messages.getQuestionIcon(),
+            )
+        if (answer != Messages.YES) return
+        CircleCIAuthService.logOutEverywhere()
+        apiTokenField.text = ""
+        showAuthStatus(false)
+    }
+
     /**
      * Get auth service from the default project.
      */
@@ -224,15 +263,11 @@ class CircleCIConfigurable : Configurable {
     }
 
     /**
-     * Get polling service from the default project.
+     * The polling services of the open projects.
      */
-    private fun getPollingService(): com.circleci.idea.polling.RunPollingService? {
-        return try {
-            val project = ProjectManager.getInstance().defaultProject
-            project.getService(com.circleci.idea.polling.RunPollingService::class.java)
-        } catch (e: Exception) {
-            logger.warn("Failed to get polling service from default project", e)
-            null
-        }
+    private fun getPollingServices(): List<com.circleci.idea.polling.RunPollingService> {
+        return ProjectManager.getInstance().openProjects
+            .filterNot { it.isDisposed }
+            .map { it.getService(com.circleci.idea.polling.RunPollingService::class.java) }
     }
 }

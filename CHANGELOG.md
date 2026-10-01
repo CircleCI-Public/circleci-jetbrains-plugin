@@ -9,10 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - "CircleCI Settings..." in the CircleCI tool window's options (gear) menu
+- A "Log Out" button on the CircleCI settings page, beside the authentication status
 - Until you log in, the CircleCI tool window shows the project and ways to log in, as the IDE's Pull Requests view does. "Log In with Token..." opens a "Log In to CircleCI" dialog (server, token, and Generate... to create one); "Log In via CircleCI..." is a placeholder for browser login. If your token is rejected, the view says why
 - "SSH into Job" on a running job's page opens an SSH session into it in a Terminal tab, one per session, using the IDE's SSH client: your ~/.ssh/config, SSH agent and keys, with the IDE asking for a passphrase or to trust the host when needed. Needs the bundled SSH and Terminal plugins
 
 ### Fixed
+- Logging in from the settings page now reaches the projects you have open, whose tool windows only noticed after a restart; changing the auto-refresh settings restarts polling in every open project rather than none
 - Refreshing the runs (the Refresh button, or after rerunning or canceling from the tree) no longer collapses the tree or loses the selection: it updates the tree in place. Rebuilding it for a filter or branch change keeps what was open, selected and focused, and restoring the tree doesn't scroll it
 - Workflows' jobs failed to load ("Workflow not found") because the V2 jobs endpoint doesn't serve them
 - Loading could fail with "Already Executed" when two identical requests overlapped; concurrent identical GETs now share one response
