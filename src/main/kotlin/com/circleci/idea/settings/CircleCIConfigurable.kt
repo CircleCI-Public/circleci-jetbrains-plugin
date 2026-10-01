@@ -29,12 +29,10 @@ class CircleCIConfigurable : Configurable {
     private var settingsPanel: JPanel? = null
 
     // Authentication settings
+    private val hostUrlField = JBTextField()
     private val apiTokenField = JBPasswordField()
     private val authStatusLabel = JBLabel()
     private val logOutButton = JButton("Log Out").apply { addActionListener { logOut() } }
-
-    // General settings
-    private val hostUrlField = JBTextField()
 
     // Auto-refresh settings
     private val autoRefreshEnabledCheck = JBCheckBox("Enable auto-refresh")
@@ -73,6 +71,7 @@ class CircleCIConfigurable : Configurable {
         // Authentication section
         formBuilder.addSeparator(5)
         formBuilder.addComponent(JBLabel("<html><b>Authentication</b></html>"))
+        formBuilder.addLabeledComponent(JBLabel("Host URL:"), hostUrlField)
         formBuilder.addLabeledComponent(JBLabel("API Token:"), apiTokenField)
         formBuilder.addComponent(
             JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
@@ -81,11 +80,6 @@ class CircleCIConfigurable : Configurable {
                 add(logOutButton)
             },
         )
-
-        // General section
-        formBuilder.addSeparator(5)
-        formBuilder.addComponent(JBLabel("<html><b>General</b></html>"))
-        formBuilder.addLabeledComponent(JBLabel("Host URL:"), hostUrlField)
 
         // Auto-refresh section
         formBuilder.addSeparator(5)
