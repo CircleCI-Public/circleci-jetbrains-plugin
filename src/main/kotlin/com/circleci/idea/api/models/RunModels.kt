@@ -291,3 +291,18 @@ data class TestResultWire(
     @SerializedName("message")
     val message: String? = null,
 )
+
+/** An artifact from GET /api/v3/jobs/{id}/artifacts. */
+data class ArtifactWire(
+    @SerializedName("attributes")
+    val attributes: ArtifactAttributesWire? = null,
+)
+
+data class ArtifactAttributesWire(
+    @SerializedName("path")
+    val path: String? = null,
+    @SerializedName("url")
+    val url: String? = null,
+    @SerializedName("execution")
+    val execution: Int? = null,
+)

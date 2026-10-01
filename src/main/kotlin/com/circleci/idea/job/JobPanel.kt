@@ -7,7 +7,6 @@ import com.circleci.idea.run.elapsedSince
 import com.circleci.idea.state.JobDetail
 import com.circleci.idea.state.JobExecution
 import com.circleci.idea.state.Step
-import com.circleci.idea.toolwindow.ArtifactsPanel
 import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.process.AnsiEscapeDecoder
 import com.intellij.execution.process.ProcessOutputTypes
@@ -85,7 +84,7 @@ class JobPanel(
         TextConsoleBuilderFactory.getInstance().createBuilder(project).apply { setViewer(true) }.console
 
     private val testsPanel = TestsPanel(project, this)
-    private val artifactsPanel = ArtifactsPanel(project)
+    private val artifactsPanel = ArtifactsPanel(project, ref, scope)
 
     private var pollJob: Job? = null
     private var streamJob: Job? = null
@@ -293,9 +292,7 @@ class JobPanel(
                 onFailure = { testsPanel.showError(it.message ?: "Unknown error") },
             )
         }
-        val projectSlug = ref.projectSlug ?: return
-        val jobNumber = ref.number ?: return
-        artifactsPanel.loadArtifacts(projectSlug, jobNumber)
+        artifactsPanel.load()
     }
 
     override fun dispose() {

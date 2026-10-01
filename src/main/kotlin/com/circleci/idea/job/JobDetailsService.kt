@@ -12,6 +12,7 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -79,29 +80,54 @@ class JobDetailsService(private val project: Project) {
     }
 
     /**
-     * Fetch artifacts for a job.
+     * Fetch a job's artifacts.
      */
-    suspend fun fetchArtifacts(
-        projectSlug: String,
-        jobNumber: Long,
-    ): Result<List<Artifact>> {
-        logger.info("Fetching artifacts for job $jobNumber")
-
+    suspend fun fetchArtifacts(jobId: String): Result<List<Artifact>> {
         return withContext(Dispatchers.IO) {
-            apiService.getArtifacts(projectSlug, jobNumber).map { response ->
-                response.items?.map { artifact ->
-                    Artifact(
-                        path = artifact.path,
-                        nodeIndex = artifact.nodeIndex,
-                        url = artifact.url,
-                        prettyPath = artifact.prettyPath,
-                    )
-                } ?: emptyList()
+            apiService.getJobArtifacts(jobId).map { artifacts ->
+                artifacts.mapNotNull { wire ->
+                    val attributes = wire.attributes ?: return@mapNotNull null
+                    val path = attributes.path ?: return@mapNotNull null
+                    val url = attributes.url ?: return@mapNotNull null
+                    Artifact(path = path, url = url, execution = attributes.execution ?: 0)
+                }
             }
         }
     }
 
+    /**
+     * Read an artifact to view it: its bytes, or a failure when it's over
+     * [MAX_ARTIFACT_PREVIEW_BYTES], as the CLI caps previews, since artifacts
+     * can be huge build outputs.
+     */
+    suspend fun readArtifact(artifact: Artifact): Result<ByteArray> {
+        return withContext(Dispatchers.IO) {
+            apiService.readArtifact(artifact.url, MAX_ARTIFACT_PREVIEW_BYTES).mapCatching {
+                if (it.truncated) {
+                    val limit = "${MAX_ARTIFACT_PREVIEW_BYTES shr MIB_SHIFT} MiB"
+                    error("${artifact.path} is over $limit, too large to view; download it instead")
+                }
+                it.body
+            }
+        }
+    }
+
+    /**
+     * Download an artifact to [target]. Blocks; call it off the EDT.
+     */
+    fun downloadArtifact(
+        artifact: Artifact,
+        target: Path,
+    ): Result<Long> {
+        logger.info("Downloading artifact ${artifact.path} to $target")
+        return apiService.downloadArtifact(artifact.url, target)
+    }
+
     companion object {
+        /** The most of an artifact read to view it in the IDE: 8 MiB, as in the CLI. */
+        const val MAX_ARTIFACT_PREVIEW_BYTES = 8L shl 20
+        private const val MIB_SHIFT = 20
+
         fun getInstance(project: Project): JobDetailsService = project.getService(JobDetailsService::class.java)
 
         /** The command to SSH into one execution of a job that was rerun with SSH. */

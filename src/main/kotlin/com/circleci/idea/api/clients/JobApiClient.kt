@@ -1,10 +1,12 @@
 package com.circleci.idea.api.clients
 
 import com.circleci.idea.api.CircleCIApiClient
-import com.circleci.idea.api.models.ArtifactsResponse
+import com.circleci.idea.api.RawResponse
+import com.circleci.idea.api.models.ArtifactWire
 import com.circleci.idea.api.models.JobDetailWire
 import com.circleci.idea.api.models.TestResultWire
 import com.circleci.idea.api.models.V3Entity
+import com.circleci.idea.api.models.V3List
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -32,21 +34,27 @@ class JobApiClient : CircleCIApiClientBase() {
         return executePostRequest(client, "/api/v2/project/$projectSlug/job/$jobNumber/cancel")
     }
 
-    /**
-     * Get artifacts for a job.
-     *
-     * @param client The initialized API client
-     * @param projectSlug Project slug
-     * @param jobNumber Job number
-     * @return Artifacts response
-     */
-    fun getArtifacts(
+    /** A job's artifacts, via GET /api/v3/jobs/{id}/artifacts. */
+    fun getJobArtifacts(
         client: CircleCIApiClient,
-        projectSlug: String,
-        jobNumber: Long,
-    ): Result<ArtifactsResponse> {
-        return executeRequest(client, "/api/v2/project/$projectSlug/$jobNumber/artifacts") { data ->
-            gson.fromJson(data.toString(), ArtifactsResponse::class.java)
+        jobId: String,
+    ): Result<List<ArtifactWire>> {
+        return executeRequest(client, "/api/v3/jobs/$jobId/artifacts") { data ->
+            gson.fromJson<V3List<ArtifactWire>>(data, object : TypeToken<V3List<ArtifactWire>>() {}.type).data.orEmpty()
+        }
+    }
+
+    /**
+     * Read up to [maxBytes] of an artifact, to view it. The response is
+     * marked truncated when the artifact is bigger.
+     */
+    fun readArtifact(
+        client: CircleCIApiClient,
+        url: String,
+        maxBytes: Long,
+    ): Result<RawResponse> {
+        return client.getBytes(url, maxBytes = maxBytes).mapCatching {
+            if (it.isSuccessful) it else error("Failed to read artifact: HTTP ${it.code}")
         }
     }
 

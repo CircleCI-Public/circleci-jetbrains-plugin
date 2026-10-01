@@ -12,6 +12,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -75,11 +77,15 @@ class CircleCIApiClient(
      * Execute a GET request for a raw (non-JSON) body, such as step output.
      * Any HTTP status is a success here except 401, so the caller can decide
      * what a 404 means; only network errors and 401 fail.
+     *
+     * @param path An API path, or an absolute URL the API handed out (an artifact's, say)
+     * @param maxBytes Read at most this much of the body, marking the response truncated if there was more
      */
     fun getBytes(
         path: String,
         queryParams: Map<String, String> = emptyMap(),
         headers: Map<String, String> = emptyMap(),
+        maxBytes: Long? = null,
     ): Result<RawResponse> {
         val url = buildUrl(path, queryParams)
         val request =
@@ -97,13 +103,54 @@ class CircleCIApiClient(
                 if (response.code == 401) {
                     Result.failure(Exception("Unauthorized: Invalid or expired token"))
                 } else {
-                    Result.success(RawResponse(response.code, response.body?.bytes() ?: ByteArray(0), response.headers))
+                    val (body, truncated) = readBody(response, maxBytes)
+                    Result.success(RawResponse(response.code, body, response.headers, truncated))
                 }
             }
         } catch (e: IOException) {
             logger.logApiError(request.method, request.url.toString(), 0, e.message ?: "Network error")
             Result.failure(e)
         }
+    }
+
+    /**
+     * Download [url] (an absolute URL the API handed out) to [target],
+     * streaming rather than holding it in memory. Returns the bytes written.
+     */
+    fun download(
+        url: String,
+        target: Path,
+    ): Result<Long> {
+        val request = Request.Builder().url(buildUrl(url)).get().build()
+        logger.logApiRequest(request.method, request.url.toString())
+        rateLimiter.acquire()
+
+        return try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return Result.failure(IOException("HTTP ${response.code} downloading $url"))
+                }
+                val body = response.body ?: return Result.success(0L)
+                Files.createDirectories(target.parent)
+                Files.newOutputStream(target).use { out -> Result.success(body.byteStream().copyTo(out)) }
+            }
+        } catch (e: IOException) {
+            logger.logApiError(request.method, request.url.toString(), 0, e.message ?: "Network error")
+            Result.failure(e)
+        }
+    }
+
+    private fun readBody(
+        response: Response,
+        maxBytes: Long?,
+    ): Pair<ByteArray, Boolean> {
+        val body = response.body ?: return ByteArray(0) to false
+        if (maxBytes == null) return body.bytes() to false
+        val source = body.source()
+        // Ask for one byte more than the limit: getting it means there was more.
+        val complete = !source.request(maxBytes + 1)
+        val size = if (complete) source.buffer.size else maxBytes
+        return source.buffer.readByteArray(size) to !complete
     }
 
     /**
@@ -267,8 +314,8 @@ class CircleCIApiClient(
         path: String,
         queryParams: Map<String, String> = emptyMap(),
     ): String {
-        val cleanPath = path.trimStart('/')
-        val builder = "$baseUrl/$cleanPath".toHttpUrl().newBuilder()
+        val absolute = path.startsWith("https://") || path.startsWith("http://")
+        val builder = (if (absolute) path else "$baseUrl/${path.trimStart('/')}").toHttpUrl().newBuilder()
         // Encoded here, as filter values carry characters such as "/" in branch names.
         queryParams.forEach { (key, value) -> builder.addQueryParameter(key, value) }
         return builder.build().toString()
@@ -354,7 +401,13 @@ private class RateLimiter(private val maxRequestsPerSecond: Int) {
 /**
  * A raw HTTP response: its status, body bytes and headers.
  */
-class RawResponse(val code: Int, val body: ByteArray, val headers: Headers) {
+class RawResponse(
+    val code: Int,
+    val body: ByteArray,
+    val headers: Headers,
+    // The body was cut short at the caller's limit.
+    val truncated: Boolean = false,
+) {
     val isSuccessful: Boolean
         get() = code in HTTP_SUCCESS
 

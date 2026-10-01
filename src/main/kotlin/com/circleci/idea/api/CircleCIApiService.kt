@@ -7,7 +7,7 @@ import com.circleci.idea.api.clients.RunApiClient
 import com.circleci.idea.api.clients.StepOutputChunk
 import com.circleci.idea.api.clients.V3Page
 import com.circleci.idea.api.clients.WorkflowApiClient
-import com.circleci.idea.api.models.ArtifactsResponse
+import com.circleci.idea.api.models.ArtifactWire
 import com.circleci.idea.api.models.ConfigValidationResponse
 import com.circleci.idea.api.models.JobDetailWire
 import com.circleci.idea.api.models.JobWire
@@ -19,6 +19,7 @@ import com.circleci.idea.api.models.WorkflowWire
 import com.circleci.idea.logging.CircleCILogger
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
+import java.nio.file.Path
 import java.time.Instant
 
 /**
@@ -212,13 +213,30 @@ class CircleCIApiService {
     }
 
     /**
-     * Get artifacts for a job.
+     * Get a job's artifacts.
      */
-    fun getArtifacts(
-        projectSlug: String,
-        jobNumber: Long,
-    ): Result<ArtifactsResponse> {
-        return withClient { jobClient.getArtifacts(it, projectSlug, jobNumber) }
+    fun getJobArtifacts(jobId: String): Result<List<ArtifactWire>> {
+        return withClient { jobClient.getJobArtifacts(it, jobId) }
+    }
+
+    /**
+     * Read up to [maxBytes] of an artifact.
+     */
+    fun readArtifact(
+        url: String,
+        maxBytes: Long,
+    ): Result<RawResponse> {
+        return withClient { jobClient.readArtifact(it, url, maxBytes) }
+    }
+
+    /**
+     * Download an artifact to a file.
+     */
+    fun downloadArtifact(
+        url: String,
+        target: Path,
+    ): Result<Long> {
+        return withClient { it.download(url, target) }
     }
 
     // ========== Project Operations ==========

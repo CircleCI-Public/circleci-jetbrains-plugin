@@ -231,11 +231,10 @@ enum class TestOutcome(val token: String, val label: String) {
 }
 
 /**
- * Artifact information
+ * A file a job stored as an artifact.
  */
 data class Artifact(
-    val path: String?,
-    val nodeIndex: Int?,
-    val url: String?,
-    val prettyPath: String?,
+    val path: String,
+    val url: String,
+    val execution: Int,
 )
