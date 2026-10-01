@@ -106,8 +106,8 @@ class CircleCITreeCellRenderer : TreeCellRenderer {
     }
 
     /**
-     * A run, in columns: its status icon and title, with its revision and
-     * age in grey underneath, from the row's left edge (the icon is part of
+     * A run, in columns: its status icon and title, with its revision, age
+     * and author in grey underneath, from the row's left edge (the icon is part of
      * the first line); then its branch; then the avatar of whoever triggered
      * it, centred across both lines.
      *
@@ -165,6 +165,8 @@ class CircleCITreeCellRenderer : TreeCellRenderer {
                 listOfNotNull(
                     run.revision?.take(SHORT_REVISION_LENGTH),
                     run.createdAt?.let(::formatTimeAgo),
+                    // Who triggered it, or failing that, whose commit it ran.
+                    run.triggeredBy ?: run.commitAuthor,
                 ).joinToString(" · ")
             details.foreground = detailForeground
 

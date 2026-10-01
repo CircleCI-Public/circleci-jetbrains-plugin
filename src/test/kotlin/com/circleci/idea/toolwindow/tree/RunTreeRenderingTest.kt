@@ -162,6 +162,8 @@ class RunTreeRenderingTest : BasePlatformTestCase() {
         val (_, detailsX) = first.first { it.first.text.contains("7d3b7bc") }
         assertEquals("the details start under the status icon, at the title row's left edge", titleX, detailsX)
         assertNotNull("the title row carries the status icon", title.icon)
+        val details = first.first { it.first.text.contains("7d3b7bc") }.first.text
+        assertTrue("the details end with who triggered the run ($details)", details.endsWith(" · someone"))
 
         val branchX = first.first { it.first.text == "main" }.second
         assertEquals("the branch column lines up across runs", branchX, second.first { it.first.text == "main" }.second)
