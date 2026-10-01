@@ -73,6 +73,8 @@ dependencies {
         // The platform's VCS repository API, for the current branch of each project's repository.
         bundledModule("intellij.platform.vcs.dvcs")
         bundledModule("intellij.platform.vcs.dvcs.impl")
+        // The review-list building blocks the Pull Requests tool is made of: filter drop-downs, avatars.
+        bundledModule("intellij.platform.collaborationTools")
         // Optional at runtime (see git-support.xml); compiled against for its repository-change events.
         bundledPlugin("Git4Idea")
         // Optional at runtime (see ssh-support.xml): the IDE's SSH client and Terminal, for

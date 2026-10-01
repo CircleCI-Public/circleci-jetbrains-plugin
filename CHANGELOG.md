@@ -22,7 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The current-branch filter follows branch checkouts (in the IDE or a terminal), and uses each project's own repository rather than the first one in the IDE project
 
 ### Changed
-- The CircleCI tool window lists one project's runs at a time, chosen in its toolbar (from those found in the workspace, or another by slug), with the runs at the top of the tree rather than under a row for their project. "Add Project" became the chooser's "Other Project..."
+- The CircleCI tool window lists one project's runs at a time (from those found in the workspace, or another by slug), with the runs at the top of the tree rather than under a row for their project
+- The run filters are a row of drop-downs like the Pull Requests list's (Project, Branch, Status, Created, and a funnel to clear them), each reading just its name until it's set; Refresh and Auto-Refresh moved to the tool window's title bar
 - The CircleCI tool window now opens at the top of the left stripe, beside Commit and Pull Requests, rather than on the right. An existing layout keeps its place until Window | Restore Default Layout
 - The CircleCI tool window lists runs rather than pipelines, from CircleCI's V3 runs, workflows and jobs APIs, and says "run" rather than "pipeline" throughout. With the job details now in editor tabs, the runs are its only view, so it has no tabs
   - Filters match `circleci run get`: branch (current, default, all) or *My runs* across every project; status; and created newer/older than 1 hour to 1 month

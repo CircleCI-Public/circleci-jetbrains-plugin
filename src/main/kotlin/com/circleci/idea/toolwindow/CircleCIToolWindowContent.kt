@@ -16,6 +16,7 @@ import com.circleci.idea.toolwindow.tree.WorkflowNode
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionPlaces
+import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -190,28 +191,16 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
     }
 
     private fun setupToolbar() {
-        val actionGroup = DefaultActionGroup()
-
-        // Project management actions
-        actionGroup.add(com.circleci.idea.toolwindow.actions.RefreshAction())
-        actionGroup.add(com.circleci.idea.toolwindow.actions.ToggleAutoRefreshAction())
-        actionGroup.addSeparator()
-
-        // What to list: the project (unless listing my runs), then the filters
-        actionGroup.add(com.circleci.idea.toolwindow.actions.ProjectChooserAction())
-        actionGroup.add(com.circleci.idea.toolwindow.actions.RunScopeFilterAction())
-        actionGroup.add(com.circleci.idea.toolwindow.actions.RunStatusFilterAction())
-        actionGroup.add(com.circleci.idea.toolwindow.actions.RunCreatedFilterAction())
-
-        val toolbar =
-            ActionManager.getInstance().createActionToolbar(
-                ActionPlaces.TOOLBAR,
-                actionGroup,
-                true,
-            )
-        toolbar.targetComponent = panel
-        panel.add(toolbar.component, BorderLayout.NORTH)
+        val filterBar = RunFilterBar(project, scope) { treeModel.reloadRoot() }
+        panel.add(filterBar, BorderLayout.NORTH)
     }
+
+    /** Actions for the tool window's title bar, as the Pull Requests list keeps its refresh. */
+    fun titleActions(): List<AnAction> =
+        listOf(
+            com.circleci.idea.toolwindow.actions.RefreshAction(),
+            com.circleci.idea.toolwindow.actions.ToggleAutoRefreshAction(),
+        )
 
     private fun handleSingleClick() {
         val path = tree.selectionPath ?: return

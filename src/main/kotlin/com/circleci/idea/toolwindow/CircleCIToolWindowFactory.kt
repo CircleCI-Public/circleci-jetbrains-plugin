@@ -33,7 +33,8 @@ class CircleCIToolWindowFactory : ToolWindowFactory, DumbAware {
         val content = ContentFactory.getInstance().createContent(contentPanel, null, false)
         toolWindow.contentManager.addContent(content)
 
-        // The tool window's options (gear) menu.
+        // Refresh and auto-refresh in the title bar; settings in the options (gear) menu.
+        toolWindow.setTitleActions(circleCIToolWindow.titleActions())
         toolWindow.setAdditionalGearActions(DefaultActionGroup(OpenSettingsAction()))
         com.circleci.idea.logging.CircleCILogger.getInstance().info("Tool window content added")
     }
