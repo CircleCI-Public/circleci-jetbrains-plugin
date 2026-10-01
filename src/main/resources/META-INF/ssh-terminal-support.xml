@@ -1,0 +1,7 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationService
+            serviceInterface="com.circleci.idea.ssh.SshConnector"
+            serviceImplementation="com.circleci.idea.ssh.IdeSshConnector"/>
+    </extensions>
+</idea-plugin>

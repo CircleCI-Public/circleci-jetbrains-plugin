@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - "CircleCI Settings..." in the CircleCI tool window's options (gear) menu
+- "SSH into Job" on a running job's page opens an SSH session into it in a Terminal tab, one per session, using the IDE's SSH client: your ~/.ssh/config, SSH agent and keys, with the IDE asking for a passphrase or to trust the host when needed. Needs the bundled SSH and Terminal plugins
 
 ### Fixed
 - Refreshing the runs (the Refresh button, or after rerunning or canceling from the tree) no longer collapses the tree or loses the selection: it updates the tree in place. Rebuilding it for a filter or branch change keeps what was open, selected and focused, and restoring the tree doesn't scroll it

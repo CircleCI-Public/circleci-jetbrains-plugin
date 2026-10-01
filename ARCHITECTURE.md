@@ -249,6 +249,9 @@ src/main/kotlin/com/circleci/idea/
 │   ├── TestsPanel.kt             # Tests tab (TestFilter: client-side filtering)
 │   ├── ArtifactsPanel.kt         # Artifacts tab (ArtifactTree: the file tree)
 │   └── ResourceUsagePanel.kt     # Resource Usage tab (UsageChart: the line charts)
+├── ssh/                          # SSH sessions into jobs, in Terminal tabs
+│   ├── SshSessionService.kt      # Opens sessions (or explains why it can't)
+│   └── IdeSshConnector.kt        # IDE SSH client + Terminal runner (optional deps)
 ├── auth/                         # Authentication
 │   ├── CircleCIAuthService.kt
 │   └── CircleCILoginDialog.kt

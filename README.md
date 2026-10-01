@@ -9,7 +9,7 @@ A JetBrains IDE plugin for monitoring, managing, and debugging CircleCI runs dir
 - **Real-time Updates**: Get instant notifications when run status changes
 - **Workflow Actions**: Rerun workflows from start or from failed jobs, cancel running workflows, approve on-hold jobs
 - **Job Pages**: Open any number of jobs as editor tabs, with their steps and live, colored step output
-- **SSH Debugging**: Rerun jobs with SSH enabled and copy the command to connect
+- **SSH Debugging**: Rerun jobs with SSH enabled and SSH into them in the IDE's Terminal, as many sessions as you like
 - **Config Validation**: Validate CircleCI YAML configuration files before committing
 - **Test Run**: Test configuration changes locally without committing to version control
 

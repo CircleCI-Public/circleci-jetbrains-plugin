@@ -1,7 +1,10 @@
 package com.circleci.idea.job
 
 import com.circleci.idea.api.CircleCIApiService
+import com.circleci.idea.icons.CircleCIIcons
 import com.circleci.idea.run.RunWebUrls
+import com.circleci.idea.ssh.SshSessionService
+import com.circleci.idea.ssh.SshTarget
 import com.circleci.idea.state.JobDetail
 import com.circleci.idea.toolwindow.CircleCIToolWindowService
 import com.intellij.icons.AllIcons
@@ -32,6 +35,7 @@ object JobActions {
             add(RerunWithSshAction(panel))
             add(CancelJobAction(panel))
             addSeparator()
+            add(ConnectSshAction(panel))
             add(CopySshCommandAction(panel))
             add(OpenJobInBrowserAction(panel))
         }
@@ -126,7 +130,7 @@ private class RerunWithSshAction(panel: JobPanel) :
         confirmAndRun(
             e,
             "Rerun '${panel.ref.name}' with SSH enabled?\n\nThis reruns the whole workflow.",
-            "Rerunning '${panel.ref.name}' with SSH. Copy the SSH command from its new job page once it starts.",
+            "Rerunning '${panel.ref.name}' with SSH. Once it starts, use SSH into Job on its new job page.",
         ) {
             CircleCIApiService.getInstance().rerunWorkflow(
                 panel.ref.workflowId,
@@ -153,6 +157,29 @@ private class CancelJobAction(panel: JobPanel) :
     }
 }
 
+/** The selected step's execution of the job, to SSH into. */
+private fun sshTarget(panel: JobPanel): SshTarget =
+    SshTarget(panel.ref.jobId, panel.selectedExecution, panel.ref.name, panel.ref.number)
+
+/**
+ * Opens an SSH session into the selected step's execution, in a Terminal
+ * tab. It only connects to a job rerun with SSH, while it runs.
+ */
+private class ConnectSshAction(panel: JobPanel) :
+    JobPageAction(
+        panel,
+        "SSH into Job",
+        "Open an SSH session into this job in the Terminal (for jobs rerun with SSH, while they run)",
+        CircleCIIcons.Actions.SSH,
+    ) {
+    override fun isEnabled(detail: JobDetail?): Boolean = detail?.status?.isActive == true
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        SshSessionService.getInstance(project).open(sshTarget(panel))
+    }
+}
+
 /**
  * Copies the command to SSH into the selected step's execution. It only
  * connects to a job rerun with SSH, while it runs.
@@ -167,7 +194,7 @@ private class CopySshCommandAction(panel: JobPanel) :
     override fun isEnabled(detail: JobDetail?): Boolean = detail?.status?.isActive == true
 
     override fun actionPerformed(e: AnActionEvent) {
-        val command = JobDetailsService.sshCommand(panel.ref.jobId, panel.selectedExecution)
+        val command = sshTarget(panel).command
         CopyPasteManager.getInstance().setContents(StringSelection(command))
         NotificationGroupManager.getInstance()
             .getNotificationGroup("CircleCI Notifications")

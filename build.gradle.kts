@@ -75,6 +75,11 @@ dependencies {
         bundledModule("intellij.platform.vcs.dvcs.impl")
         // Optional at runtime (see git-support.xml); compiled against for its repository-change events.
         bundledPlugin("Git4Idea")
+        // Optional at runtime (see ssh-support.xml): the IDE's SSH client and Terminal, for
+        // SSH sessions into jobs. JediTerm's connector types come through the Terminal's API.
+        bundledPlugin("intellij.ssh.plugin")
+        bundledPlugin("org.jetbrains.plugins.terminal")
+        bundledModule("intellij.libraries.jediterm.core")
         // The archive doesn't bundle a JetBrains Runtime; runIde and tests need one.
         jetbrainsRuntime()
 

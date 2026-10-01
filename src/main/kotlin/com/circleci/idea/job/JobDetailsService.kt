@@ -138,11 +138,5 @@ class JobDetailsService(private val project: Project) {
         private const val MIB_SHIFT = 20
 
         fun getInstance(project: Project): JobDetailsService = project.getService(JobDetailsService::class.java)
-
-        /** The command to SSH into one execution of a job that was rerun with SSH. */
-        fun sshCommand(
-            jobId: String,
-            execution: Int,
-        ): String = "ssh $jobId-$execution@ssh.circleci.com"
     }
 }

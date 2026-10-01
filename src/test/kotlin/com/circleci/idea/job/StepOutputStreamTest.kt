@@ -84,9 +84,4 @@ class StepOutputStreamTest {
         assertEquals("half a character is held back", null, buffer.append(bytes.copyOfRange(0, 1)))
         assertEquals("and completed by the next read", "é\n", buffer.append(bytes.copyOfRange(1, bytes.size)))
     }
-
-    @Test
-    fun testSshCommand() {
-        assertEquals("ssh form", "ssh abc-1@ssh.circleci.com", JobDetailsService.sshCommand("abc", 1))
-    }
 }

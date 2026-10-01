@@ -1,0 +1,4 @@
+<idea-plugin>
+    <!-- Optional: SSH sessions into jobs need the IDE's SSH client, and its Terminal to show them in -->
+    <depends optional="true" config-file="ssh-terminal-support.xml">org.jetbrains.plugins.terminal</depends>
+</idea-plugin>
