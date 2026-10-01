@@ -23,6 +23,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.treeStructure.Tree
+import com.intellij.util.ui.tree.TreeUtil
 import com.intellij.vcs.ui.ProgressStripe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +33,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
 import java.awt.CardLayout
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.JComponent
@@ -138,6 +141,8 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
 
         // Configure tree
         tree.cellRenderer = CircleCITreeCellRenderer()
+        // Rows take their renderer's height: runs are two lines, everything else one.
+        tree.rowHeight = 0
         tree.selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
         tree.isRootVisible = false
         tree.showsRootHandles = true
@@ -188,6 +193,12 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         // Add tree to panel
         tree.emptyText.text = "Loading runs..."
         val scrollPane = ScrollPaneFactory.createScrollPane(tree)
+        // Run rows span the visible width (their avatars sit at its right edge), so re-measure them when it changes.
+        scrollPane.viewport.addComponentListener(
+            object : ComponentAdapter() {
+                override fun componentResized(e: ComponentEvent) = TreeUtil.invalidateCacheAndRepaint(tree.ui)
+            },
+        )
         // A thin progress bar along the top while runs load, as the Pull Requests list has.
         val loadingStripe = ProgressStripe(scrollPane, this)
         scope.launch {
