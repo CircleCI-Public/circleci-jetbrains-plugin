@@ -23,6 +23,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.treeStructure.Tree
+import com.intellij.vcs.ui.ProgressStripe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -185,8 +186,17 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         )
 
         // Add tree to panel
+        tree.emptyText.text = "Loading runs..."
         val scrollPane = ScrollPaneFactory.createScrollPane(tree)
-        panel.add(scrollPane, BorderLayout.CENTER)
+        // A thin progress bar along the top while runs load, as the Pull Requests list has.
+        val loadingStripe = ProgressStripe(scrollPane, this)
+        scope.launch {
+            treeModel.loading.collect {
+                    loading ->
+                if (loading) loadingStripe.startLoading() else loadingStripe.stopLoading()
+            }
+        }
+        panel.add(loadingStripe, BorderLayout.CENTER)
         logger.info("Tree added to panel in scrollPane. Panel component count: ${panel.componentCount}")
     }
 

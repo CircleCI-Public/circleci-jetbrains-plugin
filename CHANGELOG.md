@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - The CircleCI tool window lists one project's runs at a time (from those found in the workspace, or another by slug), with the runs at the top of the tree rather than under a row for their project
 - The run filters are a row of drop-downs like the Pull Requests list's (Project, Branch, Status, Created, and a funnel to clear them), each reading just its name until it's set; Refresh and Auto-Refresh moved to the tool window's title bar
+- While the runs load or refresh, a thin progress bar runs along the top of the list, as on the Pull Requests list, in place of a "Loading..." row
 - The CircleCI tool window now opens at the top of the left stripe, beside Commit and Pull Requests, rather than on the right. An existing layout keeps its place until Window | Restore Default Layout
 - The CircleCI tool window lists runs rather than pipelines, from CircleCI's V3 runs, workflows and jobs APIs, and says "run" rather than "pipeline" throughout. With the job details now in editor tabs, the runs are its only view, so it has no tabs
   - Filters match `circleci run get`: branch (current, default, all) or *My runs* across every project; status; and created newer/older than 1 hour to 1 month

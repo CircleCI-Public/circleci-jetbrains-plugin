@@ -49,6 +49,8 @@
         <module name="intellij.platform.vcs.dvcs.impl"/>
         <!-- The run list's filter drop-downs and avatars, as the Pull Requests list has -->
         <module name="intellij.platform.collaborationTools"/>
+        <!-- ProgressStripe, the run list's loading bar -->
+        <module name="intellij.platform.vcs.impl"/>
     </dependencies>
     <depends optional="true" config-file="terminal-support.xml">org.jetbrains.plugins.terminal</depends>
     <depends optional="true" config-file="ssh-support.xml">intellij.ssh.plugin</depends>
