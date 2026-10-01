@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - The CircleCI tool window now opens at the top of the left stripe, beside Commit and Pull Requests, rather than on the right. An existing layout keeps its place until Window | Restore Default Layout
-- The Pipelines tab is now the Runs tab, built on CircleCI's V3 runs, workflows and jobs APIs, and says "run" rather than "pipeline" throughout
+- The CircleCI tool window lists runs rather than pipelines, from CircleCI's V3 runs, workflows and jobs APIs, and says "run" rather than "pipeline" throughout. With the job details now in editor tabs, the runs are its only view, so it has no tabs
   - Filters match `circleci run get`: branch (current, default, all) or *My runs* across every project; status; and created newer/older than 1 hour to 1 month
   - Runs are labelled with their commit subject, branch, revision and age; jobs show their duration, and queued jobs no longer show as running
   - Auto-refresh updates the tree in place, keeping expanded runs and workflows open

@@ -4,7 +4,7 @@ import java.time.Duration
 import java.time.Instant
 
 /**
- * Which runs the Runs tab lists — the "trigger" scope of `circleci run get`.
+ * Which runs the CircleCI tool window lists — the "trigger" scope of `circleci run get`.
  */
 enum class RunScope(val label: String) {
     CURRENT_BRANCH("Current branch"),

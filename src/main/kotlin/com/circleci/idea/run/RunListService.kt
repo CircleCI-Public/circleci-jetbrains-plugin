@@ -17,7 +17,7 @@ import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Lists runs, workflows and jobs for the Runs tab, applying the current
+ * Lists runs, workflows and jobs for the CircleCI tool window, applying the current
  * filters the way `circleci run get` does: a project's runs come from
  * runs/search (scoped to a branch, status and created window), and "my runs"
  * from the cross-project my-runs listing.

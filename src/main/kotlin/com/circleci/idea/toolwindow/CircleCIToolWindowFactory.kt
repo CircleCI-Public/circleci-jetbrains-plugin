@@ -28,12 +28,9 @@ class CircleCIToolWindowFactory : ToolWindowFactory, DumbAware {
             "Content panel: $contentPanel, components: ${contentPanel.componentCount}",
         )
 
-        val content =
-            ContentFactory.getInstance().createContent(
-                contentPanel,
-                "Runs",
-                false,
-            )
+        // The runs are the tool window's only view, so it needs no tab: an
+        // untitled content shows as just "CircleCI" in the header.
+        val content = ContentFactory.getInstance().createContent(contentPanel, null, false)
         toolWindow.contentManager.addContent(content)
 
         // The tool window's options (gear) menu.

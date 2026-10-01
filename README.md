@@ -104,7 +104,7 @@ Available settings:
 ### Viewing Runs
 
 1. Open the CircleCI tool window (View → Tool Windows → CircleCI)
-2. The Runs tab shows your projects, their runs, each run's workflows, and their jobs
+2. It shows your projects, their runs, each run's workflows, and their jobs
 3. Click to expand/collapse items
 4. Right-click for context menu actions
 
