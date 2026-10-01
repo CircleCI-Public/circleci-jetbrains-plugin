@@ -3,7 +3,7 @@ package com.circleci.idea.lsp
 import com.circleci.idea.auth.CircleCIAuthService
 import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.settings.CircleCIConfigurable
-import com.intellij.execution.ExecutionException
+import com.circleci.idea.settings.CircleCISettings
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.IconLoader
@@ -31,7 +31,7 @@ class CircleCILspIntegrationProvider : LspIntegrationProvider {
         file: VirtualFile,
         clientStarter: LspIntegrationProvider.LspClientStarter,
     ) {
-        if (isCircleCIConfigFile(file)) {
+        if (CircleCISettings.getInstance().lspEnabled && isCircleCIConfigFile(file)) {
             clientStarter.ensureClientStarted(CircleCILanguageServerDescriptor(project))
         }
     }
@@ -62,32 +62,13 @@ class CircleCILanguageServerDescriptor(project: Project) :
     override fun isSupportedFile(file: VirtualFile): Boolean = isCircleCIConfigFile(file)
 
     override fun createCommandLine(): GeneralCommandLine {
-        val binary =
-            lspManager.getLanguageServerBinary()
-                ?: throw ExecutionException(
-                    "CircleCI Language Server binary not found. Please install it from settings.",
-                )
+        val server = lspManager.getLanguageServer()
+        logger.info("Starting CircleCI Language Server ${server.version}: ${server.binary}")
 
-        logger.info("Starting CircleCI Language Server: ${binary.absolutePath}")
-
-        // Check for schema.json file
-        val schemaFile = java.io.File(binary.parentFile, "schema.json")
-
-        return GeneralCommandLine(binary.absolutePath).apply {
-            // Add -stdio flag for stdin/stdout communication
-            addParameter("-stdio")
-
-            // Add schema file path if it exists
-            if (schemaFile.exists()) {
-                addParameter("-schema")
-                addParameter(schemaFile.absolutePath)
-                logger.info("Using schema file: ${schemaFile.absolutePath}")
-            } else {
-                logger.warn(
-                    "Schema file not found at ${schemaFile.absolutePath}, " +
-                        "language server may have limited functionality",
-                )
-            }
+        return GeneralCommandLine(server.binary.toString()).apply {
+            // Communicate over stdin/stdout. The server uses its built-in schema, and logs
+            // every request unless debug logging is turned off.
+            addParameters("-stdio", "-debug=false")
 
             val basePath = project.basePath
             if (basePath != null) {

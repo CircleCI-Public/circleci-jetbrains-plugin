@@ -1,253 +1,151 @@
 package com.circleci.idea.lsp
 
 import com.circleci.idea.logging.CircleCILogger
+import com.circleci.idea.settings.CircleCISettings
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.intellij.execution.ExecutionException
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.util.SystemInfo
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import java.io.File
-import java.io.FileOutputStream
-import java.nio.file.Files
-import java.nio.file.attribute.PosixFilePermission
+import com.intellij.platform.lsp.api.LspClientManager
+import com.intellij.util.io.HttpRequests
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.nio.file.Path
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Manages the CircleCI YAML Language Server binary lifecycle.
- *
- * Responsibilities:
- * - Download and install language server binary
- * - Check for updates
- * - Provide binary path for LSP client
- * - Handle platform-specific binary selection
+ * Provides the CircleCI YAML Language Server binary, installing it from the latest
+ * GitHub release on first use and keeping it up to date in the background.
  */
 @Service(Service.Level.APP)
-class CircleCILanguageServerManager {
+class CircleCILanguageServerManager(private val scope: CoroutineScope) {
     private val logger = CircleCILogger.getInstance()
-    private val gson = Gson()
-    private val httpClient =
-        OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .build()
+    private val source = GitHubReleaseSource()
+    private val installer: LanguageServerInstaller? =
+        ReleaseTarget.current()?.let { LanguageServerInstaller(installRoot(), source, it) }
+    private val lastUpdateCheck = AtomicLong(0)
 
     companion object {
-        private const val GITHUB_REPO = "CircleCI-Public/circleci-yaml-language-server"
-        private const val CURRENT_VERSION_FILE = "version.txt"
+        private val UPDATE_CHECK_INTERVAL_MS = TimeUnit.HOURS.toMillis(24)
 
-        fun getInstance(): CircleCILanguageServerManager {
-            return service()
-        }
+        fun getInstance(): CircleCILanguageServerManager = service()
 
-        /**
-         * Get platform-specific binary name.
-         */
-        fun getPlatformBinaryName(): String {
-            val isArm = SystemInfo.OS_ARCH.contains("aarch64") || SystemInfo.OS_ARCH.contains("arm64")
-            return when {
-                SystemInfo.isMac && isArm -> "darwin-arm64-lsp"
-                SystemInfo.isMac -> "darwin-amd64-lsp"
-                SystemInfo.isLinux && isArm -> "linux-arm64-lsp"
-                SystemInfo.isLinux -> "linux-amd64-lsp"
-                SystemInfo.isWindows -> "windows-amd64-lsp.exe"
-                else -> throw UnsupportedOperationException(
-                    "Unsupported platform: ${SystemInfo.OS_NAME} ${SystemInfo.OS_ARCH}",
-                )
-            }
-        }
+        private fun installRoot(): Path = PathManager.getSystemDir().resolve("circleci").resolve("language-server")
     }
 
     /**
-     * Get the directory where language server binaries are stored.
+     * Returns the installed language server, downloading the latest release if none is
+     * installed yet. Blocks on the network in that case, so call it off the EDT.
      */
-    private fun getLanguageServerDir(): File {
-        val pluginDir = File(PathManager.getPluginsPath(), "circleci-idea-plugin")
-        val lspDir = File(pluginDir, "lsp")
-        lspDir.mkdirs()
-        return lspDir
-    }
+    fun getLanguageServer(): InstalledLanguageServer {
+        val installer =
+            installer ?: throw ExecutionException(
+                "The CircleCI language server isn't available for ${SystemInfo.OS_NAME} ${SystemInfo.OS_ARCH}",
+            )
 
-    /**
-     * Get the path to the language server binary.
-     * Downloads if not present.
-     */
-    fun getLanguageServerBinary(): File? {
+        installer.installed()?.let {
+            scheduleUpdateCheck(installer, it)
+            return it
+        }
+
+        logger.info("CircleCI language server not installed, downloading the latest release")
         return try {
-            val lspDir = getLanguageServerDir()
-            val binaryName = getPlatformBinaryName()
-            val binaryFile = File(lspDir, binaryName)
-
-            if (!binaryFile.exists()) {
-                logger.info("Language server binary not found, downloading...")
-                downloadLanguageServer()
-            }
-
-            if (binaryFile.exists() && binaryFile.canExecute()) {
-                binaryFile
-            } else {
-                logger.warn("Language server binary not executable: ${binaryFile.absolutePath}")
-                null
-            }
+            val installed = synchronized(installer) { installer.install(source.latestRelease()) }
+            lastUpdateCheck.set(System.currentTimeMillis())
+            logger.info("Installed CircleCI language server ${installed.version}")
+            installed
         } catch (e: Exception) {
-            logger.error("Failed to get language server binary", e)
-            null
+            throw ExecutionException("Couldn't download the CircleCI language server: ${e.message}", e)
         }
     }
 
     /**
-     * Download the language server binary from GitHub releases.
+     * Installs a newer release in the background, at most once per [UPDATE_CHECK_INTERVAL_MS],
+     * then restarts running servers onto it.
      */
-    private fun downloadLanguageServer(version: String? = null): Boolean {
-        return try {
-            val targetVersion = version ?: getLatestVersion() ?: return false
-            logger.info("Downloading CircleCI language server version $targetVersion")
+    private fun scheduleUpdateCheck(
+        installer: LanguageServerInstaller,
+        current: InstalledLanguageServer,
+    ) {
+        if (CircleCISettings.getInstance().lspAutoUpdate == "never") return
+        val now = System.currentTimeMillis()
+        val last = lastUpdateCheck.get()
+        if (now - last < UPDATE_CHECK_INTERVAL_MS || !lastUpdateCheck.compareAndSet(last, now)) return
 
-            val lspDir = getLanguageServerDir()
-
-            // Download binary
-            val binaryName = getPlatformBinaryName()
-            if (!downloadFile(targetVersion, binaryName, lspDir)) {
-                return false
-            }
-
-            // Download schema.json
-            if (!downloadFile(targetVersion, "schema.json", lspDir)) {
-                logger.warn("Failed to download schema.json, language server may not work correctly")
-            }
-
-            // Make binary executable on Unix systems
-            val binaryFile = File(lspDir, binaryName)
-            if (!SystemInfo.isWindows) {
-                val perms = Files.getPosixFilePermissions(binaryFile.toPath()).toMutableSet()
-                perms.add(PosixFilePermission.OWNER_EXECUTE)
-                perms.add(PosixFilePermission.GROUP_EXECUTE)
-                Files.setPosixFilePermissions(binaryFile.toPath(), perms)
-            }
-
-            // Save version info
-            File(lspDir, CURRENT_VERSION_FILE).writeText(targetVersion)
-
-            logger.info("Successfully downloaded language server to ${binaryFile.absolutePath}")
-            true
-        } catch (e: Exception) {
-            logger.error("Failed to download language server", e)
-            false
-        }
-    }
-
-    /**
-     * Download a file from GitHub releases.
-     */
-    private fun downloadFile(
-        version: String,
-        fileName: String,
-        targetDir: File,
-    ): Boolean {
-        return try {
-            val downloadUrl = "https://github.com/$GITHUB_REPO/releases/download/$version/$fileName"
-            logger.info("Downloading $fileName from $downloadUrl")
-
-            val request =
-                Request.Builder()
-                    .url(downloadUrl)
-                    .build()
-
-            httpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    logger.error("Failed to download $fileName: HTTP ${response.code}")
-                    return false
+        scope.launch(Dispatchers.IO) {
+            try {
+                installer.removeAllExcept(current.version)
+                val latest = source.latestRelease()
+                if (!isValidVersion(latest.version) || compareVersions(latest.version, current.version) <= 0) {
+                    return@launch
                 }
-
-                val targetFile = File(targetDir, fileName)
-                response.body?.byteStream()?.use { input ->
-                    FileOutputStream(targetFile).use { output ->
-                        input.copyTo(output)
-                    }
-                }
-
-                logger.info("Successfully downloaded $fileName to ${targetFile.absolutePath}")
-                true
+                val updated = synchronized(installer) { installer.install(latest) }
+                logger.info("Updated CircleCI language server from ${current.version} to ${updated.version}")
+                restartRunningServers()
+                installer.removeAllExcept(updated.version)
+            } catch (e: Exception) {
+                logger.warn("Couldn't update the CircleCI language server", e)
             }
-        } catch (e: Exception) {
-            logger.error("Failed to download $fileName", e)
-            false
         }
     }
 
-    /**
-     * Get the latest version from GitHub releases.
-     */
-    private fun getLatestVersion(): String? {
-        return try {
-            val request =
-                Request.Builder()
-                    .url("https://api.github.com/repos/$GITHUB_REPO/releases/latest")
-                    .build()
-
-            httpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    logger.error("Failed to fetch latest version: HTTP ${response.code}")
-                    return null
+    private suspend fun restartRunningServers() {
+        withContext(Dispatchers.EDT) {
+            for (project in ProjectManager.getInstance().openProjects) {
+                if (!project.isDisposed) {
+                    LspClientManager.getInstance(project)
+                        .stopAndRestartClientsIfNeeded(CircleCILspIntegrationProvider::class.java)
                 }
-
-                val body = response.body?.string() ?: return null
-                val json = gson.fromJson(body, JsonObject::class.java)
-                json.get("tag_name")?.asString
             }
-        } catch (e: Exception) {
-            logger.error("Failed to get latest version", e)
-            null
         }
     }
+}
 
-    /**
-     * Get currently installed version.
-     */
-    fun getCurrentVersion(): String? {
-        val versionFile = File(getLanguageServerDir(), CURRENT_VERSION_FILE)
-        return if (versionFile.exists()) {
-            versionFile.readText().trim()
-        } else {
-            null
-        }
+/**
+ * Fetches releases from the language server's GitHub repository, honouring the IDE's proxy settings.
+ */
+private class GitHubReleaseSource : LanguageServerReleaseSource {
+    private val gson = Gson()
+
+    override fun latestRelease(): LanguageServerRelease {
+        val body =
+            HttpRequests.request(LATEST_RELEASE_URL)
+                .accept("application/vnd.github+json")
+                .productNameAsUserAgent()
+                .connectTimeout(TIMEOUT_MS)
+                .readTimeout(TIMEOUT_MS)
+                .readString()
+        val json = gson.fromJson(body, JsonObject::class.java)
+        val assets =
+            json.getAsJsonArray("assets").map {
+                val asset = it.asJsonObject
+                LanguageServerRelease.Asset(asset.get("name").asString, asset.get("browser_download_url").asString)
+            }
+        return LanguageServerRelease(json.get("tag_name").asString, assets)
     }
 
-    /**
-     * Check if an update is available.
-     */
-    fun checkForUpdate(): String? {
-        val currentVersion = getCurrentVersion() ?: return getLatestVersion()
-        val latestVersion = getLatestVersion() ?: return null
-
-        return if (currentVersion != latestVersion) {
-            latestVersion
-        } else {
-            null
-        }
+    override fun download(
+        url: String,
+        target: Path,
+    ) {
+        HttpRequests.request(url)
+            .productNameAsUserAgent()
+            .connectTimeout(TIMEOUT_MS)
+            .readTimeout(TIMEOUT_MS)
+            .saveToFile(target, null)
     }
 
-    /**
-     * Update the language server to the latest version.
-     */
-    fun updateLanguageServer(): Boolean {
-        val latestVersion = getLatestVersion() ?: return false
-        logger.info("Updating language server to version $latestVersion")
-        return downloadLanguageServer(latestVersion)
-    }
-
-    /**
-     * Delete the language server binary and metadata.
-     */
-    fun deleteLanguageServer() {
-        try {
-            val lspDir = getLanguageServerDir()
-            lspDir.listFiles()?.forEach { it.delete() }
-            logger.info("Deleted language server files")
-        } catch (e: Exception) {
-            logger.error("Failed to delete language server", e)
-        }
+    private companion object {
+        const val LATEST_RELEASE_URL =
+            "https://api.github.com/repos/CircleCI-Public/circleci-yaml-language-server/releases/latest"
+        val TIMEOUT_MS = TimeUnit.SECONDS.toMillis(60).toInt()
     }
 }

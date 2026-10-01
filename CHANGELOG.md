@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The plugin no longer requires the Red Hat LSP4IJ plugin
   - The language server shows in the status bar's Language Services widget
   - Requires IntelliJ IDEA or another commercial JetBrains IDE, 2026.1 or newer; open-source builds and Android Studio are no longer supported
+- The language server is installed from the latest GitHub release archive, verified against the release's `checksums.txt` and the binary's reported version
+  - Installed per version under the IDE system directory, and updated in the background at most once a day (set `lspAutoUpdate` to `never` to opt out)
+  - Running servers restart onto a newly installed version
+  - Debug logging from the server is turned off
 
 ### Infrastructure
 - Target platform raised to IntelliJ IDEA 2026.2; supports 2026.1 (build 261) through 2026.2 (262.*)

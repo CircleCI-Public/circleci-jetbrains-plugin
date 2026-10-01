@@ -28,7 +28,7 @@ class CircleCISettings : PersistentStateComponent<CircleCISettings> {
 
     // Language Server settings
     var lspEnabled: Boolean = true
-    var lspAutoUpdate: String = "prompt" // "automatic", "prompt", "never"
+    var lspAutoUpdate: String = "automatic" // "automatic" or "never"
 
     override fun getState(): CircleCISettings {
         return this
