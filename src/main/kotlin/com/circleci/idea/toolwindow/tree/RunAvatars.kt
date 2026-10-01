@@ -1,0 +1,89 @@
+package com.circleci.idea.toolwindow.tree
+
+import com.circleci.idea.logging.CircleCILogger
+import com.circleci.idea.run.RunStatus
+import com.circleci.idea.state.Run
+import com.intellij.collaboration.ui.codereview.avatar.Avatar
+import com.intellij.collaboration.ui.codereview.avatar.CodeReviewAvatarUtils
+import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
+import com.intellij.collaboration.ui.icon.CachingIconsProvider
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.Service
+import com.intellij.ui.JBColor
+import com.intellij.util.io.HttpRequests
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.awt.Color
+import java.awt.Image
+import java.io.IOException
+import javax.imageio.ImageIO
+import javax.swing.Icon
+
+/**
+ * Avatars of the people who triggered runs, drawn as the Pull Requests list
+ * draws reviewers': a circle in a coloured ring, here coloured by the run's
+ * status. Loaded in the background and cached, so a tree row shows nothing
+ * in the avatar's place until it arrives.
+ *
+ * Only GitHub serves an avatar for a login at a predictable URL, so runs of
+ * other providers' projects have none.
+ */
+@Service(Service.Level.APP)
+class RunAvatars(scope: CoroutineScope) {
+    private val icons =
+        CachingIconsProvider(AsyncImageIconsProvider(scope, AvatarLoader())) {
+            maxSize = MAX_CACHED
+            expiresAfterMinutes = EXPIRES_AFTER_MINUTES
+        }
+
+    /** The run's avatar in a ring of its status's colour, or null when there's no avatar to show. */
+    fun iconFor(run: Run): Icon? {
+        val url = avatarUrl(run) ?: return null
+        return CodeReviewAvatarUtils.createIconWithOutline(
+            icons.getIcon(url, Avatar.Sizes.SMALL),
+            ringColor(run.status),
+        )
+    }
+
+    private class AvatarLoader : AsyncImageIconsProvider.AsyncImageLoader<String> {
+        override suspend fun load(key: String): Image? =
+            withContext(Dispatchers.IO) {
+                try {
+                    HttpRequests.request(key).connect { ImageIO.read(it.inputStream) }
+                } catch (e: IOException) {
+                    CircleCILogger.getInstance().debug("Couldn't load avatar $key: ${e.message}")
+                    null
+                }
+            }
+    }
+
+    companion object {
+        private const val MAX_CACHED = 200
+        private const val EXPIRES_AFTER_MINUTES = 60
+
+        // Twice the drawn size, for HiDPI screens.
+        private const val REQUEST_SIZE = Avatar.Sizes.SMALL * 2
+
+        fun getInstance(): RunAvatars = ApplicationManager.getApplication().getService(RunAvatars::class.java)
+
+        /** GitHub's avatar for whoever triggered the run, for a GitHub project. */
+        internal fun avatarUrl(run: Run): String? {
+            if (run.projectSlug?.startsWith("gh/") != true) return null
+            val login = run.triggeredBy?.takeIf { it.isNotBlank() } ?: return null
+            return "https://github.com/$login.png?size=$REQUEST_SIZE"
+        }
+
+        private fun ringColor(status: RunStatus): Color =
+            when {
+                status == RunStatus.SUCCESS -> Avatar.Color.ACCEPTED_BORDER
+                status.isFailure ->
+                    JBColor.namedColor(
+                        "Review.Avatar.Border.Status.Rejected",
+                        JBColor(0xE55765, 0xDB5C5C),
+                    )
+                status.isActive -> Avatar.Color.WAIT_FOR_UPDATES_BORDER
+                else -> JBColor.namedColor("Review.Avatar.Border.Status.Empty", JBColor.GRAY)
+            }
+    }
+}

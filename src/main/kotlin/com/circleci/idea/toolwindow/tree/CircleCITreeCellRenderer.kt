@@ -3,9 +3,12 @@ package com.circleci.idea.toolwindow.tree
 import com.circleci.idea.icons.CircleCIIcons
 import com.circleci.idea.run.elapsedSince
 import com.intellij.ui.ColoredTreeCellRenderer
+import com.intellij.ui.RowIcon
 import com.intellij.ui.SimpleTextAttributes
+import com.intellij.util.ui.EmptyIcon
 import java.time.Duration
 import java.time.Instant
+import javax.swing.Icon
 import javax.swing.JTree
 
 /**
@@ -34,8 +37,10 @@ class CircleCITreeCellRenderer : ColoredTreeCellRenderer() {
                 is LoadMoreNode -> null
                 is EmptyNode -> null
                 is ErrorNode -> CircleCIIcons.Status.FAILED
+                is RunNode -> runIcon(value)
                 else -> value.getStatus()?.let { CircleCIIcons.getStatusIcon(it) }
             }
+        toolTipText = (value as? RunNode)?.run?.triggeredBy?.let { "Triggered by $it" }
 
         // Set text and attributes
         val attributes =
@@ -73,6 +78,13 @@ class CircleCITreeCellRenderer : ColoredTreeCellRenderer() {
         }
     }
 
+    /** The run's status, then the avatar of whoever triggered it, when there is one. */
+    private fun runIcon(node: RunNode): Icon {
+        val status = CircleCIIcons.getStatusIcon(node.run.status)
+        val avatar = RunAvatars.getInstance().iconFor(node.run) ?: return status
+        return RowIcon(status, EmptyIcon.create(AVATAR_GAP), avatar)
+    }
+
     private fun appendDetail(text: String) {
         append("  ", SimpleTextAttributes.REGULAR_ATTRIBUTES)
         append(text, SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
@@ -93,5 +105,6 @@ class CircleCITreeCellRenderer : ColoredTreeCellRenderer() {
 
     private companion object {
         const val SHORT_REVISION_LENGTH = 7
+        const val AVATAR_GAP = 4
     }
 }
