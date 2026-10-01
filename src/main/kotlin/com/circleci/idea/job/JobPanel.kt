@@ -160,7 +160,6 @@ class JobPanel(
 
     private fun createContent(): JComponent {
         stepsTree.isRootVisible = false
-        stepsTree.showsRootHandles = true
         stepsTree.selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
         stepsTree.cellRenderer = StepTreeCellRenderer()
         stepsTree.emptyText.text = "Loading steps..."
@@ -202,6 +201,9 @@ class JobPanel(
     private fun updateSteps(executions: List<JobExecution>) {
         val selected = selectedStep()
         stepsRoot.removeAllChildren()
+        // Only executions expand; a lone execution's steps are leaves, and
+        // leaving room for handles they don't have indents them for nothing.
+        stepsTree.showsRootHandles = executions.size > 1
         if (executions.size == 1) {
             executions[0].steps.forEach { stepsRoot.add(DefaultMutableTreeNode(StepNode(0, it))) }
         } else {
