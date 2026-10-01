@@ -56,9 +56,9 @@ import javax.swing.tree.TreeSelectionModel
 data class StepKey(val execution: Int, val num: Int)
 
 /**
- * A job's page: its steps (by parallel execution, when there's more than
- * one) and the selected step's output, streamed while it runs; plus its tests
- * and artifacts.
+ * A job's page, in tabs: its steps (by parallel execution, when there's
+ * more than one) beside the selected step's output, streamed while it runs;
+ * its tests; and its artifacts.
  *
  * The job is re-read every few seconds until it ends, so new steps appear
  * and statuses change as it runs.
@@ -175,16 +175,16 @@ class JobPanel(
                 fillsViewportHeight = true
                 autoCreateRowSorter = true
             }
-        val tabs =
-            JBTabbedPane().apply {
-                addTab("Output", console.component)
-                addTab("Tests", JBScrollPane(testsTable))
-                addTab("Artifacts", artifactsPanel)
+        val steps =
+            OnePixelSplitter(false, STEPS_PROPORTION).apply {
+                firstComponent = JBScrollPane(stepsTree)
+                secondComponent = console.component
             }
 
-        return OnePixelSplitter(false, STEPS_PROPORTION).apply {
-            firstComponent = JBScrollPane(stepsTree)
-            secondComponent = tabs
+        return JBTabbedPane().apply {
+            addTab("Steps", steps)
+            addTab("Tests", JBScrollPane(testsTable))
+            addTab("Artifacts", artifactsPanel)
         }
     }
 
