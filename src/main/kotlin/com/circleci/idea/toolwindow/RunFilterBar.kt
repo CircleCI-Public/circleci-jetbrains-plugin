@@ -13,28 +13,21 @@ import com.intellij.collaboration.ui.codereview.list.search.DropDownComponentFac
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
-import com.intellij.openapi.ui.popup.JBPopupFactory
-import com.intellij.openapi.ui.popup.PopupStep
-import com.intellij.openapi.ui.popup.util.BaseListPopupStep
 import com.intellij.ui.InplaceButton
-import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import java.awt.FlowLayout
-import kotlin.coroutines.resume
 
 /**
  * The run list's filters as the IDE's Pull Requests list shows its own: a
- * row of "Name ▾" drop-downs, each of which reads just its name while it's
- * at its default and can be cleared back to it. A funnel before them clears
- * them all.
+ * row of drop-downs, and a funnel before them that resets them.
  *
- * Each filter's default is "unset" (null): the current branch, all
- * statuses, any time, and the workspace's first project.
+ * Project and Branch always have a value ("Branch: Current [main] ▾"), so
+ * have nothing to clear. Status and Created are optional: each reads just
+ * its name while unset, and can be cleared back to it.
  */
 class RunFilterBar(
     private val project: Project,
@@ -49,26 +42,37 @@ class RunFilterBar(
         get() = stateStore.filters.value
 
     private val projectState = MutableStateFlow(projectService.getSelectedProject())
-    private val branchState = MutableStateFlow(filters.scope.takeIf { it != RunScope.CURRENT_BRANCH })
+    private val branchState = MutableStateFlow(filters.scope)
     private val statusState = MutableStateFlow(filters.status)
     private val createdState = MutableStateFlow(filters.created)
 
+    // The last choice, null, is "Other Project...".
+    private val projectText =
+        ChipText<CircleCIProject?>(
+            chip = { it?.getDisplayName() ?: "None" },
+            popup = { it?.getDisplayName() ?: OTHER_PROJECT },
+        )
     private val projectChip =
-        DropDownComponentFactory(projectState).create(scope, "Project", {
-            it.getDisplayName()
-        }) { point -> chooseProject(point) }
+        RequiredFilterChip(
+            "Project",
+            projectState,
+            scope,
+            choices = { projectService.getAllProjects() + null },
+            text = projectText,
+            choose = { chosen -> (chosen ?: promptForProject())?.let { projectService.selectProject(it.slug) } },
+        ).component
 
     init {
-        add(InplaceButton("Clear filters", AllIcons.General.Filter) { clearFilters() })
+        add(InplaceButton("Reset filters", AllIcons.General.Filter) { resetFilters() })
         add(projectChip)
         add(
-            DropDownComponentFactory(branchState).create(
-                scope,
+            RequiredFilterChip(
                 "Branch",
-                RunScope.entries,
-                {},
-                ::branchLabel,
-            ),
+                branchState,
+                scope,
+                choices = { RunScope.entries },
+                text = ChipText(chip = { branchLabel(it, short = true) }, popup = { branchLabel(it, short = false) }),
+            ).component,
         )
         add(DropDownComponentFactory(statusState).create(scope, "Status", RunStatusFilter.entries, {}, { it.label }))
         add(DropDownComponentFactory(createdState).create(scope, "Created", CREATED_CHOICES, {}, { it.label }))
@@ -80,29 +84,13 @@ class RunFilterBar(
     /** Apply each drop-down's choice, and keep the project one showing the selected project. */
     private fun followFilters() {
         scope.launch {
-            branchState.collect { choice ->
-                // Choosing the current branch is the same as clearing the filter.
-                if (choice == RunScope.CURRENT_BRANCH) {
-                    branchState.value = null
-                    return@collect
-                }
-                val scope = choice ?: RunScope.CURRENT_BRANCH
+            branchState.collect { scope ->
                 projectChip.isVisible = scope != RunScope.MY_RUNS
                 update { it.copy(scope = scope) }
             }
         }
         scope.launch { statusState.collect { status -> update { it.copy(status = status) } } }
         scope.launch { createdState.collect { created -> update { it.copy(created = created) } } }
-        scope.launch {
-            projectState.collect { chosen ->
-                val projects = projectService.getAllProjects()
-                // Before any projects are found there's nothing to choose (and
-                // the remembered selection mustn't be cleared).
-                if (projects.isEmpty()) return@collect
-                // Cleared: back to the workspace's first project.
-                projectService.selectProject(chosen?.slug ?: projects.first().slug)
-            }
-        }
         scope.launch {
             projectService.selectedProject.collect { projectState.value = projectService.getSelectedProject() }
         }
@@ -119,54 +107,37 @@ class RunFilterBar(
         onFiltersChanged()
     }
 
-    private fun clearFilters() {
-        branchState.value = null
+    /** Back to the defaults: the current branch, every status, any time. */
+    private fun resetFilters() {
+        branchState.value = RunScope.CURRENT_BRANCH
         statusState.value = null
         createdState.value = null
     }
 
-    private fun branchLabel(scope: RunScope): String {
-        val selected = projectService.getSelectedProject()
-        return when (scope) {
-            RunScope.CURRENT_BRANCH -> gitService.getCurrentBranch(selected?.localPath) ?: "Current branch"
-            RunScope.DEFAULT_BRANCH -> selected?.defaultBranch ?: gitService.getDefaultBranch(selected?.localPath)
-            RunScope.ALL_BRANCHES -> "All branches"
-            RunScope.MY_RUNS -> "My runs"
-        }
-    }
-
     /**
-     * Pick a project: one found in the workspace, or another by its slug.
-     * Null when the popup is dismissed.
+     * A branch scope's label: its role, with the branch it means, e.g.
+     * "Current [main]" on the chip and "Current branch [main]" in the popup,
+     * so that on the default branch the two still read apart.
      */
-    private suspend fun chooseProject(point: RelativePoint): CircleCIProject? {
-        val choices: List<CircleCIProject?> = projectService.getAllProjects() + null
-        val chosen =
-            suspendCancellableCoroutine<Choice?> { continuation ->
-                val step =
-                    object : BaseListPopupStep<CircleCIProject?>(null, choices) {
-                        override fun getTextFor(value: CircleCIProject?): String =
-                            value?.getDisplayName() ?: OTHER_PROJECT
-
-                        override fun isSelectable(value: CircleCIProject?): Boolean = true
-
-                        override fun onChosen(
-                            selectedValue: CircleCIProject?,
-                            finalChoice: Boolean,
-                        ): PopupStep<*>? =
-                            doFinalStep {
-                                if (continuation.isActive) continuation.resume(Choice(selectedValue))
-                            }
-
-                        override fun canceled() {
-                            if (continuation.isActive) continuation.resume(null)
-                        }
-                    }
-                val popup = JBPopupFactory.getInstance().createListPopup(step)
-                continuation.invokeOnCancellation { popup.cancel() }
-                popup.show(point)
-            } ?: return null
-        return chosen.project ?: promptForProject()
+    private fun branchLabel(
+        scope: RunScope,
+        short: Boolean,
+    ): String {
+        val selected = projectService.getSelectedProject()
+        val branch =
+            when (scope) {
+                RunScope.CURRENT_BRANCH -> gitService.getCurrentBranch(selected?.localPath)
+                RunScope.DEFAULT_BRANCH -> selected?.defaultBranch ?: gitService.getDefaultBranch(selected?.localPath)
+                else -> null
+            }
+        val role =
+            when (scope) {
+                RunScope.CURRENT_BRANCH -> if (short) "Current" else "Current branch"
+                RunScope.DEFAULT_BRANCH -> if (short) "Default" else "Default branch"
+                RunScope.ALL_BRANCHES -> "All branches"
+                RunScope.MY_RUNS -> "My runs"
+            }
+        return branch?.let { "$role [$it]" } ?: role
     }
 
     /** Ask for a project's slug, and add it. */
@@ -189,9 +160,6 @@ class RunFilterBar(
         }
         return projectService.getSelectedProject()
     }
-
-    /** A pick from the project popup; a null project is "Other Project...". */
-    private class Choice(val project: CircleCIProject?)
 
     private companion object {
         const val GAP = 4

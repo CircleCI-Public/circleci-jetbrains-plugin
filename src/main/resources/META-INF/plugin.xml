@@ -51,6 +51,8 @@
         <module name="intellij.platform.collaborationTools"/>
         <!-- ProgressStripe, the run list's loading bar -->
         <module name="intellij.platform.vcs.impl"/>
+        <!-- FilterComponent, for the filters that always have a value -->
+        <module name="intellij.platform.vcs.log.impl"/>
     </dependencies>
     <depends optional="true" config-file="terminal-support.xml">org.jetbrains.plugins.terminal</depends>
     <depends optional="true" config-file="ssh-support.xml">intellij.ssh.plugin</depends>
