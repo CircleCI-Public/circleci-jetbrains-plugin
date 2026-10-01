@@ -2,6 +2,7 @@ package com.circleci.idea.toolwindow
 
 import com.circleci.idea.auth.CircleCIAuthService
 import com.circleci.idea.job.JobDetailsService
+import com.circleci.idea.job.JobRef
 import com.circleci.idea.polling.RunPollingService
 import com.circleci.idea.project.CircleCIProjectService
 import com.circleci.idea.toolwindow.tree.CircleCITreeCellRenderer
@@ -195,15 +196,8 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
     }
 
     private fun handleJobDoubleClick(jobNode: JobNode) {
-        val job = jobNode.job
         val workflowNode = jobNode.parent as? WorkflowNode
-        scope.launch {
-            val context = com.circleci.idea.job.JobLookupContext.fromJobNode(job, workflowNode)
-            jobDetailsService.selectAndFetchJobDetails(context)
-        }
-
-        // Show job details panel in tool window service
-        project.getService(CircleCIToolWindowService::class.java).showJobDetailsPanel()
+        jobDetailsService.openJob(JobRef.of(jobNode.job, workflowNode?.workflow))
     }
 
     private fun showContextMenu(e: MouseEvent) {

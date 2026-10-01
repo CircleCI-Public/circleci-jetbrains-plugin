@@ -91,8 +91,10 @@
             serviceImplementation="com.circleci.idea.toolwindow.CircleCIToolWindowService"/>
         <projectService
             serviceImplementation="com.circleci.idea.notifications.CircleCINotificationService"/>
-        <projectService
-            serviceImplementation="com.circleci.idea.ssh.CircleCISshService"/>
+
+        <!-- Job pages, one editor tab per job -->
+        <fileEditorProvider implementation="com.circleci.idea.job.JobEditorProvider"/>
+        <fileIconProvider implementation="com.circleci.idea.job.JobFileIconProvider"/>
 
         <!-- Startup Activity -->
         <postStartupActivity implementation="com.circleci.idea.CircleCIStartupActivity"/>

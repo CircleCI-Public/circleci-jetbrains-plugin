@@ -1,6 +1,7 @@
 package com.circleci.idea.toolwindow.tree
 
 import com.circleci.idea.icons.CircleCIIcons
+import com.circleci.idea.run.elapsedSince
 import com.intellij.icons.AllIcons
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.SimpleTextAttributes
@@ -68,9 +69,7 @@ class CircleCITreeCellRenderer : ColoredTreeCellRenderer() {
                     appendDetail("(approval)")
                 } else {
                     // Queued jobs have no start time yet; running ones count up to now.
-                    job.startedAt?.let { startedAt ->
-                        appendDetail(formatDuration(Duration.between(startedAt, job.endedAt ?: Instant.now())))
-                    }
+                    elapsedSince(job.startedAt, job.endedAt)?.let { appendDetail(it) }
                 }
             }
             else -> {}
@@ -92,18 +91,6 @@ class CircleCITreeCellRenderer : ColoredTreeCellRenderer() {
             duration.toHours() > 0 -> "${duration.toHours()}h ago"
             duration.toMinutes() > 0 -> "${duration.toMinutes()}m ago"
             else -> "just now"
-        }
-    }
-
-    /**
-     * Format an elapsed time compactly (e.g., "1h 5m", "3m 20s", "45s").
-     */
-    private fun formatDuration(duration: Duration): String {
-        val elapsed = if (duration.isNegative) Duration.ZERO else duration
-        return when {
-            elapsed.toHours() > 0 -> "${elapsed.toHours()}h ${elapsed.toMinutesPart()}m"
-            elapsed.toMinutes() > 0 -> "${elapsed.toMinutes()}m ${elapsed.toSecondsPart()}s"
-            else -> "${elapsed.toSeconds()}s"
         }
     }
 

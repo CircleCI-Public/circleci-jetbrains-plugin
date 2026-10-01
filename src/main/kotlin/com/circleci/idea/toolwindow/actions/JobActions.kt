@@ -2,6 +2,7 @@ package com.circleci.idea.toolwindow.actions
 
 import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.job.JobDetailsService
+import com.circleci.idea.job.JobRef
 import com.circleci.idea.run.RunStatus
 import com.circleci.idea.run.RunWebUrls
 import com.circleci.idea.toolwindow.CircleCIToolWindowService
@@ -106,27 +107,17 @@ abstract class JobAction(
 }
 
 /**
- * Action to open job details in the panel.
+ * Action to open a job's page.
  */
 class OpenJobDetailsAction : JobAction(
-    "Open Job Details",
-    "Open detailed view of this job",
+    "Open Job",
+    "Open this job's page, with its steps and output",
     AllIcons.General.Information,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val jobNode = getJobNode(e) ?: return
-        val workflowNode = getWorkflowNode(jobNode)
-        val job = jobNode.job
-
-        scope.launch {
-            val context = com.circleci.idea.job.JobLookupContext.fromJobNode(job, workflowNode)
-            val jobDetailsService = project.getService(JobDetailsService::class.java)
-            jobDetailsService.selectAndFetchJobDetails(context)
-
-            // Show job details panel in tool window service
-            project.getService(CircleCIToolWindowService::class.java).showJobDetailsPanel()
-        }
+        JobDetailsService.getInstance(project).openJob(JobRef.of(jobNode.job, getWorkflowNode(jobNode)?.workflow))
     }
 }
 

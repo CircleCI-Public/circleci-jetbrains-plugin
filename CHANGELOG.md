@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Auto-refresh updates the tree in place, keeping expanded runs and workflows open
   - "Open in Browser" links to the run, workflow or job's own page
   - Removed the unused branch filter and "Show only my pipelines" options from Settings; the toolbar filters replace them
+- Jobs open as editor tabs instead of the single Job Details tab, so several can be open at once
+  - Steps and output come from the V3 jobs API, grouped by parallel execution when there's more than one
+  - A running step's output streams in as it's written, polled every 2 seconds as `circleci run get` does, with its colors
+  - Opens on the first failed step, or the running one; a running job's steps update as it goes
+  - "Copy SSH Command" copies `ssh <job-id>-<execution>@ssh.circleci.com` for jobs rerun with SSH
+  - Removed the Connect SSH button, which never enabled: the V1.1 job details it read have no SSH host
 - Migrated the CircleCI YAML Language Server integration from lsp4ij to IntelliJ's native LSP API
   - The plugin no longer requires the Red Hat LSP4IJ plugin
   - The language server shows in the status bar's Language Services widget

@@ -26,12 +26,18 @@ object RunWebUrls {
     fun job(
         job: Job,
         workflow: Workflow?,
+    ): String? = job(job.projectSlug, job.number, workflow?.id ?: job.workflowId, workflow?.runNumber)
+
+    fun job(
+        projectSlug: String?,
+        jobNumber: Long?,
+        workflowId: String,
+        runNumber: Long?,
     ): String? {
-        val slug = job.projectSlug ?: return null
-        val number = job.number ?: return null
-        val runNumber = workflow?.runNumber
-        return if (workflow != null && runNumber != null) {
-            "$APP_URL/$slug/$runNumber/workflows/${workflow.id}/jobs/$number"
+        val slug = projectSlug ?: return null
+        val number = jobNumber ?: return null
+        return if (runNumber != null) {
+            "$APP_URL/$slug/$runNumber/workflows/$workflowId/jobs/$number"
         } else {
             "$APP_URL/$slug/jobs/$number"
         }

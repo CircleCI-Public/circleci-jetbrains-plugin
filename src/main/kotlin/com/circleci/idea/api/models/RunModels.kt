@@ -212,3 +212,66 @@ data class RunSearchPage(
     @SerializedName("limit")
     val limit: Int,
 )
+
+/** A job from GET /api/v3/jobs/{id}: the list's attributes plus its steps. */
+data class JobDetailWire(
+    @SerializedName("id")
+    val id: String? = null,
+    @SerializedName("attributes")
+    val attributes: JobDetailAttributesWire? = null,
+    @SerializedName("references")
+    val references: JobReferencesWire? = null,
+)
+
+data class JobDetailAttributesWire(
+    @SerializedName("name")
+    val name: String? = null,
+    @SerializedName("type")
+    val type: String? = null,
+    @SerializedName("phase")
+    val phase: String? = null,
+    @SerializedName("outcome")
+    val outcome: String? = null,
+    @SerializedName("started_at")
+    val startedAt: String? = null,
+    @SerializedName("ended_at")
+    val endedAt: String? = null,
+    @SerializedName("parallel_executions")
+    val parallelExecutions: List<ParallelExecutionWire>? = null,
+)
+
+data class JobReferencesWire(
+    @SerializedName("workflow")
+    val workflow: V3Ref? = null,
+    @SerializedName("project")
+    val project: V3Ref? = null,
+)
+
+/** One parallel execution of a job: its own run of the steps. */
+data class ParallelExecutionWire(
+    @SerializedName("steps")
+    val steps: List<StepWire>? = null,
+)
+
+data class StepWire(
+    @SerializedName("num")
+    val num: Int? = null,
+    @SerializedName("name")
+    val name: String? = null,
+    @SerializedName("type")
+    val type: String? = null,
+    @SerializedName("phase")
+    val phase: String? = null,
+    @SerializedName("outcome")
+    val outcome: String? = null,
+    @SerializedName("exit_code")
+    val exitCode: Int? = null,
+    @SerializedName("started_at")
+    val startedAt: String? = null,
+    @SerializedName("ended_at")
+    val endedAt: String? = null,
+    @SerializedName("stdout_bytes")
+    val stdoutBytes: Long? = null,
+    @SerializedName("stderr_bytes")
+    val stderrBytes: Long? = null,
+)

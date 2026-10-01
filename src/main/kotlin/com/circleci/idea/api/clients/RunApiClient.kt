@@ -1,6 +1,7 @@
 package com.circleci.idea.api.clients
 
 import com.circleci.idea.api.CircleCIApiClient
+import com.circleci.idea.api.models.JobDetailWire
 import com.circleci.idea.api.models.JobWire
 import com.circleci.idea.api.models.ProjectWire
 import com.circleci.idea.api.models.RunSearchPage
@@ -20,6 +21,9 @@ data class V3Page<T>(
     val items: List<T>,
     val nextCursor: String?,
 )
+
+/** A read of a step's output: the new bytes, and whether the output has finished. */
+class StepOutputChunk(val data: ByteArray, val terminal: Boolean)
 
 /**
  * API client for the V3 runs, workflows and jobs endpoints.
@@ -101,6 +105,68 @@ class RunApiClient : CircleCIApiClientBase() {
         }
     }
 
+    /** A job with its steps, via GET /api/v3/jobs/{id}. */
+    fun getJob(
+        client: CircleCIApiClient,
+        jobId: String,
+    ): Result<JobDetailWire> {
+        return executeRequest(client, "/api/v3/jobs/$jobId") { data ->
+            gson.fromJson<V3Entity<JobDetailWire>>(data, object : TypeToken<V3Entity<JobDetailWire>>() {}.type).data
+                ?: error("No job found for $jobId")
+        }
+    }
+
+    /**
+     * A step's stdout from byte [offset] on, and whether it has finished
+     * (the X-Terminal header). A step with no output yet reads as empty.
+     */
+    fun getStepStdout(
+        client: CircleCIApiClient,
+        jobId: String,
+        execution: Int,
+        stepNum: Int,
+        offset: Long,
+    ): Result<StepOutputChunk> {
+        val headers = mapOf("Range" to "bytes=$offset-")
+        return client.getBytes("/api/v3/jobs/$jobId/stdout", stepParams(execution, stepNum), headers).mapCatching {
+            when {
+                it.isSuccessful -> StepOutputChunk(it.body, it.headers["X-Terminal"] == "true")
+                // Not written yet, or nothing past the offset.
+                it.code == HTTP_NOT_FOUND || it.code == HTTP_RANGE_NOT_SATISFIABLE ->
+                    StepOutputChunk(
+                        ByteArray(0),
+                        false,
+                    )
+                else -> error("Failed to read step output: HTTP ${it.code}")
+            }
+        }
+    }
+
+    /** A step's whole stderr; a step without any reads as empty. */
+    fun getStepStderr(
+        client: CircleCIApiClient,
+        jobId: String,
+        execution: Int,
+        stepNum: Int,
+    ): Result<ByteArray> {
+        return client.getBytes("/api/v3/jobs/$jobId/stderr", stepParams(execution, stepNum)).mapCatching {
+            when {
+                it.isSuccessful -> it.body
+                it.code == HTTP_NOT_FOUND -> ByteArray(0)
+                else -> error("Failed to read step errors: HTTP ${it.code}")
+            }
+        }
+    }
+
+    private fun stepParams(
+        execution: Int,
+        stepNum: Int,
+    ): Map<String, String> =
+        mapOf(
+            "filter[execution]" to execution.toString(),
+            "filter[step_num]" to stepNum.toString(),
+        )
+
     /** Look up a project by slug (e.g. "gh/org/repo"); fails if there's no such project. */
     fun getProjectBySlug(
         client: CircleCIApiClient,
@@ -154,5 +220,7 @@ class RunApiClient : CircleCIApiClientBase() {
     private companion object {
         // A guard against a server that never stops handing out cursors.
         const val MAX_PAGES = 20
+        const val HTTP_NOT_FOUND = 404
+        const val HTTP_RANGE_NOT_SATISFIABLE = 416
     }
 }

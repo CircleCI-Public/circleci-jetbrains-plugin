@@ -1,7 +1,9 @@
 package com.circleci.idea.run
 
+import com.circleci.idea.api.models.JobDetailWire
 import com.circleci.idea.api.models.JobWire
 import com.circleci.idea.api.models.RunWire
+import com.circleci.idea.api.models.V3Entity
 import com.circleci.idea.api.models.V3List
 import com.circleci.idea.api.models.WorkflowWire
 import com.google.gson.Gson
@@ -126,5 +128,36 @@ class RunMapperTest {
         assertEquals("github", "gh/org/repo", RunMapper.deriveProjectSlug("github", "org/repo"))
         assertEquals("bitbucket", "bb/org/repo", RunMapper.deriveProjectSlug("Bitbucket", "org/repo"))
         assertNull("other providers key slugs on IDs", RunMapper.deriveProjectSlug("gitlab", "org/repo"))
+    }
+
+    @Test
+    fun testJobDetail() {
+        // Trimmed from a real GET /api/v3/jobs/{id} response.
+        val json =
+            """
+            {"data": {"id": "b4551b1f", "attributes": {"name": "test-macos", "type": "build", "phase": "ended",
+              "outcome": "succeeded", "started_at": "2026-10-01T14:33:49.128Z", "ended_at": "2026-10-01T14:35:57.195Z",
+              "parallel_executions": [{"steps": [
+                {"name": "Spin up environment", "num": 0, "outcome": "succeeded", "phase": "ended",
+                 "started_at": "2026-10-01T14:33:46.246Z", "ended_at": "2026-10-01T14:33:48.764Z",
+                 "stderr_bytes": 0, "stdout_bytes": 210, "type": "spinup_environment"},
+                {"name": "Run tests", "num": 101, "outcome": "failed", "phase": "ended", "exit_code": 1}
+              ]}, {"steps": [{"name": "Run tests", "num": 101, "phase": "started"}]}]}}}
+            """.trimIndent()
+        val entity: V3Entity<JobDetailWire> = gson.fromJson(json, object : TypeToken<V3Entity<JobDetailWire>>() {}.type)
+        val job = RunMapper.toJobDetail(entity.data!!)!!
+
+        assertEquals("name", "test-macos", job.name)
+        assertEquals("status", RunStatus.SUCCESS, job.status)
+        assertEquals("executions", 2, job.executions.size)
+        assertEquals("second execution index", 1, job.executions[1].index)
+
+        val steps = job.executions[0].steps
+        assertEquals("step nums", listOf(0, 101), steps.map { it.num })
+        assertEquals("step status", RunStatus.SUCCESS, steps[0].status)
+        assertEquals("stdout bytes", 210L, steps[0].stdoutBytes)
+        assertEquals("failed step", RunStatus.FAILED, steps[1].status)
+        assertEquals("exit code", 1, steps[1].exitCode)
+        assertEquals("running step", RunStatus.RUNNING, job.executions[1].steps[0].status)
     }
 }

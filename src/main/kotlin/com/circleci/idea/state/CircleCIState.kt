@@ -18,7 +18,6 @@ interface CircleCIState {
     val config: StateFlow<ConfigState>
     val filters: StateFlow<FiltersState>
     val ui: StateFlow<UIState>
-    val jobDetails: StateFlow<JobDetailsState>
 }
 
 /**
@@ -173,53 +172,36 @@ data class NotificationPreferences(
 )
 
 /**
- * Job details state - selected job and its details.
+ * A job with its steps, as shown on its job page.
  */
-data class JobDetailsState(
-    val selectedJobId: String? = null,
-    val selectedJobNumber: Long? = null,
-    val selectedProjectSlug: String? = null,
-    val selectedWorkflowId: String? = null,
-    val jobDetails: JobDetails? = null,
-    val isLoading: Boolean = false,
-    val error: String? = null,
-)
-
-data class JobDetails(
-    val id: String?,
-    val jobNumber: Long?,
-    val name: String?,
-    val projectSlug: String?,
-    val workflowId: String? = null,
-    val status: String?,
+data class JobDetail(
+    val id: String,
+    val name: String,
     val type: String?,
-    val startedAt: String?,
-    val stoppedAt: String?,
-    val duration: Long?,
-    val resourceClass: String?,
-    val parallelism: Int?,
-    val steps: List<JobStep> = emptyList(),
-    val sshEnabled: Boolean = false,
-    val sshHost: String? = null,
-    val sshPort: Int? = null,
-    val sshUser: String? = null,
-    val webUrl: String?,
+    val status: RunStatus,
+    val startedAt: Instant?,
+    val endedAt: Instant?,
+    val executions: List<JobExecution> = emptyList(),
 )
 
-data class JobStep(
-    val name: String?,
-    val actions: List<JobAction> = emptyList(),
+/**
+ * One parallel execution of a job, with the steps it ran.
+ */
+data class JobExecution(
+    val index: Int,
+    val steps: List<Step> = emptyList(),
 )
 
-data class JobAction(
-    val name: String?,
-    val status: String?,
-    val startTime: String?,
-    val endTime: String?,
-    val runTimeMillis: Long?,
-    val outputUrl: String?,
-    val step: Int?,
-    val index: Int?,
+data class Step(
+    val num: Int,
+    val name: String,
+    val type: String?,
+    val status: RunStatus,
+    val exitCode: Int?,
+    val startedAt: Instant?,
+    val endedAt: Instant?,
+    val stdoutBytes: Long?,
+    val stderrBytes: Long?,
 )
 
 /**
@@ -235,14 +217,6 @@ data class TestResult(
     val source: String?,
     val runTime: Double?,
     val flaky: Boolean?,
-)
-
-/**
- * Step output line
- */
-data class StepOutput(
-    val message: String?,
-    val type: String?,
 )
 
 /**

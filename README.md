@@ -8,7 +8,8 @@ A JetBrains IDE plugin for monitoring, managing, and debugging CircleCI runs dir
 - **Run Filters**: Narrow runs by branch (current, default, all) or show your own runs across every project, by status, and by age
 - **Real-time Updates**: Get instant notifications when run status changes
 - **Workflow Actions**: Rerun workflows from start or from failed jobs, cancel running workflows, approve on-hold jobs
-- **SSH Debugging**: Rerun failed jobs with SSH enabled and connect directly from the IDE
+- **Job Pages**: Open any number of jobs as editor tabs, with their steps and live, colored step output
+- **SSH Debugging**: Rerun jobs with SSH enabled and copy the command to connect
 - **Config Validation**: Validate CircleCI YAML configuration files before committing
 - **Test Run**: Test configuration changes locally without committing to version control
 
@@ -111,6 +112,13 @@ The toolbar filters the run list, much like `circleci run get`:
 - **Branch**: runs on the current branch, the default branch, all branches, or *My runs* — the runs you triggered, across all projects
 - **Status**: canceled, failed, failing, not run, queued, running, or success
 - **Created**: runs newer or older than 1 hour up to 1 month
+
+### Job Pages
+
+Double-click a job (or right-click → Open Job) to open its page in an editor tab; each job gets its own tab.
+The page lists the job's steps, grouped by parallel execution when there is more than one, and shows the
+selected step's output, streamed while the step runs. It opens on the first failed step, or the running one.
+The Tests and Artifacts tabs fill in once the job ends.
 
 ### Managing Workflows
 

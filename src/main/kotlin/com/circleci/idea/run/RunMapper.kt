@@ -1,11 +1,16 @@
 package com.circleci.idea.run
 
+import com.circleci.idea.api.models.JobDetailWire
 import com.circleci.idea.api.models.JobWire
 import com.circleci.idea.api.models.RunWire
+import com.circleci.idea.api.models.StepWire
 import com.circleci.idea.api.models.WorkflowWire
 import com.circleci.idea.state.Job
+import com.circleci.idea.state.JobDetail
+import com.circleci.idea.state.JobExecution
 import com.circleci.idea.state.Run
 import com.circleci.idea.state.RunError
+import com.circleci.idea.state.Step
 import com.circleci.idea.state.Workflow
 import java.time.Instant
 import java.time.format.DateTimeParseException
@@ -83,6 +88,40 @@ object RunMapper {
             endedAt = parseInstant(attributes?.endedAt),
             workflowId = workflow.id,
             projectSlug = workflow.projectSlug,
+        )
+    }
+
+    fun toJobDetail(wire: JobDetailWire): JobDetail? {
+        val id = wire.id ?: return null
+        val attributes = wire.attributes
+        val startedAt = parseInstant(attributes?.startedAt)
+        val executions =
+            attributes?.parallelExecutions.orEmpty().mapIndexed { index, execution ->
+                JobExecution(index, execution.steps.orEmpty().mapNotNull { toStep(it) })
+            }
+        return JobDetail(
+            id = id,
+            name = attributes?.name ?: id,
+            type = attributes?.type,
+            status = jobStatus(attributes?.type, attributes?.phase, attributes?.outcome, null, startedAt),
+            startedAt = startedAt,
+            endedAt = parseInstant(attributes?.endedAt),
+            executions = executions,
+        )
+    }
+
+    private fun toStep(wire: StepWire): Step? {
+        val num = wire.num ?: return null
+        return Step(
+            num = num,
+            name = wire.name ?: "Step $num",
+            type = wire.type,
+            status = RunStatus.fromV3(wire.phase, wire.outcome, null),
+            exitCode = wire.exitCode,
+            startedAt = parseInstant(wire.startedAt),
+            endedAt = parseInstant(wire.endedAt),
+            stdoutBytes = wire.stdoutBytes,
+            stderrBytes = wire.stderrBytes,
         )
     }
 

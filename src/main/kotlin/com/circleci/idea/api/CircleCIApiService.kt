@@ -4,15 +4,15 @@ import com.circleci.idea.api.clients.ConfigApiClient
 import com.circleci.idea.api.clients.JobApiClient
 import com.circleci.idea.api.clients.ProjectApiClient
 import com.circleci.idea.api.clients.RunApiClient
+import com.circleci.idea.api.clients.StepOutputChunk
 import com.circleci.idea.api.clients.V3Page
 import com.circleci.idea.api.clients.WorkflowApiClient
 import com.circleci.idea.api.models.ArtifactsResponse
 import com.circleci.idea.api.models.ConfigValidationResponse
-import com.circleci.idea.api.models.JobDetailsInfo
+import com.circleci.idea.api.models.JobDetailWire
 import com.circleci.idea.api.models.JobWire
 import com.circleci.idea.api.models.ProjectInfo
 import com.circleci.idea.api.models.RunWire
-import com.circleci.idea.api.models.StepOutputResponse
 import com.circleci.idea.api.models.TestResultsResponse
 import com.circleci.idea.api.models.UserInfo
 import com.circleci.idea.api.models.WorkflowWire
@@ -102,6 +102,36 @@ class CircleCIApiService {
     }
 
     /**
+     * Get a job with its steps.
+     */
+    fun getJob(jobId: String): Result<JobDetailWire> {
+        return withClient { runClient.getJob(it, jobId) }
+    }
+
+    /**
+     * Read a step's stdout from a byte offset.
+     */
+    fun getStepStdout(
+        jobId: String,
+        execution: Int,
+        stepNum: Int,
+        offset: Long,
+    ): Result<StepOutputChunk> {
+        return withClient { runClient.getStepStdout(it, jobId, execution, stepNum, offset) }
+    }
+
+    /**
+     * Read a step's whole stderr.
+     */
+    fun getStepStderr(
+        jobId: String,
+        execution: Int,
+        stepNum: Int,
+    ): Result<ByteArray> {
+        return withClient { runClient.getStepStderr(it, jobId, execution, stepNum) }
+    }
+
+    /**
      * Get a project's ID from its slug.
      */
     fun getProjectId(slug: String): Result<String> {
@@ -165,17 +195,6 @@ class CircleCIApiService {
     // ========== Job Operations ==========
 
     /**
-     * Get detailed job information.
-     * Uses v1.1 API to get steps data since v2 doesn't include steps.
-     */
-    fun getJobDetails(
-        projectSlug: String,
-        jobNumber: Long,
-    ): Result<JobDetailsInfo> {
-        return withClient { jobClient.getJobDetails(it, projectSlug, jobNumber) }
-    }
-
-    /**
      * Cancel a job.
      */
     fun cancelJob(
@@ -193,14 +212,6 @@ class CircleCIApiService {
         jobNumber: Long,
     ): Result<TestResultsResponse> {
         return withClient { jobClient.getTestResults(it, projectSlug, jobNumber) }
-    }
-
-    /**
-     * Fetch step output from output URL.
-     * Note: This endpoint returns a JSON array directly, not wrapped in an object.
-     */
-    fun getStepOutput(outputUrl: String): Result<List<StepOutputResponse>> {
-        return withClient { jobClient.getStepOutput(it, outputUrl) }
     }
 
     /**

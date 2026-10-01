@@ -3,6 +3,7 @@ package com.circleci.idea.api
 import com.circleci.idea.logging.CircleCILogger
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
@@ -71,35 +72,36 @@ class CircleCIApiClient(
     }
 
     /**
-     * Execute a GET request and return raw response body string.
-     * Useful for endpoints that return arrays directly instead of objects.
+     * Execute a GET request for a raw (non-JSON) body, such as step output.
+     * Any HTTP status is a success here except 401, so the caller can decide
+     * what a 404 means; only network errors and 401 fail.
      */
-    fun getRaw(
+    fun getBytes(
         path: String,
         queryParams: Map<String, String> = emptyMap(),
-    ): Result<String> {
+        headers: Map<String, String> = emptyMap(),
+    ): Result<RawResponse> {
         val url = buildUrl(path, queryParams)
         val request =
             Request.Builder()
                 .url(url)
+                .apply { headers.forEach { (name, value) -> header(name, value) } }
                 .get()
                 .build()
 
-        // Apply rate limiting
+        logger.logApiRequest(request.method, request.url.toString())
         rateLimiter.acquire()
 
         return try {
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) {
-                val body = response.body?.string() ?: ""
-                Result.success(body)
-            } else if (response.code == 401) {
-                Result.failure(Exception("Unauthorized: Invalid or expired token"))
-            } else {
-                Result.failure(Exception("HTTP ${response.code}: ${response.message}"))
+            client.newCall(request).execute().use { response ->
+                if (response.code == 401) {
+                    Result.failure(Exception("Unauthorized: Invalid or expired token"))
+                } else {
+                    Result.success(RawResponse(response.code, response.body?.bytes() ?: ByteArray(0), response.headers))
+                }
             }
         } catch (e: IOException) {
-            logger.error("Network error: ${e.message}", e)
+            logger.logApiError(request.method, request.url.toString(), 0, e.message ?: "Network error")
             Result.failure(e)
         }
     }
@@ -346,6 +348,18 @@ private class RateLimiter(private val maxRequestsPerSecond: Int) {
             tokens = min(maxRequestsPerSecond, tokens + maxRequestsPerSecond)
             lastRefill = now
         }
+    }
+}
+
+/**
+ * A raw HTTP response: its status, body bytes and headers.
+ */
+class RawResponse(val code: Int, val body: ByteArray, val headers: Headers) {
+    val isSuccessful: Boolean
+        get() = code in HTTP_SUCCESS
+
+    private companion object {
+        val HTTP_SUCCESS = 200..299
     }
 }
 

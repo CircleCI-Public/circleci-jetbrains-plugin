@@ -241,8 +241,11 @@ src/main/kotlin/com/circleci/idea/
 │   ├── RunFilters.kt             # Scope, status and created filters
 │   ├── RunMapper.kt              # V3 wire types → domain models
 │   └── RunStatus.kt              # Status from phase/outcome
-├── job/                          # Job details services
-│   └── JobDetailsService.kt
+├── job/                          # Job pages (one editor tab per job)
+│   ├── JobDetailsService.kt      # Opens job pages; fetches job, tests, artifacts
+│   ├── JobEditorProvider.kt      # FileEditorProvider for JobVirtualFile
+│   ├── JobPanel.kt               # Steps tree and step output console
+│   └── StepOutputStream.kt       # Ranged stdout polling, as in the CLI
 ├── auth/                         # Authentication
 │   ├── CircleCIAuthService.kt
 │   └── CircleCILoginDialog.kt
