@@ -1,5 +1,7 @@
 package com.circleci.idea.toolwindow
 
+import com.circleci.idea.actions.OpenSettingsAction
+import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
@@ -33,6 +35,9 @@ class CircleCIToolWindowFactory : ToolWindowFactory, DumbAware {
                 false,
             )
         toolWindow.contentManager.addContent(content)
+
+        // The tool window's options (gear) menu.
+        toolWindow.setAdditionalGearActions(DefaultActionGroup(OpenSettingsAction()))
         com.circleci.idea.logging.CircleCILogger.getInstance().info("Tool window content added")
     }
 

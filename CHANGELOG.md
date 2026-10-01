@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- "CircleCI Settings..." in the CircleCI tool window's options (gear) menu
+
 ### Fixed
 - Workflows' jobs failed to load ("Workflow not found") because the V2 jobs endpoint doesn't serve them
 - Loading could fail with "Already Executed" when two identical requests overlapped; concurrent identical GETs now share one response
