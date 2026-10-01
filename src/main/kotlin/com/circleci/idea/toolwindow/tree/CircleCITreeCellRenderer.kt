@@ -1,6 +1,7 @@
 package com.circleci.idea.toolwindow.tree
 
 import com.circleci.idea.icons.CircleCIIcons
+import com.circleci.idea.icons.StatusDotIcon
 import com.circleci.idea.run.elapsedSince
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.SimpleTextAttributes
@@ -106,7 +107,7 @@ class CircleCITreeCellRenderer : TreeCellRenderer {
     }
 
     /**
-     * A run, in columns: its status icon and title, with its revision, age
+     * A run, in columns: its status (a coloured dot) and title, with its revision, age
      * and author in grey underneath, from the row's left edge (the icon is part of
      * the first line); then its branch; then the avatar of whoever triggered
      * it, centred across both lines.
@@ -156,7 +157,7 @@ class CircleCITreeCellRenderer : TreeCellRenderer {
             // Grey, unless on the focused selection's background, where it wouldn't read.
             val detailForeground = if (selected && hasFocus) foreground else UIUtil.getContextHelpForeground()
 
-            title.icon = CircleCIIcons.getStatusIcon(run.status)
+            title.icon = StatusDotIcon.of(run.status)
             title.iconTextGap = JBUI.scale(ICON_GAP)
             title.text = node.getDisplayText()
             title.foreground = foreground
