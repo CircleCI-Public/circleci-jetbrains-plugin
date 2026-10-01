@@ -1,5 +1,6 @@
 package com.circleci.idea.ssh
 
+import com.circleci.idea.logging.CircleCILogger
 import com.intellij.openapi.project.Project
 import com.intellij.ssh.ConnectionBuilder
 import com.intellij.ssh.SshException
@@ -39,6 +40,8 @@ private class SshTerminalRunner(
     project: Project,
     private val target: SshTarget,
 ) : AbstractTerminalRunner<SshShellProcess>(project) {
+    private val logger = CircleCILogger.getInstance()
+
     override fun createTtyConnector(options: ShellStartupOptions): TtyConnector =
         SshTtyConnector(connect(), target.title)
 
@@ -55,15 +58,32 @@ private class SshTerminalRunner(
                 noStoredSecret,
             )
         return try {
-            ConnectionBuilder(SshTarget.HOST)
-                .withSshConnectionConfig { it.copy(user = target.user, port = SshTarget.PORT) }
-                .withParsingOpenSSHConfig(true)
-                .withSshPasswordProvider(passwords)
-                .shellBuilder()
+            val connection =
+                ConnectionBuilder(SshTarget.HOST)
+                    // The job's SSH user is "<job-id>-<execution index>". Set last, so a User
+                    // in ~/.ssh/config (or the local login name) can't take its place.
+                    .withSshConnectionConfig { it.copy(user = target.user, port = SshTarget.PORT) }
+                    .withParsingOpenSSHConfig(true)
+                    .withSshPasswordProvider(passwords)
+            checkUser(connection)
+            connection.shellBuilder()
                 .withAllocatePty(true)
                 .execute()
         } catch (e: SshException) {
             throw ExecutionException("Couldn't connect to ${target.command}: ${e.message}\n\n$CONNECT_HINT", e)
+        }
+    }
+
+    /** Make sure the configuration resolves to the job's user, and say who it connects as. */
+    private fun checkUser(connection: ConnectionBuilder) {
+        val resolved = connection.buildConnectionConfig()
+        logger.info("Opening SSH session as ${resolved.user}@${SshTarget.HOST}:${resolved.port}")
+        if (resolved.user != target.user) {
+            throw ExecutionException(
+                "SSH would connect as ${resolved.user} rather than ${target.user}. Connect from a terminal with: " +
+                    target.command,
+                null,
+            )
         }
     }
 
