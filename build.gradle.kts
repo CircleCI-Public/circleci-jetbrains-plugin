@@ -1,10 +1,11 @@
 import org.gradle.process.CommandLineArgumentProvider
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Base64
 
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "1.9.21"
+    id("org.jetbrains.kotlin.jvm") version "2.2.21"
     id("org.jetbrains.intellij.platform") version "2.11.0"
     id("org.jetbrains.kotlinx.kover") version "0.9.4"
 
@@ -61,11 +62,15 @@ dependencies {
 
     // IntelliJ Platform Dependencies (replaces intellij {} block)
     intellijPlatform {
-        // Platform version and type (was: version.set("2024.3"), type.set("IC"))
-        create("IC", "2024.3")
-
-        // Marketplace plugins - LSP4IJ for Language Server Protocol support
-        plugin("com.redhat.devtools.lsp4ij", "0.19.1")
+        // Unified IntelliJ IDEA distribution. The native LSP API (com.intellij.modules.lsp)
+        // isn't in open-source builds, so the plugin can't target them.
+        intellijIdea("2025.3") {
+            // Use the multi-platform archive from the IntelliJ Maven repository instead of
+            // the OS installer (avoids mounting a .dmg on macOS, and is what CI downloads too).
+            useInstaller = false
+        }
+        // The archive doesn't bundle a JetBrains Runtime; runIde and tests need one.
+        jetbrainsRuntime()
 
         // Test framework (required - no longer automatic)
         testFramework(TestFrameworkType.Platform)
@@ -79,7 +84,7 @@ tasks {
     }
 
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        kotlinOptions.jvmTarget = "21"
+        compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
     }
 
     test {
@@ -98,13 +103,17 @@ tasks {
 
 // IntelliJ Platform Configuration (replaces patchPluginXml, signPlugin, publishPlugin)
 intellijPlatform {
+    // Instrumentation only handles UI Designer .form files and Java @NotNull assertions,
+    // neither of which this Kotlin-only plugin has.
+    instrumentCode = false
+
     pluginConfiguration {
         name = "CircleCI"
         version = "1.3.1"
 
         ideaVersion {
-            sinceBuild = "243"
-            untilBuild = "253.*"
+            sinceBuild = "253"
+            untilBuild = "262.*"
         }
     }
 

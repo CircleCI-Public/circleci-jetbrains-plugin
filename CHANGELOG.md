@@ -5,6 +5,18 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Migrated the CircleCI YAML Language Server integration from lsp4ij to IntelliJ's native LSP API
+  - The plugin no longer requires the Red Hat LSP4IJ plugin
+  - The language server shows in the status bar's Language Services widget
+  - Requires a commercial or unified IntelliJ-based IDE; open-source builds and Android Studio are no longer supported
+
+### Infrastructure
+- Target platform raised to IntelliJ IDEA 2025.3 (build 253), compatible through 2026.2 (262.*)
+- Upgraded Kotlin from 1.9.21 to 2.2.21
+
 ## [1.3.1] - 2026-01-29
 
 ### Fixed
