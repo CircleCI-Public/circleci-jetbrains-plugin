@@ -37,7 +37,7 @@ A JetBrains IDE plugin for monitoring, managing, and debugging CircleCI pipeline
 ### Prerequisites
 
 - JDK 17 or higher
-- Gradle 8.5+ (included via wrapper)
+- Gradle 9.8+ (included via wrapper)
 - IntelliJ IDEA (recommended for development)
 
 ### Building the Plugin

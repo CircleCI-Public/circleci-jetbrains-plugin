@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Infrastructure
 - Target platform raised to IntelliJ IDEA 2025.3 (build 253), compatible through 2026.2 (262.*)
 - Upgraded Kotlin from 1.9.21 to 2.2.21
+- Upgraded Gradle from 8.13 to 9.8.0 and IntelliJ Platform Gradle Plugin from 2.11.0 to 2.19.0
+  - Also bumped Kover (0.9.11), detekt (1.23.8), ktlint Gradle plugin (14.2.0) and OWASP dependency-check (13.0.0)
+- Status bar widget no longer calls the internal `StatusBar.removeWidget` API on dispose
 
 ## [1.3.1] - 2026-01-29
 

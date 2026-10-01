@@ -94,6 +94,7 @@ class CircleCIStatusBarWidget(private val project: Project) : StatusBarWidget {
     override fun dispose() {
         logger.debug("CircleCIStatusBarWidget disposed")
         scope.cancel()
-        statusBar?.removeWidget(ID())
+        // The platform removes the widget from the status bar via StatusBarWidgetFactory.
+        statusBar = null
     }
 }
