@@ -52,11 +52,11 @@
     <depends optional="true" config-file="ssh-support.xml">intellij.ssh.plugin</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <!-- Tool Window -->
+        <!-- Tool Window: top of the left stripe, with the other VCS tools (Commit, Pull Requests) -->
         <toolWindow id="CircleCI"
                     secondary="false"
                     icon="/icons/circleci.svg"
-                    anchor="right"
+                    anchor="left"
                     factoryClass="com.circleci.idea.toolwindow.CircleCIToolWindowFactory"/>
 
         <!-- Settings/Configuration -->
