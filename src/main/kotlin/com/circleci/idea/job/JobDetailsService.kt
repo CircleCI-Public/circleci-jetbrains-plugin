@@ -80,6 +80,15 @@ class JobDetailsService(private val project: Project) {
     }
 
     /**
+     * Fetch a job's CPU and memory usage; null when it recorded none.
+     */
+    suspend fun fetchResourceUsage(jobId: String): Result<ResourceUsage?> {
+        return withContext(Dispatchers.IO) {
+            apiService.getJobResourceUsage(jobId).map { wire -> wire?.let { ResourceUsage.of(it) } }
+        }
+    }
+
+    /**
      * Fetch a job's artifacts.
      */
     suspend fun fetchArtifacts(jobId: String): Result<List<Artifact>> {

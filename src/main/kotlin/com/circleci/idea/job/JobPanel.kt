@@ -53,7 +53,7 @@ data class StepKey(val execution: Int, val num: Int)
 /**
  * A job's page, in tabs: its steps (by parallel execution, when there's
  * more than one) beside the selected step's output, streamed while it runs;
- * its tests; and its artifacts.
+ * its tests; its artifacts; and its resource usage.
  *
  * The job is re-read every few seconds until it ends, so new steps appear
  * and statuses change as it runs.
@@ -85,6 +85,7 @@ class JobPanel(
 
     private val testsPanel = TestsPanel(project, this)
     private val artifactsPanel = ArtifactsPanel(project, ref, scope)
+    private val resourceUsagePanel = ResourceUsagePanel(ref, scope, service)
 
     private var pollJob: Job? = null
     private var streamJob: Job? = null
@@ -127,9 +128,9 @@ class JobPanel(
                     }
                     show(job)
 
-                    // Tests and artifacts are only complete once the job ends.
+                    // Tests, artifacts and resource usage are only complete once the job ends.
                     if (wasActive != false && !job.status.isActive) {
-                        loadTestsAndArtifacts()
+                        loadEndOfJobTabs()
                     }
                     if (!job.status.isActive) return@launch
                     wasActive = true
@@ -175,6 +176,7 @@ class JobPanel(
             addTab("Steps", steps)
             addTab("Tests", testsPanel)
             addTab("Artifacts", artifactsPanel)
+            addTab("Resource Usage", resourceUsagePanel)
         }
     }
 
@@ -285,7 +287,7 @@ class JobPanel(
         }?.let { TreePath(it.path) }
     }
 
-    private fun loadTestsAndArtifacts() {
+    private fun loadEndOfJobTabs() {
         scope.launch {
             service.fetchTests(ref.jobId).fold(
                 onSuccess = { testsPanel.setTests(it) },
@@ -293,6 +295,7 @@ class JobPanel(
             )
         }
         artifactsPanel.load()
+        resourceUsagePanel.load()
     }
 
     override fun dispose() {

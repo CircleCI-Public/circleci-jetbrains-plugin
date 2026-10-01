@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The Tests tab reads the V3 tests API: filter by outcome (failures by default, when there are any) and by name or classname, sort by any column, and see the selected test's message with its colors
   - The Artifacts tab is a file tree from the V3 artifacts API (by execution when parallel): open an artifact in the IDE (text, or images and the like, up to 8 MiB), download a file, folder or everything, open it in the browser, or copy its URL
   - Artifacts download with your API token, so private projects' artifacts work
+  - A new Resource Usage tab charts CPU and memory over the job's run against its resource class's limits, one line per parallel execution, with each execution's min, mean, max and peak share of the limit, and its network traffic
   - "Copy SSH Command" copies `ssh <job-id>-<execution>@ssh.circleci.com` for jobs rerun with SSH
   - Removed the Connect SSH button, which never enabled: the V1.1 job details it read have no SSH host
 - Migrated the CircleCI YAML Language Server integration from lsp4ij to IntelliJ's native LSP API

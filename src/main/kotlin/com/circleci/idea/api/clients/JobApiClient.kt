@@ -4,6 +4,7 @@ import com.circleci.idea.api.CircleCIApiClient
 import com.circleci.idea.api.RawResponse
 import com.circleci.idea.api.models.ArtifactWire
 import com.circleci.idea.api.models.JobDetailWire
+import com.circleci.idea.api.models.ResourceUsageWire
 import com.circleci.idea.api.models.TestResultWire
 import com.circleci.idea.api.models.V3Entity
 import com.circleci.idea.api.models.V3List
@@ -55,6 +56,26 @@ class JobApiClient : CircleCIApiClientBase() {
     ): Result<RawResponse> {
         return client.getBytes(url, maxBytes = maxBytes).mapCatching {
             if (it.isSuccessful) it else error("Failed to read artifact: HTTP ${it.code}")
+        }
+    }
+
+    /**
+     * A job's CPU and memory usage, via GET /api/v3/jobs/{id}/resource-usage;
+     * null when it recorded none (an approval job, or one canceled before it ran).
+     */
+    fun getJobResourceUsage(
+        client: CircleCIApiClient,
+        jobId: String,
+    ): Result<ResourceUsageWire?> {
+        return client.getBytes("/api/v3/jobs/$jobId/resource-usage").mapCatching { response ->
+            when {
+                response.isSuccessful -> {
+                    val type = object : TypeToken<V3Entity<ResourceUsageWire>>() {}.type
+                    gson.fromJson<V3Entity<ResourceUsageWire>>(String(response.body, Charsets.UTF_8), type).data
+                }
+                response.code == HTTP_NOT_FOUND -> null
+                else -> error("Failed to read resource usage: HTTP ${response.code}")
+            }
         }
     }
 

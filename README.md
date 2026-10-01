@@ -118,7 +118,9 @@ The toolbar filters the run list, much like `circleci run get`:
 Double-click a job (or right-click → Open Job) to open its page in an editor tab; each job gets its own tab.
 The page lists the job's steps, grouped by parallel execution when there is more than one, and shows the
 selected step's output, streamed while the step runs. It opens on the first failed step, or the running one.
-The Tests and Artifacts tabs fill in once the job ends.
+Alongside the Steps tab, the page has tabs for its **Tests** (filter by outcome or name), its **Artifacts**
+(a file tree: open, download or open in the browser) and its **Resource Usage** (CPU and memory charted
+against the resource class's limits). These fill in once the job ends.
 
 ### Managing Workflows
 

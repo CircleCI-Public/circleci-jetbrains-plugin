@@ -306,3 +306,40 @@ data class ArtifactAttributesWire(
     @SerializedName("execution")
     val execution: Int? = null,
 )
+
+/** GET /api/v3/jobs/{id}/resource-usage: CPU and memory samples per execution. */
+data class ResourceUsageWire(
+    @SerializedName("attributes")
+    val attributes: ResourceUsageAttributesWire? = null,
+)
+
+data class ResourceUsageAttributesWire(
+    @SerializedName("resource_class")
+    val resourceClass: ResourceClassWire? = null,
+    @SerializedName("parallel_executions")
+    val parallelExecutions: List<ExecutionUsageWire>? = null,
+)
+
+data class ResourceClassWire(
+    @SerializedName("name")
+    val name: String? = null,
+    @SerializedName("cpu_count")
+    val cpuCount: Double? = null,
+    @SerializedName("memory_limit_bytes")
+    val memoryLimitBytes: Long? = null,
+)
+
+data class ExecutionUsageWire(
+    @SerializedName("execution")
+    val execution: Int? = null,
+    @SerializedName("interval_ms")
+    val intervalMs: Long? = null,
+    @SerializedName("cpu_cores")
+    val cpuCores: List<Double>? = null,
+    @SerializedName("memory_bytes")
+    val memoryBytes: List<Long>? = null,
+    @SerializedName("network_rx_bytes")
+    val networkRxBytes: Long? = null,
+    @SerializedName("network_tx_bytes")
+    val networkTxBytes: Long? = null,
+)

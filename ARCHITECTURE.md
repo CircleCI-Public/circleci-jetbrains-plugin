@@ -244,8 +244,11 @@ src/main/kotlin/com/circleci/idea/
 ├── job/                          # Job pages (one editor tab per job)
 │   ├── JobDetailsService.kt      # Opens job pages; fetches job, tests, artifacts
 │   ├── JobEditorProvider.kt      # FileEditorProvider for JobVirtualFile
-│   ├── JobPanel.kt               # Steps tree and step output console
-│   └── StepOutputStream.kt       # Ranged stdout polling, as in the CLI
+│   ├── JobPanel.kt               # The page's tabs; steps tree and step output console
+│   ├── StepOutputStream.kt       # Ranged stdout polling, as in the CLI
+│   ├── TestsPanel.kt             # Tests tab (TestFilter: client-side filtering)
+│   ├── ArtifactsPanel.kt         # Artifacts tab (ArtifactTree: the file tree)
+│   └── ResourceUsagePanel.kt     # Resource Usage tab (UsageChart: the line charts)
 ├── auth/                         # Authentication
 │   ├── CircleCIAuthService.kt
 │   └── CircleCILoginDialog.kt

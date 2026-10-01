@@ -12,6 +12,7 @@ import com.circleci.idea.api.models.ConfigValidationResponse
 import com.circleci.idea.api.models.JobDetailWire
 import com.circleci.idea.api.models.JobWire
 import com.circleci.idea.api.models.ProjectInfo
+import com.circleci.idea.api.models.ResourceUsageWire
 import com.circleci.idea.api.models.RunWire
 import com.circleci.idea.api.models.TestResultWire
 import com.circleci.idea.api.models.UserInfo
@@ -210,6 +211,13 @@ class CircleCIApiService {
         jobNumber: Long,
     ): Result<Unit> {
         return withClient { jobClient.cancelJob(it, projectSlug, jobNumber) }
+    }
+
+    /**
+     * Get a job's resource usage, or null if it recorded none.
+     */
+    fun getJobResourceUsage(jobId: String): Result<ResourceUsageWire?> {
+        return withClient { jobClient.getJobResourceUsage(it, jobId) }
     }
 
     /**
