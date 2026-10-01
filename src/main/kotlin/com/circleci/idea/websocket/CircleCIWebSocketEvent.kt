@@ -11,7 +11,7 @@ sealed class CircleCIWebSocketEvent {
         val workflowId: String,
         val status: String,
         val projectSlug: String,
-        val pipelineId: String,
+        val runId: String,
     ) : CircleCIWebSocketEvent()
 
     /**

@@ -1,6 +1,6 @@
 package com.circleci.idea.job
 
-import com.circleci.idea.api.models.JobInfo
+import com.circleci.idea.state.Job
 import com.circleci.idea.state.JobDetailsState
 import com.circleci.idea.toolwindow.tree.WorkflowNode
 
@@ -43,16 +43,16 @@ data class JobLookupContext(
          * This is the primary factory method for tree selection events.
          */
         fun fromJobNode(
-            job: JobInfo,
+            job: Job,
             workflowNode: WorkflowNode?,
         ): JobLookupContext {
             return JobLookupContext(
                 jobId = job.id,
-                jobNumber = job.jobNumber,
-                projectSlug = job.projectSlug,
-                workflowId = workflowNode?.workflow?.id,
+                jobNumber = job.number,
+                projectSlug = job.projectSlug.orEmpty(),
+                workflowId = workflowNode?.workflow?.id ?: job.workflowId,
                 fallbackJobName = job.name,
-                fallbackJobStatus = job.status,
+                fallbackJobStatus = job.status.token,
             )
         }
 

@@ -24,7 +24,7 @@ class RerunJobHandler(project: Project) : JobActionHandler(project) {
             ActionAvailability.Unavailable(
                 reason =
                     "Cannot rerun job: workflow information not available.\n\n" +
-                        "Try opening the job from the pipelines tree.",
+                        "Try opening the job from the Runs tab.",
                 title = "Cannot Rerun",
             )
         }

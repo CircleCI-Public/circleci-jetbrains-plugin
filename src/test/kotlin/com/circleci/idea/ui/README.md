@@ -63,7 +63,7 @@ See `pages/CircleCIToolWindowPage.kt` for a reusable page object example:
 fun testWithPageObject() {
     val toolWindow = CircleCIToolWindowPage(robot)
     toolWindow.open()
-    toolWindow.expandPipeline("main")
+    toolWindow.expandRun("main")
     assertTrue("Tree should be visible", toolWindow.isVisible())
 }
 ```

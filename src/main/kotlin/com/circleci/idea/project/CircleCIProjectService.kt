@@ -5,16 +5,21 @@ import com.circleci.idea.project.models.CircleCIProject
 import com.circleci.idea.state.CircleCIStateStore
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
  * Service for managing CircleCI projects in the workspace.
  * Handles auto-detection, manual selection, and persistence.
  */
 @Service(Service.Level.PROJECT)
-class CircleCIProjectService(private val project: Project) {
+class CircleCIProjectService(
+    private val project: Project,
+    private val coroutineScope: CoroutineScope,
+) {
     private val logger = CircleCILogger.getInstance()
     private val scanner = GitRepositoryScanner(project)
     private val stateStore = project.getService(CircleCIStateStore::class.java)
@@ -71,6 +76,13 @@ class CircleCIProjectService(private val project: Project) {
         } finally {
             _isLoading.value = false
         }
+    }
+
+    /**
+     * [detectProjects] without waiting for it, e.g. from a message bus listener.
+     */
+    fun detectProjectsInBackground() {
+        coroutineScope.launch { detectProjects() }
     }
 
     /**

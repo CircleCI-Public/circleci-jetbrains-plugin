@@ -1,6 +1,6 @@
 package com.circleci.idea.toolwindow.actions
 
-import com.circleci.idea.polling.PipelinePollingService
+import com.circleci.idea.polling.RunPollingService
 import com.circleci.idea.settings.CircleCISettings
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -8,13 +8,13 @@ import com.intellij.openapi.actionSystem.ToggleAction
 import com.intellij.openapi.project.DumbAware
 
 /**
- * Action to toggle auto-refresh for pipelines.
- * When enabled, pipelines are automatically polled at adaptive intervals.
+ * Action to toggle auto-refresh for runs.
+ * When enabled, runs are automatically polled at adaptive intervals.
  */
 class ToggleAutoRefreshAction :
     ToggleAction(
         "Auto-Refresh",
-        "Automatically refresh pipelines (30s for recent, 2m for older)",
+        "Automatically refresh runs (30s for recent, 2m for older)",
         AllIcons.General.InspectionsEye,
     ),
     DumbAware {
@@ -31,7 +31,7 @@ class ToggleAutoRefreshAction :
         settings.autoRefreshEnabled = state
 
         val project = e.project ?: return
-        val pollingService = project.getService(PipelinePollingService::class.java)
+        val pollingService = project.getService(RunPollingService::class.java)
 
         if (state) {
             pollingService.startPolling()

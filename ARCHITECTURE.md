@@ -61,10 +61,9 @@ fun updateJobs(projectSlug: String, workflowId: String, jobs: List<Job>) {
 ### 3. Data Service Layer
 
 **Pattern:**
-- Services like `JobDataService`, `PipelineDataService`, `WorkflowDataService`
-- Handle fetching data from API
-- Convert API models to domain models
-- Update state store
+- Services like `RunListService` (runs, workflows and jobs from the V3 API) and `JobDetailsService`
+- Handle fetching data from API, applying the user's filters
+- Convert API models to domain models (`RunMapper` for the V3 run/workflow/job wire types)
 - Provide helper methods for data operations
 
 **Example:**
@@ -164,9 +163,10 @@ tree.addTreeExpansionListener(object : TreeExpansionListener {
 sealed class CircleCITreeNode {
     class RootNode : CircleCITreeNode()
     class ProjectNode(val project: CircleCIProject) : CircleCITreeNode()
-    class PipelineNode(val pipeline: PipelineInfo) : CircleCITreeNode()
-    class WorkflowNode(val workflow: WorkflowInfo) : CircleCITreeNode()
-    class JobNode(val job: JobInfo) : CircleCITreeNode()
+    class MyRunsNode : CircleCITreeNode()          // the user's runs across projects
+    class RunNode(var run: Run) : CircleCITreeNode()
+    class WorkflowNode(var workflow: Workflow) : CircleCITreeNode()
+    class JobNode(val job: Job) : CircleCITreeNode()
     class LoadingNode : CircleCITreeNode()
     class LoadMoreNode : CircleCITreeNode()
     class ErrorNode : CircleCITreeNode()
@@ -236,12 +236,13 @@ src/main/kotlin/com/circleci/idea/
 ├── state/                        # State management
 │   ├── CircleCIStateStore.kt     # Central state store
 │   └── CircleCIState.kt          # State data classes
-├── job/                          # Job-related services
-│   └── JobDataService.kt
-├── pipeline/                     # Pipeline services
-│   └── PipelineDataService.kt
-├── workflow/                     # Workflow services
-│   └── WorkflowDataService.kt
+├── run/                          # Runs, workflows and jobs (V3 API)
+│   ├── RunListService.kt         # Filtered run/workflow/job listing
+│   ├── RunFilters.kt             # Scope, status and created filters
+│   ├── RunMapper.kt              # V3 wire types → domain models
+│   └── RunStatus.kt              # Status from phase/outcome
+├── job/                          # Job details services
+│   └── JobDetailsService.kt
 ├── auth/                         # Authentication
 │   ├── CircleCIAuthService.kt
 │   └── CircleCILoginDialog.kt
@@ -256,15 +257,15 @@ src/main/kotlin/com/circleci/idea/
 ## Key Conventions
 
 ### Naming Conventions
-- Services: `*Service` (e.g., `JobDataService`)
+- Services: `*Service` (e.g., `RunListService`)
 - State: `*State` (e.g., `AuthState`)
-- API Models: `*Info` (e.g., `JobInfo`, `PipelineInfo`)
-- Domain Models: Plain names (e.g., `Job`, `Pipeline`)
+- API Models: `*Info` for V1.1/V2 (e.g., `JobDetailsInfo`), `*Wire` for V3 (e.g., `RunWire`)
+- Domain Models: Plain names (e.g., `Run`, `Workflow`, `Job`)
 - UI Components: `*Content`, `*Panel`, `*Dialog`
 
 ### File Organization
 - One class per file
-- Package by feature (e.g., `job/`, `pipeline/`, `workflow/`)
+- Package by feature (e.g., `job/`, `run/`)
 - API models in `api/models/`
 - State classes in `state/`
 

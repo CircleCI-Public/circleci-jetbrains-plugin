@@ -9,7 +9,7 @@ The plugin follows the standard JetBrains plugin architecture with these key com
 ### Core Components
 
 1. **Tool Window** (`toolwindow/`)
-   - Main UI for displaying pipelines, workflows, and jobs
+   - Main UI for displaying runs, workflows, and jobs
    - Tree view for hierarchical data display
    - Entry point: `CircleCIToolWindowFactory`
 
@@ -34,7 +34,7 @@ The plugin follows the standard JetBrains plugin architecture with these key com
    - Configuration validation actions
 
 6. **Status Bar** (`statusbar/`)
-   - Shows current pipeline status
+   - Shows current run status
    - Quick access to CircleCI panel
 
 ## Development Workflow
@@ -208,12 +208,12 @@ The API client will be implemented with these features:
 Use data classes for API models:
 
 ```kotlin
-data class Pipeline(
+data class Run(
     val id: String,
-    val number: Int,
-    val projectSlug: String,
-    val state: String,
-    val createdAt: Instant
+    val number: Long?,
+    val projectSlug: String?,
+    val status: RunStatus,
+    val createdAt: Instant?
 )
 ```
 
@@ -222,8 +222,8 @@ data class Pipeline(
 ### Tree View
 
 The main tree view displays:
-- Projects (root nodes)
-- Pipelines
+- Projects (root nodes), or "My runs" across all projects
+- Runs
 - Workflows
 - Jobs
 
@@ -233,7 +233,7 @@ Use `AsyncTreeModel` for efficient data loading.
 
 Place SVG icons in `src/main/resources/icons/`:
 - `circleci.svg` - Main plugin icon
-- Status icons for pipelines, workflows, jobs
+- Status icons for runs, workflows, jobs
 
 ### Notifications
 
@@ -256,8 +256,8 @@ Use a reactive state management approach:
 
 ```kotlin
 class CircleCIProjectService(private val project: Project) {
-    private val _pipelinesFlow = MutableStateFlow<List<Pipeline>>(emptyList())
-    val pipelinesFlow: StateFlow<List<Pipeline>> = _pipelinesFlow.asStateFlow()
+    private val _runsFlow = MutableStateFlow<List<Run>>(emptyList())
+    val runsFlow: StateFlow<List<Run>> = _runsFlow.asStateFlow()
 }
 ```
 
@@ -269,10 +269,10 @@ Test business logic and API client:
 
 ```kotlin
 @Test
-fun `test pipeline parsing`() {
-    val json = """{"id": "123", "number": 1}"""
-    val pipeline = parsePipeline(json)
-    assertEquals("123", pipeline.id)
+fun `test run parsing`() {
+    val json = """{"id": "123", "attributes": {"number": 1}}"""
+    val run = RunMapper.toRun(gson.fromJson(json, RunWire::class.java))
+    assertEquals("123", run?.id)
 }
 ```
 

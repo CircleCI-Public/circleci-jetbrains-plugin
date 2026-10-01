@@ -1,11 +1,12 @@
 # CircleCI Plugin for JetBrains IDEs
 
-A JetBrains IDE plugin for monitoring, managing, and debugging CircleCI pipelines directly from your IDE.
+A JetBrains IDE plugin for monitoring, managing, and debugging CircleCI runs directly from your IDE.
 
 ## Features
 
-- **Pipeline Monitoring**: View pipelines, workflows, and jobs in a hierarchical tree view
-- **Real-time Updates**: Get instant notifications when pipeline status changes
+- **Run Monitoring**: View runs, workflows, and jobs in a hierarchical tree view
+- **Run Filters**: Narrow runs by branch (current, default, all) or show your own runs across every project, by status, and by age
+- **Real-time Updates**: Get instant notifications when run status changes
 - **Workflow Actions**: Rerun workflows from start or from failed jobs, cancel running workflows, approve on-hold jobs
 - **SSH Debugging**: Rerun failed jobs with SSH enabled and connect directly from the IDE
 - **Config Validation**: Validate CircleCI YAML configuration files before committing
@@ -95,18 +96,21 @@ circleci-idea-plugin/
 Available settings:
 - **Host URL**: CircleCI instance URL (default: https://circleci.com)
 - **Notifications**: Enable/disable desktop notifications
-- **Branch Filter**: Filter pipelines by branch (current, all, default)
-- **My Pipelines Only**: Show only your pipelines
 - **Log Level**: Logging verbosity (debug, info, warn, error)
 
 ## Usage
 
-### Viewing Pipelines
+### Viewing Runs
 
 1. Open the CircleCI tool window (View → Tool Windows → CircleCI)
-2. The tree view shows your projects, pipelines, workflows, and jobs
+2. The Runs tab shows your projects, their runs, each run's workflows, and their jobs
 3. Click to expand/collapse items
 4. Right-click for context menu actions
+
+The toolbar filters the run list, much like `circleci run get`:
+- **Branch**: runs on the current branch, the default branch, all branches, or *My runs* — the runs you triggered, across all projects
+- **Status**: canceled, failed, failing, not run, queued, running, or success
+- **Created**: runs newer or older than 1 hour up to 1 month
 
 ### Managing Workflows
 

@@ -2,6 +2,8 @@ package com.circleci.idea.toolwindow.actions
 
 import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.job.JobDetailsService
+import com.circleci.idea.run.RunStatus
+import com.circleci.idea.run.RunWebUrls
 import com.circleci.idea.toolwindow.CircleCIToolWindowService
 import com.circleci.idea.toolwindow.tree.JobNode
 import com.circleci.idea.toolwindow.tree.WorkflowNode
@@ -160,7 +162,7 @@ class RerunJobWithSshAction : JobAction(
 
     override fun isEnabledForJob(job: JobNode): Boolean {
         // Can only rerun jobs that have completed (not currently running)
-        return job.job.status in listOf("success", "failed", "canceled")
+        return !job.job.status.isActive
     }
 }
 
@@ -180,9 +182,10 @@ class CancelJobAction : JobAction(
             e,
             "Cancel job '${job.name}'?",
             {
-                val jobNumber = job.jobNumber
-                if (jobNumber != null) {
-                    CircleCIApiService.getInstance().cancelJob(job.projectSlug, jobNumber)
+                val jobNumber = job.number
+                val projectSlug = job.projectSlug
+                if (jobNumber != null && projectSlug != null) {
+                    CircleCIApiService.getInstance().cancelJob(projectSlug, jobNumber)
                 } else {
                     Result.failure(IllegalStateException("Job number is not available"))
                 }
@@ -192,7 +195,7 @@ class CancelJobAction : JobAction(
 
     override fun isEnabledForJob(job: JobNode): Boolean {
         // Can only cancel jobs that are running
-        return job.job.status in listOf("running", "queued")
+        return job.job.status in setOf(RunStatus.RUNNING, RunStatus.FAILING, RunStatus.QUEUED)
     }
 }
 
@@ -207,7 +210,7 @@ class CopyJobNumberAction : JobAction(
     override fun actionPerformed(e: AnActionEvent) {
         val jobNode = getJobNode(e) ?: return
         val job = jobNode.job
-        val jobNumber = job.jobNumber
+        val jobNumber = job.number
 
         if (jobNumber != null) {
             val stringSelection = StringSelection(jobNumber.toString())
@@ -230,7 +233,7 @@ class CopyJobNumberAction : JobAction(
 
     override fun isEnabledForJob(job: JobNode): Boolean {
         // Only enable if job has a number
-        return job.job.jobNumber != null
+        return job.job.number != null
     }
 }
 
@@ -244,16 +247,9 @@ class OpenJobInBrowserAction : JobAction(
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val jobNode = getJobNode(e) ?: return
-        val job = jobNode.job
-        val jobNumber = job.jobNumber
+        val url = RunWebUrls.job(jobNode.job, getWorkflowNode(jobNode)?.workflow)
 
-        if (jobNumber != null) {
-            // Construct CircleCI web URL for job
-            // Format: https://app.circleci.com/pipelines/{vcs}/{org}/{project}/{job-number}
-            // Since we have project_slug in format "vcs/org/project", we can use it
-            val projectSlug = job.projectSlug
-            val url = "https://app.circleci.com/pipelines/$projectSlug/jobs/$jobNumber"
-
+        if (url != null) {
             com.intellij.ide.BrowserUtil.browse(url)
         } else {
             Messages.showErrorDialog(
@@ -266,7 +262,7 @@ class OpenJobInBrowserAction : JobAction(
 
     override fun isEnabledForJob(job: JobNode): Boolean {
         // Only enable if job has a number
-        return job.job.jobNumber != null
+        return job.job.number != null
     }
 }
 
@@ -300,6 +296,6 @@ class RerunWorkflowFromJobAction : JobAction(
         // Can rerun workflow if job is completed
         val workflowNode = getWorkflowNode(job)
         return workflowNode != null &&
-            workflowNode.workflow.status in listOf("success", "failed", "canceled", "failing")
+            workflowNode.workflow.status.isRerunnable
     }
 }

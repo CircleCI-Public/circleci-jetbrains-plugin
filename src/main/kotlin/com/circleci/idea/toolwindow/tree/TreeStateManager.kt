@@ -1,7 +1,7 @@
 package com.circleci.idea.toolwindow.tree
 
 import com.intellij.ui.treeStructure.Tree
-import javax.swing.SwingUtilities
+import javax.swing.tree.TreeNode
 import javax.swing.tree.TreePath
 
 /**
@@ -20,59 +20,74 @@ class TreeStateManager {
             val node = path.lastPathComponent as? CircleCITreeNode ?: return
 
             if (tree.isExpanded(path)) {
-                val identifier = getNodeIdentifier(node)
-                if (identifier != null) {
-                    expandedPaths.add(identifier)
-                }
+                getNodeIdentifier(node)?.let { expandedPaths.add(it) }
             }
 
-            // Traverse children
-            val count = node.childCount
-            for (i in 0 until count) {
-                val child = node.getChildAt(i)
-                traverseTree(path.pathByAddingChild(child))
+            for (i in 0 until node.childCount) {
+                traverseTree(path.pathByAddingChild(node.getChildAt(i)))
             }
         }
 
-        // Start from root
-        val root = tree.model.root
-        if (root != null) {
-            traverseTree(TreePath(root))
-        }
-
+        tree.model.root?.let { traverseTree(TreePath(it)) }
         return expandedPaths
     }
 
     /**
-     * Restores the expansion state of the tree based on captured identifiers.
+     * Expands the nodes at and below [node] whose identifiers are in
+     * [expandedIdentifiers]. Must be called on the EDT.
      */
     fun restoreState(
         tree: Tree,
+        node: CircleCITreeNode,
         expandedIdentifiers: Set<String>,
     ) {
-        SwingUtilities.invokeLater {
-            fun expandMatchingNodes(path: TreePath) {
-                val node = path.lastPathComponent as? CircleCITreeNode ?: return
+        if (expandedIdentifiers.isEmpty()) return
 
-                val identifier = getNodeIdentifier(node)
-                if (identifier != null && identifier in expandedIdentifiers) {
-                    tree.expandPath(path)
-                }
+        fun expandMatchingNodes(path: TreePath) {
+            val current = path.lastPathComponent as? CircleCITreeNode ?: return
 
-                // Traverse children
-                val count = node.childCount
-                for (i in 0 until count) {
-                    val child = node.getChildAt(i)
-                    expandMatchingNodes(path.pathByAddingChild(child))
-                }
+            if (getNodeIdentifier(current) in expandedIdentifiers) {
+                tree.expandPath(path)
             }
 
-            // Start from root
-            val root = tree.model.root
-            if (root != null) {
-                expandMatchingNodes(TreePath(root))
+            for (i in 0 until current.childCount) {
+                expandMatchingNodes(path.pathByAddingChild(current.getChildAt(i)))
             }
         }
+
+        expandMatchingNodes(pathTo(node))
+    }
+
+    /**
+     * The identifier of the selected node, if any.
+     */
+    fun captureSelection(tree: Tree): String? {
+        return (tree.selectionPath?.lastPathComponent as? CircleCITreeNode)?.let { getNodeIdentifier(it) }
+    }
+
+    /**
+     * Reselects the node at or below [node] with the identifier [selected],
+     * when nothing else has been selected since. Must be called on the EDT.
+     */
+    fun restoreSelection(
+        tree: Tree,
+        node: CircleCITreeNode,
+        selected: String?,
+    ) {
+        if (selected == null || tree.selectionPath != null) return
+
+        fun find(current: CircleCITreeNode): CircleCITreeNode? {
+            if (getNodeIdentifier(current) == selected) return current
+            val children = current.children().asSequence().filterIsInstance<CircleCITreeNode>()
+            return children.firstNotNullOfOrNull { find(it) }
+        }
+
+        find(node)?.let { tree.selectionPath = pathTo(it) }
+    }
+
+    private fun pathTo(node: TreeNode): TreePath {
+        val nodes = generateSequence(node) { it.parent }.toList().asReversed()
+        return TreePath(nodes.toTypedArray())
     }
 
     /**
@@ -81,7 +96,8 @@ class TreeStateManager {
     private fun getNodeIdentifier(node: CircleCITreeNode): String? {
         return when (node) {
             is ProjectNode -> "project:${node.project.slug}"
-            is PipelineNode -> "pipeline:${node.pipeline.id}"
+            is MyRunsNode -> "my-runs"
+            is RunNode -> "run:${node.run.id}"
             is WorkflowNode -> "workflow:${node.workflow.id}"
             is JobNode -> "job:${node.job.id}"
             is RootNode -> "root"

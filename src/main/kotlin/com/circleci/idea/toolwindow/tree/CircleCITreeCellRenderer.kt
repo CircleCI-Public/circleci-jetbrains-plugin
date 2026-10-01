@@ -1,9 +1,11 @@
 package com.circleci.idea.toolwindow.tree
 
 import com.circleci.idea.icons.CircleCIIcons
-import com.circleci.idea.logging.CircleCILogger
+import com.intellij.icons.AllIcons
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.SimpleTextAttributes
+import java.time.Duration
+import java.time.Instant
 import javax.swing.JTree
 
 /**
@@ -11,8 +13,6 @@ import javax.swing.JTree
  * Displays status icons and formatted text for each node type.
  */
 class CircleCITreeCellRenderer : ColoredTreeCellRenderer() {
-    private val logger = CircleCILogger.getInstance()
-
     override fun customizeCellRenderer(
         tree: JTree,
         value: Any?,
@@ -31,18 +31,12 @@ class CircleCITreeCellRenderer : ColoredTreeCellRenderer() {
             when (value) {
                 is RootNode -> CircleCIIcons.PLUGIN_ICON
                 is ProjectNode -> CircleCIIcons.PLUGIN_ICON
+                is MyRunsNode -> AllIcons.General.User
                 is LoadingNode -> null
                 is LoadMoreNode -> null
                 is EmptyNode -> null
                 is ErrorNode -> CircleCIIcons.Status.FAILED
-                else -> {
-                    val status = value.getStatus()
-                    if (status != null) {
-                        CircleCIIcons.getStatusIcon(status)
-                    } else {
-                        null
-                    }
-                }
+                else -> value.getStatus()?.let { CircleCIIcons.getStatusIcon(it) }
             }
 
         // Set text and attributes
@@ -59,49 +53,61 @@ class CircleCITreeCellRenderer : ColoredTreeCellRenderer() {
 
         // Add additional info for certain node types
         when (value) {
-            is PipelineNode -> {
-                value.pipeline.vcs?.revision?.let { revision ->
-                    val shortRevision = if (revision.length > 7) revision.substring(0, 7) else revision
-                    append("  ", SimpleTextAttributes.REGULAR_ATTRIBUTES)
-                    append(shortRevision, SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
-                }
+            is RunNode -> {
+                val run = value.run
+                value.getRefText()?.let { appendDetail(it) }
+                run.revision?.let { appendDetail(it.take(SHORT_REVISION_LENGTH)) }
+                run.createdAt?.let { appendDetail(formatTimeAgo(it)) }
             }
             is WorkflowNode -> {
-                // Add created time if available
-                value.workflow.createdAt?.let { createdAt ->
-                    append("  ", SimpleTextAttributes.REGULAR_ATTRIBUTES)
-                    append(formatTimeAgo(createdAt), SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
-                }
+                value.workflow.createdAt?.let { appendDetail(formatTimeAgo(it)) }
             }
             is JobNode -> {
-                // Add job type if it's an approval job
-                if (value.job.type == "approval") {
-                    append("  ", SimpleTextAttributes.REGULAR_ATTRIBUTES)
-                    append("(approval)", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
+                val job = value.job
+                if (job.type == "approval") {
+                    appendDetail("(approval)")
+                } else {
+                    // Queued jobs have no start time yet; running ones count up to now.
+                    job.startedAt?.let { startedAt ->
+                        appendDetail(formatDuration(Duration.between(startedAt, job.endedAt ?: Instant.now())))
+                    }
                 }
             }
             else -> {}
         }
     }
 
+    private fun appendDetail(text: String) {
+        append("  ", SimpleTextAttributes.REGULAR_ATTRIBUTES)
+        append(text, SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
+    }
+
     /**
      * Format a timestamp as "X ago" (e.g., "2h ago", "5m ago").
      */
-    private fun formatTimeAgo(timestamp: String): String {
-        return try {
-            val time = java.time.Instant.parse(timestamp)
-            val now = java.time.Instant.now()
-            val duration = java.time.Duration.between(time, now)
-
-            when {
-                duration.toDays() > 0 -> "${duration.toDays()}d ago"
-                duration.toHours() > 0 -> "${duration.toHours()}h ago"
-                duration.toMinutes() > 0 -> "${duration.toMinutes()}m ago"
-                else -> "just now"
-            }
-        } catch (e: Exception) {
-            logger.debug("Failed to parse timestamp for time ago display: $timestamp", e)
-            ""
+    private fun formatTimeAgo(time: Instant): String {
+        val duration = Duration.between(time, Instant.now())
+        return when {
+            duration.toDays() > 0 -> "${duration.toDays()}d ago"
+            duration.toHours() > 0 -> "${duration.toHours()}h ago"
+            duration.toMinutes() > 0 -> "${duration.toMinutes()}m ago"
+            else -> "just now"
         }
+    }
+
+    /**
+     * Format an elapsed time compactly (e.g., "1h 5m", "3m 20s", "45s").
+     */
+    private fun formatDuration(duration: Duration): String {
+        val elapsed = if (duration.isNegative) Duration.ZERO else duration
+        return when {
+            elapsed.toHours() > 0 -> "${elapsed.toHours()}h ${elapsed.toMinutesPart()}m"
+            elapsed.toMinutes() > 0 -> "${elapsed.toMinutes()}m ${elapsed.toSecondsPart()}s"
+            else -> "${elapsed.toSeconds()}s"
+        }
+    }
+
+    private companion object {
+        const val SHORT_REVISION_LENGTH = 7
     }
 }

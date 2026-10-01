@@ -16,15 +16,13 @@ import com.intellij.util.xmlb.XmlSerializerUtil
 class CircleCISettings : PersistentStateComponent<CircleCISettings> {
     var hostUrl: String = "https://circleci.com"
     var notificationsEnabled: Boolean = true
-    var myPipelinesOnly: Boolean = false
-    var branchFilter: String = "current"
     var logLevel: String = "info"
     var sshKeyPath: String = "" // Path to SSH private key (auto-detected if empty)
 
     // Auto-refresh settings
     var autoRefreshEnabled: Boolean = true
-    var fastPollIntervalSeconds: Int = 30 // For pipelines < 1 day old
-    var slowPollIntervalSeconds: Int = 120 // For pipelines > 1 day old
+    var fastPollIntervalSeconds: Int = 30 // For runs < 1 day old
+    var slowPollIntervalSeconds: Int = 120 // For runs > 1 day old
 
     // Language Server settings
     var lspEnabled: Boolean = true

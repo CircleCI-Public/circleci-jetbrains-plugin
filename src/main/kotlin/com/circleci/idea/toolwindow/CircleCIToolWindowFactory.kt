@@ -29,7 +29,7 @@ class CircleCIToolWindowFactory : ToolWindowFactory, DumbAware {
         val content =
             ContentFactory.getInstance().createContent(
                 contentPanel,
-                "Pipelines",
+                "Runs",
                 false,
             )
         toolWindow.contentManager.addContent(content)

@@ -1,12 +1,16 @@
 package com.circleci.idea.toolwindow.tree
 
 import com.circleci.idea.api.CircleCIApiService
+import com.circleci.idea.api.clients.V3Page
 import com.circleci.idea.auth.CircleCIAuthService
-import com.circleci.idea.filter.PipelineFilterService
 import com.circleci.idea.logging.CircleCILogger
-import com.circleci.idea.polling.PipelinePollingService
+import com.circleci.idea.polling.RunPollingService
 import com.circleci.idea.project.CircleCIProjectService
+import com.circleci.idea.run.RunListService
+import com.circleci.idea.run.RunScope
 import com.circleci.idea.settings.CircleCISettings
+import com.circleci.idea.state.CircleCIStateStore
+import com.circleci.idea.state.Run
 import com.intellij.openapi.project.Project
 import com.intellij.ui.treeStructure.Tree
 import kotlinx.coroutines.CoroutineScope
@@ -15,10 +19,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.swing.SwingUtilities
 import javax.swing.tree.DefaultTreeModel
+import javax.swing.tree.TreePath
 
 /**
- * Tree model for the CircleCI tree view.
- * Handles async loading of data and tree structure updates.
+ * Tree model for the CircleCI tree view: projects (or "My runs"), their runs,
+ * each run's workflows and each workflow's jobs.
+ *
+ * Children load asynchronously when a node is first expanded. A refresh
+ * re-fetches every loaded level in place, keeping the nodes (and so the
+ * expansion and selection) of runs and workflows that are still listed.
+ *
+ * All node mutation happens on the EDT: the coroutine [scope] runs on
+ * Dispatchers.Main, and the fetches switch to IO themselves.
  */
 class CircleCITreeModel(
     private val project: Project,
@@ -29,19 +41,22 @@ class CircleCITreeModel(
     private val apiService = CircleCIApiService.getInstance()
     private val authService = CircleCIAuthService.getInstance(project)
     private val settings = CircleCISettings.getInstance()
-    private val filterService = PipelineFilterService.getInstance(project)
-    private val pollingService = project.getService(PipelinePollingService::class.java)
+    private val stateStore = CircleCIStateStore.getInstance(project)
+    private val runListService = RunListService.getInstance(project)
+    private val pollingService = project.getService(RunPollingService::class.java)
     private val stateManager = TreeStateManager()
     private var tree: Tree? = null
+
+    // Nodes expanded before the root was last rebuilt. The rebuilt nodes load
+    // asynchronously, so this is reapplied as each level's children arrive.
+    private var expandedBeforeReload: Set<String> = emptySet()
 
     init {
         // Listen to project changes and reload root
         scope.launch {
             projectService.selectedProjects.collect { selectedSlugs ->
                 logger.info("StateFlow: selectedProjects changed, size=${selectedSlugs.size}, slugs=$selectedSlugs")
-                withContext(Dispatchers.Main) {
-                    reloadRoot()
-                }
+                reloadRoot()
             }
         }
 
@@ -49,9 +64,7 @@ class CircleCITreeModel(
         scope.launch {
             projectService.projects.collect { allProjects ->
                 logger.info("StateFlow: projects changed, size=${allProjects.size}")
-                withContext(Dispatchers.Main) {
-                    reloadRoot()
-                }
+                reloadRoot()
             }
         }
     }
@@ -65,76 +78,52 @@ class CircleCITreeModel(
     }
 
     /**
-     * Refresh pipeline data for all loaded projects.
-     * This will re-fetch data from the API while preserving tree state.
+     * Re-fetch every loaded level of the tree in place.
      */
-    fun refreshPipelines() {
+    fun refreshRuns() {
         SwingUtilities.invokeLater {
             val rootNode = root as RootNode
-
-            // Find all ProjectNodes and refresh their pipeline data
             for (i in 0 until rootNode.childCount) {
-                val child = rootNode.getChildAt(i)
-                if (child is ProjectNode && child.childrenLoaded) {
-                    // Reset the loaded flag and reload pipelines
-                    // State preservation happens automatically in loadPipelinesForProject
-                    child.childrenLoaded = false
-                    child.removeAllChildren()
-                    nodeStructureChanged(child)
-                    loadPipelinesForProject(child)
+                val child = rootNode.getChildAt(i) as? CircleCITreeNode ?: continue
+                // Expanded but not loaded is a list whose last load failed: retry it.
+                if (child.childrenLoaded || tree?.isExpanded(TreePath(child.path)) == true) {
+                    loadChildren(child, refresh = true)
                 }
             }
         }
     }
 
     /**
-     * Reload the root node with current projects.
+     * Rebuild the tree from the selected projects and the current filters.
      */
     fun reloadRoot() {
         SwingUtilities.invokeLater {
-            // Capture current expansion state
-            val expandedState = tree?.let { stateManager.captureState(it) } ?: emptySet()
-            logger.debug("Captured expansion state: $expandedState")
+            expandedBeforeReload = tree?.let { stateManager.captureState(it) } ?: emptySet()
 
             val rootNode = root as RootNode
             rootNode.removeAllChildren()
 
-            val selectedProjects = projectService.getSelectedProjectObjects()
-            logger.info("Reloading root with ${selectedProjects.size} selected projects")
-
-            if (selectedProjects.isNotEmpty()) {
-                selectedProjects.forEach { circleCIProject ->
-                    logger.info("Adding project to tree: ${circleCIProject.slug}")
-                    val projectNode = ProjectNode(circleCIProject)
-                    rootNode.add(projectNode)
-                }
-                reload(rootNode)
-                logger.info("Tree reloaded - root child count: ${rootNode.childCount}, root: $rootNode")
-                logger.info("Tree structure: ${dumpTree(rootNode, 0)}")
-
-                // Restore expansion state
-                tree?.let { stateManager.restoreState(it, expandedState) }
+            if (stateStore.filters.value.scope == RunScope.MY_RUNS) {
+                rootNode.add(MyRunsNode())
             } else {
-                logger.info("No projects selected, showing empty state")
-                val emptyNode = EmptyNode("No CircleCI project selected")
-                rootNode.add(emptyNode)
-                reload(rootNode)
-                logger.info("Empty state loaded - root child count: ${rootNode.childCount}")
+                val selectedProjects = projectService.getSelectedProjectObjects()
+                logger.info("Reloading root with ${selectedProjects.size} selected projects")
+                if (selectedProjects.isEmpty()) {
+                    rootNode.add(EmptyNode("No CircleCI project selected"))
+                } else {
+                    selectedProjects.forEach { rootNode.add(ProjectNode(it)) }
+                }
+            }
+            reload(rootNode)
+
+            val tree = tree ?: return@invokeLater
+            stateManager.restoreState(tree, rootNode, expandedBeforeReload)
+            // A lone list has nothing to choose between, so open it.
+            val lone = rootNode.firstChild as? CircleCITreeNode
+            if (rootNode.childCount == 1 && lone != null && lone.canLoadChildren()) {
+                tree.expandPath(TreePath(lone.path))
             }
         }
-    }
-
-    private fun dumpTree(
-        node: javax.swing.tree.TreeNode,
-        depth: Int,
-    ): String {
-        val builder = StringBuilder()
-        builder.append("  ".repeat(depth))
-        builder.append("- ${node::class.simpleName}: ${node}\n")
-        for (i in 0 until node.childCount) {
-            builder.append(dumpTree(node.getChildAt(i), depth + 1))
-        }
-        return builder.toString()
     }
 
     /**
@@ -151,29 +140,255 @@ class CircleCITreeModel(
      * Load children for a given node asynchronously.
      */
     fun loadChildren(node: CircleCITreeNode) {
-        if (node.childrenLoaded) {
-            return
-        }
-
-        when (node) {
-            is ProjectNode -> loadPipelinesForProject(node)
-            is PipelineNode -> loadWorkflowsForPipeline(node)
-            is WorkflowNode -> loadJobsForWorkflow(node)
-            else -> {}
+        if (!node.childrenLoaded) {
+            loadChildren(node, refresh = false)
         }
     }
 
     /**
-     * Load more items for pagination.
+     * Load the next page of runs in place of [loadMoreNode].
      */
     fun loadMore(loadMoreNode: LoadMoreNode) {
         val parent = loadMoreNode.parent as? CircleCITreeNode ?: return
+        val fetch = runFetcher(parent) ?: return
+        val generation = parent.loadGeneration
 
-        when (parent) {
-            is ProjectNode -> loadMorePipelines(parent, loadMoreNode)
-            is PipelineNode -> loadMoreWorkflows(parent, loadMoreNode)
-            is WorkflowNode -> loadMoreJobs(parent, loadMoreNode)
+        val index = parent.getIndex(loadMoreNode)
+        parent.remove(loadMoreNode)
+        val loadingNode = LoadingNode()
+        parent.insert(loadingNode, index)
+        nodeStructureChanged(parent)
+
+        scope.launch {
+            val result = authenticated { fetch(loadMoreNode.nextCursor) }
+            // A refresh or reload replaced the list while this page was loading.
+            if (generation != parent.loadGeneration || loadingNode.parent !== parent) return@launch
+
+            val expanded = captureExpansion()
+            val selected = tree?.let { stateManager.captureSelection(it) }
+            parent.remove(loadingNode)
+            result.fold(
+                onSuccess = { page ->
+                    page.items.forEach { parent.add(RunNode(it, showProject = parent is MyRunsNode)) }
+                    page.nextCursor?.let { parent.add(LoadMoreNode(it)) }
+                },
+                onFailure = { error ->
+                    logger.error("Failed to load more runs: ${error.message}", error)
+                    parent.add(ErrorNode(error.message ?: "Failed to load more runs"))
+                },
+            )
+            nodeStructureChanged(parent)
+            tree?.let {
+                stateManager.restoreState(it, parent, expanded)
+                stateManager.restoreSelection(it, parent, selected)
+            }
+        }
+    }
+
+    private fun loadChildren(
+        node: CircleCITreeNode,
+        refresh: Boolean,
+    ) {
+        when (node) {
+            is ProjectNode, is MyRunsNode -> loadRuns(node, refresh)
+            is RunNode -> loadWorkflows(node, refresh)
+            is WorkflowNode -> loadJobs(node, refresh)
             else -> {}
+        }
+    }
+
+    /** Fetches a page of the runs a list node shows, or null for a node that isn't a run list. */
+    private fun runFetcher(node: CircleCITreeNode): (suspend (String?) -> Result<V3Page<Run>>)? {
+        return when (node) {
+            is ProjectNode -> { cursor -> runListService.fetchProjectRuns(node.project, cursor) }
+            is MyRunsNode -> { cursor -> runListService.fetchMyRuns(cursor) }
+            else -> null
+        }
+    }
+
+    private fun loadRuns(
+        node: CircleCITreeNode,
+        refresh: Boolean,
+    ) {
+        val fetch = runFetcher(node) ?: return
+        loadInto(node, refresh, "runs", { fetch(null) }) { page ->
+            val existing = existingChildren<RunNode, String>(node) { it.run.id }
+            if (page.items.isEmpty()) {
+                node.add(EmptyNode(emptyRunsMessage(node)))
+            }
+            page.items.forEach { run ->
+                val reused = existing[run.id]
+                if (reused != null) {
+                    // Keep a slug the workflows load resolved, which the listing lacks.
+                    reused.run = run.copy(projectSlug = run.projectSlug ?: reused.run.projectSlug)
+                    node.add(reused)
+                } else {
+                    node.add(RunNode(run, showProject = node is MyRunsNode))
+                }
+            }
+            page.nextCursor?.let { node.add(LoadMoreNode(it)) }
+
+            page.items.firstNotNullOfOrNull { it.createdAt }?.let { pollingService.updateNewestRunTime(it) }
+            page.items.filter { it.projectSlug != null }.groupBy { it.projectSlug!! }.forEach { (slug, runs) ->
+                stateStore.setRuns(slug, runs, page.nextCursor.takeIf { node is ProjectNode })
+            }
+        }
+    }
+
+    private fun loadWorkflows(
+        node: RunNode,
+        refresh: Boolean,
+    ) {
+        loadInto(node, refresh, "workflows", { runListService.fetchWorkflows(node.run) }) { (run, workflows) ->
+            node.run = run
+            val existing = existingChildren<WorkflowNode, String>(node) { it.workflow.id }
+            if (workflows.isEmpty()) {
+                node.add(
+                    EmptyNode(
+                        if (run.errors.isNotEmpty()) "No workflows: ${run.errors.first().message}" else "No workflows",
+                    ),
+                )
+            }
+            workflows.forEach { workflow ->
+                val reused = existing[workflow.id]
+                if (reused != null) {
+                    reused.workflow = workflow
+                    node.add(reused)
+                } else {
+                    node.add(WorkflowNode(workflow))
+                }
+            }
+            run.projectSlug?.let { stateStore.updateWorkflows(it, run.id, workflows) }
+        }
+    }
+
+    private fun loadJobs(
+        node: WorkflowNode,
+        refresh: Boolean,
+    ) {
+        loadInto(node, refresh, "jobs", { runListService.fetchJobs(node.workflow) }) { jobs ->
+            if (jobs.isEmpty()) {
+                node.add(EmptyNode("No jobs"))
+            }
+            jobs.forEach { node.add(JobNode(it)) }
+        }
+    }
+
+    /**
+     * Fetch a node's children and replace them with the result.
+     *
+     * A first load shows a loading row while it fetches. A [refresh] keeps the
+     * current rows until the result arrives, then — since some children may be
+     * kept by [populate] — re-fetches the expanded ones beneath it in turn.
+     */
+    private fun <T> loadInto(
+        node: CircleCITreeNode,
+        refresh: Boolean,
+        what: String,
+        fetch: suspend () -> Result<T>,
+        populate: (T) -> Unit,
+    ) {
+        val generation = ++node.loadGeneration
+        if (!refresh) {
+            node.removeAllChildren()
+            node.add(LoadingNode())
+            nodeStructureChanged(node)
+        }
+
+        scope.launch {
+            val result = authenticated(fetch)
+            if (generation != node.loadGeneration || node.parent == null) return@launch
+            if (refresh && result.isFailure) {
+                // Keep showing what loaded last; the next refresh tries again.
+                logger.warn("Failed to refresh $what: ${result.exceptionOrNull()?.message}")
+                return@launch
+            }
+
+            val expanded = captureExpansion()
+            val selected = tree?.let { stateManager.captureSelection(it) }
+            node.removeAllChildren()
+            result.fold(
+                onSuccess = {
+                    populate(it)
+                    node.childrenLoaded = true
+                },
+                onFailure = { error ->
+                    logger.error("Failed to load $what: ${error.message}", error)
+                    node.add(ErrorNode(error.message ?: "Failed to load $what"))
+                    node.childrenLoaded = false
+                },
+            )
+            nodeStructureChanged(node)
+            // The nodes a root reload rebuilt are first loaded here, so put
+            // back the expansion they had before it. A refresh only keeps
+            // what's expanded now, so a node collapsed since stays collapsed.
+            tree?.let {
+                stateManager.restoreState(
+                    it,
+                    node,
+                    if (refresh) expanded else expanded + expandedBeforeReload,
+                )
+                stateManager.restoreSelection(it, node, selected)
+            }
+
+            if (refresh) {
+                refreshLoadedChildren(node)
+            }
+        }
+    }
+
+    /**
+     * After a refresh kept some loaded children: re-fetch those still
+     * expanded, and drop the rest so they load fresh when next expanded.
+     */
+    private fun refreshLoadedChildren(node: CircleCITreeNode) {
+        val tree = tree
+        for (child in node.children().toList().filterIsInstance<CircleCITreeNode>()) {
+            if (!child.childrenLoaded) continue
+            if (tree != null && tree.isExpanded(TreePath(child.path))) {
+                loadChildren(child, refresh = true)
+            } else {
+                child.childrenLoaded = false
+                child.removeAllChildren()
+                nodeStructureChanged(child)
+            }
+        }
+    }
+
+    private inline fun <reified N : CircleCITreeNode, K> existingChildren(
+        node: CircleCITreeNode,
+        key: (N) -> K,
+    ): Map<K, N> = node.children().toList().filterIsInstance<N>().associateBy(key)
+
+    private fun captureExpansion(): Set<String> {
+        return tree?.let { stateManager.captureState(it) } ?: emptySet()
+    }
+
+    private fun emptyRunsMessage(node: CircleCITreeNode): String {
+        val filters = stateStore.filters.value
+        if (filters.status != null || filters.created != null) {
+            return "No runs match the current filters"
+        }
+        if (node is ProjectNode) {
+            return when (val scope = runListService.branchScope(node.project)) {
+                is RunListService.BranchScope.Branch -> "No runs on ${scope.name}"
+                else -> "No runs found"
+            }
+        }
+        return "No runs found"
+    }
+
+    private suspend fun <T> authenticated(fetch: suspend () -> Result<T>): Result<T> {
+        val initialized = withContext(Dispatchers.IO) { ensureApiInitialized() }
+        if (!initialized) {
+            return Result.failure(IllegalStateException("Not authenticated. Please configure API token in Settings."))
+        }
+        return try {
+            fetch()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 
@@ -194,337 +409,5 @@ class CircleCITreeModel(
 
         apiService.initialize(token, settings.hostUrl)
         return true
-    }
-
-    private fun loadPipelinesForProject(projectNode: ProjectNode) {
-        // Capture expansion state for this project's subtree
-        val expandedState = tree?.let { stateManager.captureState(it) } ?: emptySet()
-
-        // Add loading indicator
-        SwingUtilities.invokeLater {
-            projectNode.removeAllChildren()
-            projectNode.add(LoadingNode())
-            nodeStructureChanged(projectNode)
-        }
-
-        scope.launch {
-            try {
-                // Ensure API is initialized
-                if (!ensureApiInitialized()) {
-                    withContext(Dispatchers.Main) {
-                        projectNode.removeAllChildren()
-                        projectNode.add(ErrorNode("Not authenticated. Please configure API token in Settings."))
-                        nodeStructureChanged(projectNode)
-                    }
-                    return@launch
-                }
-
-                logger.info("Loading pipelines for project: ${projectNode.project.slug}")
-
-                // Get branch filter
-                val branchFilter = filterService.getBranchForFilter(projectNode.project.slug)
-                logger.info("Using branch filter: $branchFilter")
-
-                val result =
-                    apiService.getPipelines(
-                        projectSlug = projectNode.project.slug,
-                        branch = branchFilter,
-                        pageToken = null,
-                    )
-
-                result.fold(
-                    onSuccess = { response ->
-                        logger.info(
-                            "Successfully loaded ${response.items.size} pipelines for ${projectNode.project.slug}",
-                        )
-
-                        // Update polling service with newest pipeline time
-                        response.items.firstOrNull()?.let { newestPipeline ->
-                            pollingService.updateNewestPipelineTime(newestPipeline.createdAt)
-                        }
-
-                        // Get current user login for filtering
-                        val currentUserLogin = getUserLoginForFiltering()
-
-                        // Apply client-side filters
-                        val filteredPipelines = filterService.filterPipelines(response.items, currentUserLogin)
-                        logger.info("Filtered to ${filteredPipelines.size} pipelines")
-
-                        withContext(Dispatchers.Main) {
-                            projectNode.removeAllChildren()
-
-                            if (filteredPipelines.isEmpty()) {
-                                val message =
-                                    if (filterService.hasActiveFilters()) {
-                                        "No pipelines match current filters"
-                                    } else {
-                                        "No pipelines found"
-                                    }
-                                projectNode.add(EmptyNode(message))
-                            } else {
-                                filteredPipelines.forEach { pipeline ->
-                                    projectNode.add(PipelineNode(pipeline))
-                                }
-
-                                // Add "Load More" if there's a next page
-                                if (response.nextPageToken != null) {
-                                    projectNode.add(LoadMoreNode("pipelines", response.nextPageToken))
-                                }
-                            }
-                            projectNode.childrenLoaded = true
-                            nodeStructureChanged(projectNode)
-
-                            // Restore expansion state for this project's subtree
-                            tree?.let { stateManager.restoreState(it, expandedState) }
-                        }
-                    },
-                    onFailure = { error ->
-                        logger.error(
-                            "Failed to load pipelines for ${projectNode.project.slug}: ${error.message}",
-                            error,
-                        )
-                        withContext(Dispatchers.Main) {
-                            projectNode.removeAllChildren()
-                            projectNode.add(ErrorNode(error.message ?: "Failed to load pipelines"))
-                            nodeStructureChanged(projectNode)
-                        }
-                    },
-                )
-            } catch (e: Exception) {
-                logger.error("Exception loading pipelines for ${projectNode.project.slug}", e)
-                withContext(Dispatchers.Main) {
-                    projectNode.removeAllChildren()
-                    projectNode.add(ErrorNode(e.message ?: "Failed to load pipelines"))
-                    nodeStructureChanged(projectNode)
-                }
-            }
-        }
-    }
-
-    private fun loadMorePipelines(
-        projectNode: ProjectNode,
-        loadMoreNode: LoadMoreNode,
-    ) {
-        // Replace "Load More" with loading indicator
-        SwingUtilities.invokeLater {
-            val index = projectNode.getIndex(loadMoreNode)
-            projectNode.remove(loadMoreNode)
-            projectNode.insert(LoadingNode(), index)
-            nodeStructureChanged(projectNode)
-        }
-
-        scope.launch {
-            try {
-                // Get branch filter
-                val branchFilter = filterService.getBranchForFilter(projectNode.project.slug)
-
-                val result =
-                    apiService.getPipelines(
-                        projectSlug = projectNode.project.slug,
-                        branch = branchFilter,
-                        pageToken = loadMoreNode.nextPageToken,
-                    )
-
-                result.fold(
-                    onSuccess = { response ->
-                        // Update polling service with newest pipeline time
-                        response.items.firstOrNull()?.let { newestPipeline ->
-                            pollingService.updateNewestPipelineTime(newestPipeline.createdAt)
-                        }
-
-                        // Get current user login for filtering
-                        val currentUserLogin = getUserLoginForFiltering()
-
-                        // Apply client-side filters
-                        val filteredPipelines = filterService.filterPipelines(response.items, currentUserLogin)
-
-                        withContext(Dispatchers.Main) {
-                            // Remove loading indicator
-                            projectNode.children().toList().filterIsInstance<LoadingNode>().forEach {
-                                projectNode.remove(it)
-                            }
-
-                            filteredPipelines.forEach { pipeline ->
-                                projectNode.add(PipelineNode(pipeline))
-                            }
-
-                            // Add new "Load More" if there's another page
-                            if (response.nextPageToken != null) {
-                                projectNode.add(LoadMoreNode("pipelines", response.nextPageToken))
-                            }
-
-                            nodeStructureChanged(projectNode)
-                        }
-                    },
-                    onFailure = { error ->
-                        logger.error("Failed to load more pipelines: ${error.message}", error)
-                        withContext(Dispatchers.Main) {
-                            projectNode.children().toList().filterIsInstance<LoadingNode>().forEach {
-                                projectNode.remove(it)
-                            }
-                            nodeStructureChanged(projectNode)
-                        }
-                    },
-                )
-            } catch (e: Exception) {
-                logger.error("Failed to load more pipelines", e)
-                withContext(Dispatchers.Main) {
-                    projectNode.children().toList().filterIsInstance<LoadingNode>().forEach {
-                        projectNode.remove(it)
-                    }
-                    nodeStructureChanged(projectNode)
-                }
-            }
-        }
-    }
-
-    private fun loadWorkflowsForPipeline(pipelineNode: PipelineNode) {
-        SwingUtilities.invokeLater {
-            pipelineNode.removeAllChildren()
-            pipelineNode.add(LoadingNode())
-            nodeStructureChanged(pipelineNode)
-        }
-
-        scope.launch {
-            try {
-                // Ensure API is initialized
-                if (!ensureApiInitialized()) {
-                    withContext(Dispatchers.Main) {
-                        pipelineNode.removeAllChildren()
-                        pipelineNode.add(ErrorNode("Not authenticated. Please configure API token in Settings."))
-                        nodeStructureChanged(pipelineNode)
-                    }
-                    return@launch
-                }
-
-                logger.info("Loading workflows for pipeline: ${pipelineNode.pipeline.id}")
-                val result = apiService.getWorkflows(pipelineNode.pipeline.id)
-
-                result.fold(
-                    onSuccess = { response ->
-                        logger.info("Successfully loaded ${response.items.size} workflows")
-                        withContext(Dispatchers.Main) {
-                            pipelineNode.removeAllChildren()
-
-                            if (response.items.isEmpty()) {
-                                pipelineNode.add(EmptyNode("No workflows found"))
-                            } else {
-                                response.items.forEach { workflow ->
-                                    pipelineNode.add(WorkflowNode(workflow))
-                                }
-                            }
-                            pipelineNode.childrenLoaded = true
-                            nodeStructureChanged(pipelineNode)
-                        }
-                    },
-                    onFailure = { error ->
-                        logger.error("Failed to load workflows: ${error.message}", error)
-                        withContext(Dispatchers.Main) {
-                            pipelineNode.removeAllChildren()
-                            pipelineNode.add(ErrorNode(error.message ?: "Failed to load workflows"))
-                            nodeStructureChanged(pipelineNode)
-                        }
-                    },
-                )
-            } catch (e: Exception) {
-                logger.error("Exception loading workflows", e)
-                withContext(Dispatchers.Main) {
-                    pipelineNode.removeAllChildren()
-                    pipelineNode.add(ErrorNode(e.message ?: "Failed to load workflows"))
-                    nodeStructureChanged(pipelineNode)
-                }
-            }
-        }
-    }
-
-    private fun loadMoreWorkflows(
-        @Suppress("UNUSED_PARAMETER") _pipelineNode: PipelineNode,
-        @Suppress("UNUSED_PARAMETER") _loadMoreNode: LoadMoreNode,
-    ) {
-        // Workflows don't support pagination via the API service, so this is a no-op
-        logger.debug("Load more workflows not supported")
-    }
-
-    private fun loadJobsForWorkflow(workflowNode: WorkflowNode) {
-        SwingUtilities.invokeLater {
-            workflowNode.removeAllChildren()
-            workflowNode.add(LoadingNode())
-            nodeStructureChanged(workflowNode)
-        }
-
-        scope.launch {
-            try {
-                // Ensure API is initialized
-                if (!ensureApiInitialized()) {
-                    withContext(Dispatchers.Main) {
-                        workflowNode.removeAllChildren()
-                        workflowNode.add(ErrorNode("Not authenticated. Please configure API token in Settings."))
-                        nodeStructureChanged(workflowNode)
-                    }
-                    return@launch
-                }
-
-                logger.info("Loading jobs for workflow: ${workflowNode.workflow.id}")
-                val result = apiService.getJobs(workflowNode.workflow.id)
-
-                result.fold(
-                    onSuccess = { response ->
-                        logger.info("Successfully loaded ${response.items.size} jobs")
-                        withContext(Dispatchers.Main) {
-                            workflowNode.removeAllChildren()
-
-                            if (response.items.isEmpty()) {
-                                workflowNode.add(EmptyNode("No jobs found"))
-                            } else {
-                                response.items.forEach { job ->
-                                    workflowNode.add(JobNode(job))
-                                }
-                            }
-                            workflowNode.childrenLoaded = true
-                            nodeStructureChanged(workflowNode)
-                        }
-                    },
-                    onFailure = { error ->
-                        logger.error("Failed to load jobs: ${error.message}", error)
-                        withContext(Dispatchers.Main) {
-                            workflowNode.removeAllChildren()
-                            workflowNode.add(ErrorNode(error.message ?: "Failed to load jobs"))
-                            nodeStructureChanged(workflowNode)
-                        }
-                    },
-                )
-            } catch (e: Exception) {
-                logger.error("Exception loading jobs", e)
-                withContext(Dispatchers.Main) {
-                    workflowNode.removeAllChildren()
-                    workflowNode.add(ErrorNode(e.message ?: "Failed to load jobs"))
-                    nodeStructureChanged(workflowNode)
-                }
-            }
-        }
-    }
-
-    private fun loadMoreJobs(
-        @Suppress("UNUSED_PARAMETER") _workflowNode: WorkflowNode,
-        @Suppress("UNUSED_PARAMETER") _loadMoreNode: LoadMoreNode,
-    ) {
-        // Jobs don't support pagination via the API service, so this is a no-op
-        logger.debug("Load more jobs not supported")
-    }
-
-    /**
-     * Get current user login for filtering pipelines.
-     * Attempts to fetch from API if not available.
-     */
-    private suspend fun getUserLoginForFiltering(): String? {
-        return withContext(Dispatchers.IO) {
-            try {
-                val userInfo = apiService.getCurrentUser()
-                userInfo.getOrNull()?.login
-            } catch (e: Exception) {
-                logger.warn("Failed to get current user for filtering: ${e.message}")
-                null
-            }
-        }
     }
 }

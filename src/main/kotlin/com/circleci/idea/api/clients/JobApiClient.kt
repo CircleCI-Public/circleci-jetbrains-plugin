@@ -3,34 +3,15 @@ package com.circleci.idea.api.clients
 import com.circleci.idea.api.CircleCIApiClient
 import com.circleci.idea.api.models.ArtifactsResponse
 import com.circleci.idea.api.models.JobDetailsInfo
-import com.circleci.idea.api.models.JobInfo
-import com.circleci.idea.api.models.PaginatedResponse
 import com.circleci.idea.api.models.StepOutputResponse
 import com.circleci.idea.api.models.TestResultsResponse
 import com.google.gson.JsonElement
-import com.google.gson.reflect.TypeToken
 
 /**
  * API client for job-related operations.
- * Handles fetching jobs, job details, test results, artifacts, and step output.
+ * Handles fetching job details, test results, artifacts, and step output.
  */
 class JobApiClient : CircleCIApiClientBase() {
-    /**
-     * Get jobs for a workflow.
-     *
-     * @param client The initialized API client
-     * @param workflowId Workflow ID
-     * @return Paginated list of jobs
-     */
-    fun getJobs(
-        client: CircleCIApiClient,
-        workflowId: String,
-    ): Result<PaginatedResponse<JobInfo>> {
-        return executeRequest(client, "/api/v2/workflow/$workflowId/job") { data ->
-            gson.fromJson(data.toString(), object : TypeToken<PaginatedResponse<JobInfo>>() {}.type)
-        }
-    }
-
     /**
      * Get detailed job information.
      * Uses v1.1 API to get steps data since v2 doesn't include steps.

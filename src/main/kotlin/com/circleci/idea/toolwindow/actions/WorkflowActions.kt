@@ -1,9 +1,14 @@
 package com.circleci.idea.toolwindow.actions
 
 import com.circleci.idea.api.CircleCIApiService
+import com.circleci.idea.run.RunStatus
+import com.circleci.idea.run.RunWebUrls
+import com.circleci.idea.state.Job
 import com.circleci.idea.toolwindow.CircleCIToolWindowService
+import com.circleci.idea.toolwindow.tree.RunNode
 import com.circleci.idea.toolwindow.tree.WorkflowNode
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.DumbAware
@@ -114,8 +119,7 @@ class RerunWorkflowAction : WorkflowAction(
     }
 
     override fun isEnabledForWorkflow(workflow: WorkflowNode): Boolean {
-        // Can rerun workflows that are completed (success, failed, canceled)
-        return workflow.workflow.status in listOf("success", "failed", "canceled", "failing")
+        return workflow.workflow.status.isRerunnable
     }
 }
 
@@ -140,7 +144,7 @@ class RerunWorkflowFromFailedAction : WorkflowAction(
 
     override fun isEnabledForWorkflow(workflow: WorkflowNode): Boolean {
         // Can only rerun from failed if workflow has failed
-        return workflow.workflow.status in listOf("failed", "failing")
+        return workflow.workflow.status.isFailure
     }
 }
 
@@ -176,7 +180,7 @@ class RerunWorkflowWithSshAction : WorkflowAction(
 
     private data class RerunContext(
         val workflowNode: WorkflowNode,
-        val selectedJob: com.circleci.idea.api.models.JobInfo,
+        val selectedJob: Job,
     )
 
     private fun prepareRerunContext(e: AnActionEvent): RerunContext? {
@@ -217,7 +221,7 @@ class RerunWorkflowWithSshAction : WorkflowAction(
     private fun selectJobForSsh(
         project: com.intellij.openapi.project.Project,
         jobNodes: List<com.circleci.idea.toolwindow.tree.JobNode>,
-    ): com.circleci.idea.api.models.JobInfo? {
+    ): Job? {
         val jobNames = jobNodes.map { it.job.name }.toTypedArray()
         val selectedIndex =
             Messages.showChooseDialog(
@@ -233,8 +237,7 @@ class RerunWorkflowWithSshAction : WorkflowAction(
     }
 
     override fun isEnabledForWorkflow(workflow: WorkflowNode): Boolean {
-        // Can rerun workflows that are completed (success, failed, canceled)
-        return workflow.workflow.status in listOf("success", "failed", "canceled", "failing")
+        return workflow.workflow.status.isRerunnable
     }
 }
 
@@ -258,8 +261,7 @@ class CancelWorkflowAction : WorkflowAction(
     }
 
     override fun isEnabledForWorkflow(workflow: WorkflowNode): Boolean {
-        // Can only cancel workflows that are running or on_hold
-        return workflow.workflow.status in listOf("running", "failing", "on_hold")
+        return workflow.workflow.status.isCancelable
     }
 }
 
@@ -299,7 +301,7 @@ class ApproveWorkflowAction : WorkflowAction(
 
     override fun isEnabledForWorkflow(workflow: WorkflowNode): Boolean {
         // Can only approve workflows that are on_hold
-        return workflow.workflow.status == "on_hold"
+        return workflow.workflow.status == RunStatus.ON_HOLD
     }
 }
 
@@ -315,14 +317,39 @@ class OpenWorkflowInBrowserAction : WorkflowAction(
         val project = e.project ?: return
         val workflowNode = getWorkflowNode(e) ?: return
 
-        // Construct CircleCI web URL for workflow
-        // Format: https://app.circleci.com/pipelines/{vcs}/{org}/{project}/{pipeline-number}/workflows/{workflow-id}
-        val workflow = workflowNode.workflow
-        val pipelineId = workflow.pipelineId
-
-        // For now, use a simplified URL
-        val url = "https://app.circleci.com/pipelines/workflows/${workflow.id}"
+        val url = RunWebUrls.workflow(workflowNode.workflow)
+        if (url == null) {
+            Messages.showErrorDialog(project, "Cannot open workflow in browser: its run is unknown", "Open Failed")
+            return
+        }
 
         com.intellij.ide.BrowserUtil.browse(url)
     }
+}
+
+/**
+ * Action to open a run in the browser.
+ */
+class OpenRunInBrowserAction :
+    AnAction(
+        "Open in Browser",
+        "Open this run in CircleCI web interface",
+        AllIcons.Ide.External_link_arrow,
+    ),
+    DumbAware {
+    override fun actionPerformed(e: AnActionEvent) {
+        runUrl(e)?.let { com.intellij.ide.BrowserUtil.browse(it) }
+    }
+
+    override fun update(e: AnActionEvent) {
+        e.presentation.isEnabled = runUrl(e) != null
+    }
+
+    private fun runUrl(e: AnActionEvent): String? {
+        val project = e.project ?: return null
+        val runNode = project.getService(CircleCIToolWindowService::class.java).getSelectedNode() as? RunNode
+        return runNode?.let { RunWebUrls.run(it.run) }
+    }
+
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 }

@@ -2,28 +2,28 @@ package com.circleci.idea.api
 
 import com.circleci.idea.api.clients.ConfigApiClient
 import com.circleci.idea.api.clients.JobApiClient
-import com.circleci.idea.api.clients.PipelineApiClient
 import com.circleci.idea.api.clients.ProjectApiClient
+import com.circleci.idea.api.clients.RunApiClient
+import com.circleci.idea.api.clients.V3Page
 import com.circleci.idea.api.clients.WorkflowApiClient
 import com.circleci.idea.api.models.ArtifactsResponse
 import com.circleci.idea.api.models.ConfigValidationResponse
 import com.circleci.idea.api.models.JobDetailsInfo
-import com.circleci.idea.api.models.JobInfo
-import com.circleci.idea.api.models.PaginatedResponse
-import com.circleci.idea.api.models.PipelineInfo
+import com.circleci.idea.api.models.JobWire
 import com.circleci.idea.api.models.ProjectInfo
+import com.circleci.idea.api.models.RunWire
 import com.circleci.idea.api.models.StepOutputResponse
 import com.circleci.idea.api.models.TestResultsResponse
-import com.circleci.idea.api.models.TriggerPipelineResponse
 import com.circleci.idea.api.models.UserInfo
-import com.circleci.idea.api.models.WorkflowInfo
+import com.circleci.idea.api.models.WorkflowWire
 import com.circleci.idea.logging.CircleCILogger
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
+import java.time.Instant
 
 /**
  * Facade service for CircleCI API operations.
- * Delegates to specialized API clients for different domains (pipelines, workflows, jobs, etc.).
+ * Delegates to specialized API clients for different domains (runs, workflows, jobs, etc.).
  *
  * This facade maintains backward compatibility with existing code while internally
  * organizing API calls into focused, testable client classes.
@@ -34,7 +34,7 @@ class CircleCIApiService {
     private var client: CircleCIApiClient? = null
 
     // Specialized API clients
-    private val pipelineClient = PipelineApiClient()
+    private val runClient = RunApiClient()
     private val workflowClient = WorkflowApiClient()
     private val jobClient = JobApiClient()
     private val projectClient = ProjectApiClient()
@@ -55,39 +55,73 @@ class CircleCIApiService {
      */
     fun isInitialized(): Boolean = client != null
 
-    // ========== Pipeline Operations ==========
+    // ========== Run Operations ==========
 
     /**
-     * Get pipelines for a project.
+     * Search a project's runs, newest first.
      */
-    fun getPipelines(
-        projectSlug: String,
-        branch: String? = null,
-        pageToken: String? = null,
-    ): Result<PaginatedResponse<PipelineInfo>> {
-        return withClient { pipelineClient.getPipelines(it, projectSlug, branch, pageToken) }
+    @Suppress("LongParameterList")
+    fun searchRuns(
+        projectId: String,
+        from: Instant,
+        to: Instant,
+        filter: String,
+        limit: Int,
+        cursor: String? = null,
+    ): Result<V3Page<RunWire>> {
+        return withClient { runClient.searchRuns(it, projectId, from, to, filter, limit, cursor) }
     }
 
     /**
-     * Trigger a pipeline with custom config.
+     * List the authenticated user's runs across all projects, newest first.
      */
-    fun triggerPipeline(
-        projectSlug: String,
-        branch: String,
-        configYaml: String? = null,
-        parameters: Map<String, Any> = emptyMap(),
-    ): Result<TriggerPipelineResponse> {
-        return withClient { pipelineClient.triggerPipeline(it, projectSlug, branch, configYaml, parameters) }
+    @Suppress("LongParameterList")
+    fun listMyRuns(
+        phase: String?,
+        currentOutcome: String?,
+        from: Instant?,
+        to: Instant?,
+        limit: Int,
+        cursor: String? = null,
+    ): Result<V3Page<RunWire>> {
+        return withClient { runClient.listMyRuns(it, phase, currentOutcome, from, to, limit, cursor) }
+    }
+
+    /**
+     * Get the workflows of a run.
+     */
+    fun getRunWorkflows(runId: String): Result<List<WorkflowWire>> {
+        return withClient { runClient.getRunWorkflows(it, runId) }
+    }
+
+    /**
+     * Get the jobs of a workflow.
+     */
+    fun getWorkflowJobs(workflowId: String): Result<List<JobWire>> {
+        return withClient { runClient.getWorkflowJobs(it, workflowId) }
+    }
+
+    /**
+     * Get a project's ID from its slug.
+     */
+    fun getProjectId(slug: String): Result<String> {
+        return withClient { client ->
+            runClient.getProjectBySlug(client, slug).mapCatching { it.id ?: error("Project $slug has no ID") }
+        }
+    }
+
+    /**
+     * Get the ID of the organization a project belongs to.
+     */
+    fun getProjectOrgId(projectId: String): Result<String> {
+        return withClient { client ->
+            runClient.getProjectById(client, projectId).mapCatching {
+                it.references?.org?.id ?: error("Project $projectId has no organization")
+            }
+        }
     }
 
     // ========== Workflow Operations ==========
-
-    /**
-     * Get workflows for a pipeline.
-     */
-    fun getWorkflows(pipelineId: String): Result<PaginatedResponse<WorkflowInfo>> {
-        return withClient { workflowClient.getWorkflows(it, pipelineId) }
-    }
 
     /**
      * Rerun a workflow.
@@ -129,13 +163,6 @@ class CircleCIApiService {
     }
 
     // ========== Job Operations ==========
-
-    /**
-     * Get jobs for a workflow.
-     */
-    fun getJobs(workflowId: String): Result<PaginatedResponse<JobInfo>> {
-        return withClient { jobClient.getJobs(it, workflowId) }
-    }
 
     /**
      * Get detailed job information.

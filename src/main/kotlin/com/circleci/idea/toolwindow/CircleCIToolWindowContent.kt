@@ -2,14 +2,14 @@ package com.circleci.idea.toolwindow
 
 import com.circleci.idea.auth.CircleCIAuthService
 import com.circleci.idea.job.JobDetailsService
-import com.circleci.idea.polling.PipelinePollingService
+import com.circleci.idea.polling.RunPollingService
 import com.circleci.idea.project.CircleCIProjectService
 import com.circleci.idea.toolwindow.tree.CircleCITreeCellRenderer
 import com.circleci.idea.toolwindow.tree.CircleCITreeModel
 import com.circleci.idea.toolwindow.tree.CircleCITreeNode
 import com.circleci.idea.toolwindow.tree.JobNode
 import com.circleci.idea.toolwindow.tree.LoadMoreNode
-import com.circleci.idea.toolwindow.tree.PipelineNode
+import com.circleci.idea.toolwindow.tree.RunNode
 import com.circleci.idea.toolwindow.tree.WorkflowNode
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionManager
@@ -33,7 +33,7 @@ import javax.swing.tree.TreeSelectionModel
 
 /**
  * Content for the CircleCI tool window.
- * Displays a tree view of CircleCI projects, pipelines, workflows, and jobs.
+ * Displays a tree view of CircleCI projects, runs, workflows, and jobs.
  */
 class CircleCIToolWindowContent(private val project: Project) : Disposable {
     private val panel = JBPanel<JBPanel<*>>(BorderLayout())
@@ -43,7 +43,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
     private val projectService = project.getService(CircleCIProjectService::class.java)
     private val authService = CircleCIAuthService.getInstance(project)
     private val jobDetailsService = project.getService(JobDetailsService::class.java)
-    private val pollingService = project.getService(PipelinePollingService::class.java)
+    private val pollingService = project.getService(RunPollingService::class.java)
 
     init {
         setupTree()
@@ -81,7 +81,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
             // Explicitly reload tree after detection
             treeModel.reloadRoot()
 
-            // Start polling for pipeline updates
+            // Start polling for run updates
             pollingService.startPolling()
         }
     }
@@ -160,9 +160,9 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         actionGroup.addSeparator()
 
         // Filter actions
-        actionGroup.add(com.circleci.idea.toolwindow.actions.BranchFilterAction())
-        actionGroup.add(com.circleci.idea.toolwindow.actions.StatusFilterAction())
-        actionGroup.add(com.circleci.idea.toolwindow.actions.MyPipelinesOnlyAction())
+        actionGroup.add(com.circleci.idea.toolwindow.actions.RunScopeFilterAction())
+        actionGroup.add(com.circleci.idea.toolwindow.actions.RunStatusFilterAction())
+        actionGroup.add(com.circleci.idea.toolwindow.actions.RunCreatedFilterAction())
 
         val toolbar =
             ActionManager.getInstance().createActionToolbar(
@@ -187,12 +187,6 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         val node = path.lastPathComponent as? CircleCITreeNode ?: return
 
         when (node) {
-            is PipelineNode -> {
-                // Future: Open pipeline in browser or details panel
-            }
-            is WorkflowNode -> {
-                // Future: Open workflow in browser or details panel
-            }
             is JobNode -> {
                 handleJobDoubleClick(node)
             }
@@ -243,8 +237,8 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
                 actionGroup.add(com.circleci.idea.toolwindow.actions.CopyJobNumberAction())
                 actionGroup.add(com.circleci.idea.toolwindow.actions.OpenJobInBrowserAction())
             }
-            is PipelineNode -> {
-                // Future: Add pipeline actions
+            is RunNode -> {
+                actionGroup.add(com.circleci.idea.toolwindow.actions.OpenRunInBrowserAction())
             }
             else -> {
                 // No context menu for other node types

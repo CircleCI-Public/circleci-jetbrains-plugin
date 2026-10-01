@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Workflows' jobs failed to load ("Workflow not found") because the V2 jobs endpoint doesn't serve them
+- Loading could fail with "Already Executed" when two identical requests overlapped; concurrent identical GETs now share one response
+- Projects weren't detected (so no runs showed) until a manual refresh when the tool window opened before the IDE had found the Git repositories; projects are now re-detected once the repositories are mapped
+- The current-branch filter follows branch checkouts (in the IDE or a terminal), and uses each project's own repository rather than the first one in the IDE project
+
 ### Changed
+- The Pipelines tab is now the Runs tab, built on CircleCI's V3 runs, workflows and jobs APIs, and says "run" rather than "pipeline" throughout
+  - Filters match `circleci run get`: branch (current, default, all) or *My runs* across every project; status; and created newer/older than 1 hour to 1 month
+  - Runs are labelled with their commit subject, branch, revision and age; jobs show their duration, and queued jobs no longer show as running
+  - Auto-refresh updates the tree in place, keeping expanded runs and workflows open
+  - "Open in Browser" links to the run, workflow or job's own page
+  - Removed the unused branch filter and "Show only my pipelines" options from Settings; the toolbar filters replace them
 - Migrated the CircleCI YAML Language Server integration from lsp4ij to IntelliJ's native LSP API
   - The plugin no longer requires the Red Hat LSP4IJ plugin
   - The language server shows in the status bar's Language Services widget

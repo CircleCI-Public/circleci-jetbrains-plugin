@@ -10,7 +10,7 @@ import javax.swing.Icon
 
 /**
  * Presentation for the CircleCI status bar widget.
- * Shows current pipeline status with color coding and icon.
+ * Shows current run status with color coding and icon.
  */
 class CircleCIStatusBarPresentation(private val project: Project) : StatusBarWidget.IconPresentation {
     private var isAuthenticated: Boolean = false
@@ -25,9 +25,9 @@ class CircleCIStatusBarPresentation(private val project: Project) : StatusBarWid
     }
 
     /**
-     * Update pipeline status.
+     * Update run status.
      */
-    fun updatePipelineStatus(
+    fun updateRunStatus(
         isLoading: Boolean,
         latestStatus: String?,
     ) {
@@ -38,8 +38,8 @@ class CircleCIStatusBarPresentation(private val project: Project) : StatusBarWid
     override fun getTooltipText(): String {
         return when {
             !isAuthenticated -> "CircleCI: Not logged in. Click to open CircleCI panel and log in."
-            isLoading -> "CircleCI: Loading pipelines..."
-            latestStatus == null -> "CircleCI: No pipelines found. Click to open CircleCI panel."
+            isLoading -> "CircleCI: Loading runs..."
+            latestStatus == null -> "CircleCI: No runs found. Click to open CircleCI panel."
             else -> "CircleCI: ${getStatusDisplayText(latestStatus!!)}. Click to open CircleCI panel."
         }
     }

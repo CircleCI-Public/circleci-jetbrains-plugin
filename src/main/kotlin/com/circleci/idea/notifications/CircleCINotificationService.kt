@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Features:
  * - Subscribes to WebSocket events
- * - Filters based on user preferences (status, my pipelines only)
+ * - Filters based on user preferences (status, my runs only)
  * - Throttles notifications (max 1 per workflow every 5 minutes)
  * - Deduplicates notifications
  * - Shows rich notifications with action buttons
@@ -180,22 +180,22 @@ class CircleCINotificationService(private val project: Project) {
                 // Get workflows from state if available
                 val projectData = stateStore.projectsData.value.data[projectSlug]
                 val workflow =
-                    projectData?.pipelines
+                    projectData?.runs
                         ?.flatMap { it.workflows }
                         ?.find { it.id == workflowId }
 
                 if (workflow != null) {
-                    val pipeline =
-                        projectData.pipelines.find {
+                    val run =
+                        projectData.runs.find {
                             it.workflows.any { w -> w.id == workflowId }
                         }
 
                     WorkflowNotificationData(
                         workflowId = workflow.id,
                         workflowName = workflow.name,
-                        pipelineNumber = pipeline?.number,
-                        branch = pipeline?.branch,
-                        author = pipeline?.trigger?.actor?.login,
+                        runNumber = run?.number,
+                        branch = run?.branch,
+                        author = run?.triggeredBy ?: run?.commitAuthor,
                         projectSlug = projectSlug,
                     )
                 } else {
@@ -253,8 +253,8 @@ class CircleCINotificationService(private val project: Project) {
 
         parts.add("<b>${details.workflowName}</b>")
 
-        if (details.pipelineNumber != null) {
-            parts.add("Pipeline #${details.pipelineNumber}")
+        if (details.runNumber != null) {
+            parts.add("Run #${details.runNumber}")
         }
 
         if (details.branch != null) {
@@ -329,11 +329,11 @@ class CircleCINotificationService(private val project: Project) {
      */
     fun updateNotificationPreferences(
         enabled: Boolean? = null,
-        myPipelinesOnly: Boolean? = null,
+        myRunsOnly: Boolean? = null,
         statusFilter: Set<String>? = null,
     ) {
         logger.info("Updating notification preferences")
-        stateStore.updateNotificationPreferences(enabled, myPipelinesOnly, statusFilter)
+        stateStore.updateNotificationPreferences(enabled, myRunsOnly, statusFilter)
     }
 
     private fun dispose() {
@@ -353,7 +353,7 @@ class CircleCINotificationService(private val project: Project) {
 private data class WorkflowNotificationData(
     val workflowId: String,
     val workflowName: String,
-    val pipelineNumber: Int?,
+    val runNumber: Long?,
     val branch: String?,
     val author: String?,
     val projectSlug: String,

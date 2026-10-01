@@ -70,6 +70,11 @@ dependencies {
             // the OS installer (avoids mounting a .dmg on macOS, and is what CI downloads too).
             useInstaller = false
         }
+        // The platform's VCS repository API, for the current branch of each project's repository.
+        bundledModule("intellij.platform.vcs.dvcs")
+        bundledModule("intellij.platform.vcs.dvcs.impl")
+        // Optional at runtime (see git-support.xml); compiled against for its repository-change events.
+        bundledPlugin("Git4Idea")
         // The archive doesn't bundle a JetBrains Runtime; runIde and tests need one.
         jetbrainsRuntime()
 

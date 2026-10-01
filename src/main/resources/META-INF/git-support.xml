@@ -1,3 +1,7 @@
 <idea-plugin>
     <!-- Optional Git integration for project detection and branch tracking -->
+    <projectListeners>
+        <listener class="com.circleci.idea.git.CircleCIGitBranchListener"
+                  topic="git4idea.repo.GitRepositoryChangeListener"/>
+    </projectListeners>
 </idea-plugin>

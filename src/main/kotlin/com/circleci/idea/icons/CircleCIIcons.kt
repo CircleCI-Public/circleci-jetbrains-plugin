@@ -1,5 +1,6 @@
 package com.circleci.idea.icons
 
+import com.circleci.idea.run.RunStatus
 import com.intellij.openapi.util.IconLoader
 import javax.swing.Icon
 
@@ -39,6 +40,20 @@ object CircleCIIcons {
             "canceled" -> Status.CANCELED
             "on_hold", "on-hold" -> Status.ON_HOLD
             else -> PLUGIN_ICON
+        }
+    }
+
+    /**
+     * Get status icon for a run, workflow or job status.
+     */
+    fun getStatusIcon(status: RunStatus): Icon {
+        return when (status) {
+            RunStatus.SUCCESS -> Status.SUCCESS
+            RunStatus.FAILED, RunStatus.FAILING, RunStatus.ERROR -> Status.FAILED
+            RunStatus.CREATED, RunStatus.QUEUED, RunStatus.RUNNING -> Status.RUNNING
+            RunStatus.CANCELED, RunStatus.CANCELING, RunStatus.NOT_RUN, RunStatus.UNAUTHORIZED -> Status.CANCELED
+            RunStatus.ON_HOLD -> Status.ON_HOLD
+            RunStatus.UNKNOWN -> PLUGIN_ICON
         }
     }
 

@@ -142,7 +142,7 @@ class CircleCIStateStore(private val project: Project) : CircleCIState {
     }
 
     /**
-     * Add or update pipeline data for a specific project.
+     * Add or update run data for a specific project.
      */
     fun updateProjectData(
         projectSlug: String,
@@ -158,86 +158,44 @@ class CircleCIStateStore(private val project: Project) : CircleCIState {
     }
 
     /**
-     * Add pipelines to a project's data.
+     * Replace the runs listed for a project (e.g., after a refresh), keeping the
+     * workflows already loaded for runs that are still listed.
      */
-    fun addPipelines(
+    fun setRuns(
         projectSlug: String,
-        pipelines: List<Pipeline>,
-        nextPageToken: String? = null,
+        runs: List<Run>,
+        nextCursor: String? = null,
     ) {
         updateProjectData(projectSlug) { currentData ->
             val existing = currentData ?: ProjectData(projectSlug)
+            val loadedWorkflows = existing.runs.associate { it.id to it.workflows }
             existing.copy(
-                pipelines = existing.pipelines + pipelines,
-                nextPageToken = nextPageToken,
+                runs = runs.map { run -> run.copy(workflows = loadedWorkflows[run.id] ?: run.workflows) },
+                nextCursor = nextCursor,
                 isLoading = false,
             )
         }
     }
 
     /**
-     * Replace all pipelines for a project (e.g., after refresh).
-     */
-    fun setPipelines(
-        projectSlug: String,
-        pipelines: List<Pipeline>,
-        nextPageToken: String? = null,
-    ) {
-        updateProjectData(projectSlug) { currentData ->
-            val existing = currentData ?: ProjectData(projectSlug)
-            existing.copy(
-                pipelines = pipelines,
-                nextPageToken = nextPageToken,
-                isLoading = false,
-            )
-        }
-    }
-
-    /**
-     * Update workflows for a specific pipeline.
+     * Update workflows for a specific run.
      */
     fun updateWorkflows(
         projectSlug: String,
-        pipelineId: String,
+        runId: String,
         workflows: List<Workflow>,
     ) {
         updateProjectData(projectSlug) { currentData ->
             val existing = currentData ?: ProjectData(projectSlug)
-            val updatedPipelines =
-                existing.pipelines.map { pipeline ->
-                    if (pipeline.id == pipelineId) {
-                        pipeline.copy(workflows = workflows)
+            val updatedRuns =
+                existing.runs.map { run ->
+                    if (run.id == runId) {
+                        run.copy(workflows = workflows)
                     } else {
-                        pipeline
+                        run
                     }
                 }
-            existing.copy(pipelines = updatedPipelines)
-        }
-    }
-
-    /**
-     * Update jobs for a specific workflow.
-     */
-    fun updateJobs(
-        projectSlug: String,
-        workflowId: String,
-        jobs: List<Job>,
-    ) {
-        updateProjectData(projectSlug) { currentData ->
-            val existing = currentData ?: ProjectData(projectSlug)
-            val updatedPipelines =
-                existing.pipelines.map { pipeline ->
-                    val updatedWorkflows =
-                        pipeline.workflows.map { workflow ->
-                            if (workflow.id == workflowId) {
-                                workflow.copy(jobs = jobs)
-                            } else {
-                                workflow
-                            }
-                        }
-                    pipeline.copy(workflows = updatedWorkflows)
-                }
-            existing.copy(pipelines = updatedPipelines)
+            existing.copy(runs = updatedRuns)
         }
     }
 
@@ -246,7 +204,7 @@ class CircleCIStateStore(private val project: Project) : CircleCIState {
      */
     fun updateNotificationPreferences(
         enabled: Boolean? = null,
-        myPipelinesOnly: Boolean? = null,
+        myRunsOnly: Boolean? = null,
         statusFilter: Set<String>? = null,
     ) {
         _ui.value =
@@ -254,7 +212,7 @@ class CircleCIStateStore(private val project: Project) : CircleCIState {
                 notificationPreferences =
                     _ui.value.notificationPreferences.copy(
                         enabled = enabled ?: _ui.value.notificationPreferences.enabled,
-                        myPipelinesOnly = myPipelinesOnly ?: _ui.value.notificationPreferences.myPipelinesOnly,
+                        myRunsOnly = myRunsOnly ?: _ui.value.notificationPreferences.myRunsOnly,
                         statusFilter = statusFilter ?: _ui.value.notificationPreferences.statusFilter,
                     ),
             )
@@ -262,7 +220,7 @@ class CircleCIStateStore(private val project: Project) : CircleCIState {
     }
 
     /**
-     * Clear all pipeline data (e.g., on logout).
+     * Clear all run data (e.g., on logout).
      */
     fun clearAllData() {
         _projectsData.value = ProjectsDataState()
@@ -278,10 +236,7 @@ class CircleCIStateStore(private val project: Project) : CircleCIState {
         val persistence = project.service<CircleCIStatePersistence>()
 
         // Load filters
-        val persistedFilters = persistence.loadFilters()
-        if (persistedFilters != null) {
-            _filters.value = persistedFilters
-        }
+        _filters.value = persistence.loadFilters()
 
         // Load selected projects
         val persistedProjects = persistence.loadSelectedProjects()

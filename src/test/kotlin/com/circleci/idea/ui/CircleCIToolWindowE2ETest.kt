@@ -68,11 +68,11 @@ class CircleCIToolWindowE2ETest {
     }
 
     @Test
-    fun testPipelineTreeDisplayed() {
+    fun testRunTreeDisplayed() {
         // Open tool window
         openToolWindow()
 
-        // Find the pipeline tree
+        // Find the run tree
         val tree =
             robot.find(
                 JTreeFixture::class.java,
@@ -80,7 +80,7 @@ class CircleCIToolWindowE2ETest {
             )
 
         // Verify tree is visible and interactive
-        assertTrue("Pipeline tree should be visible", tree.isShowing)
+        assertTrue("Run tree should be visible", tree.isShowing)
     }
 
     @Test
@@ -94,7 +94,7 @@ class CircleCIToolWindowE2ETest {
                 byXpath("//div[@class='Tree']"),
             )
 
-        // Expand first pipeline node if exists
+        // Expand first run node if exists
         // Note: This will need to be adjusted based on actual tree structure
         if (tree.hasText("main")) {
             tree.clickPath("main")

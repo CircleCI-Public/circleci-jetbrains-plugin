@@ -20,13 +20,13 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 /**
- * Service for polling pipeline updates.
- * Uses adaptive polling intervals based on pipeline age:
- * - Fast polling (30s) for pipelines < 1 day old
- * - Slow polling (2m) for pipelines > 1 day old
+ * Service for polling run updates.
+ * Uses adaptive polling intervals based on run age:
+ * - Fast polling (30s) for runs < 1 day old
+ * - Slow polling (2m) for runs > 1 day old
  */
 @Service(Service.Level.PROJECT)
-class PipelinePollingService(private val project: Project) : Disposable {
+class RunPollingService(private val project: Project) : Disposable {
     private val logger = CircleCILogger.getInstance()
     private val settings = CircleCISettings.getInstance()
     private val projectService = project.getService(CircleCIProjectService::class.java)
@@ -36,14 +36,14 @@ class PipelinePollingService(private val project: Project) : Disposable {
     private var pollingJob: Job? = null
 
     private var lastPollTime: Instant? = null
-    private var newestPipelineTime: Instant? = null
+    private var newestRunTime: Instant? = null
 
     init {
-        logger.logLifecycleEvent("PipelinePollingService initialized")
+        logger.logLifecycleEvent("RunPollingService initialized")
     }
 
     /**
-     * Start polling for pipeline updates.
+     * Start polling for run updates.
      * Only starts if auto-refresh is enabled in settings.
      */
     fun startPolling() {
@@ -57,14 +57,14 @@ class PipelinePollingService(private val project: Project) : Disposable {
             return
         }
 
-        logger.info("Starting pipeline polling")
+        logger.info("Starting run polling")
         pollingJob =
             scope.launch {
                 while (isActive) {
                     try {
                         // Only poll if tool window is visible
                         if (isToolWindowVisible()) {
-                            pollPipelines()
+                            pollRuns()
                         } else {
                             logger.debug("Tool window not visible, skipping poll")
                         }
@@ -82,10 +82,10 @@ class PipelinePollingService(private val project: Project) : Disposable {
     }
 
     /**
-     * Stop polling for pipeline updates.
+     * Stop polling for run updates.
      */
     fun stopPolling() {
-        logger.info("Stopping pipeline polling")
+        logger.info("Stopping run polling")
         pollingJob?.cancel()
         pollingJob = null
     }
@@ -104,64 +104,58 @@ class PipelinePollingService(private val project: Project) : Disposable {
     fun isPolling(): Boolean = pollingJob?.isActive == true
 
     /**
-     * Poll pipelines for all selected projects.
+     * Poll runs for all selected projects.
      */
-    private suspend fun pollPipelines() {
+    private suspend fun pollRuns() {
         val selectedProjects = projectService.getSelectedProjectObjects()
         if (selectedProjects.isEmpty()) {
             logger.debug("No selected projects, skipping poll")
             return
         }
 
-        logger.debug("Polling pipelines for ${selectedProjects.size} projects")
+        logger.debug("Polling runs for ${selectedProjects.size} projects")
         lastPollTime = Instant.now()
 
-        // Refresh pipeline data for all loaded projects
+        // Refresh run data for all loaded projects
         // This will re-fetch from API while preserving tree state via TreeStateManager
-        toolWindowService.refreshPipelines()
+        toolWindowService.refreshRuns()
     }
 
     /**
-     * Calculate the next poll interval based on pipeline age.
+     * Calculate the next poll interval based on run age.
      * Returns interval in milliseconds.
      */
     private fun calculatePollInterval(): Long {
-        // If we haven't detected any pipelines yet, use fast polling
-        val newestPipeline = newestPipelineTime
-        if (newestPipeline == null) {
-            logger.debug("No pipeline age detected, using fast poll interval")
+        // If we haven't detected any runs yet, use fast polling
+        val newestRun = newestRunTime
+        if (newestRun == null) {
+            logger.debug("No run age detected, using fast poll interval")
             return settings.fastPollIntervalSeconds * 1000L
         }
 
-        // Calculate age of newest pipeline
+        // Calculate age of newest run
         val now = Instant.now()
-        val ageInHours = ChronoUnit.HOURS.between(newestPipeline, now)
+        val ageInHours = ChronoUnit.HOURS.between(newestRun, now)
 
-        // Use fast polling for pipelines less than 24 hours old
+        // Use fast polling for runs less than 24 hours old
         return if (ageInHours < 24) {
-            logger.debug("Newest pipeline is ${ageInHours}h old, using fast poll interval")
+            logger.debug("Newest run is ${ageInHours}h old, using fast poll interval")
             settings.fastPollIntervalSeconds * 1000L
         } else {
-            logger.debug("Newest pipeline is ${ageInHours}h old, using slow poll interval")
+            logger.debug("Newest run is ${ageInHours}h old, using slow poll interval")
             settings.slowPollIntervalSeconds * 1000L
         }
     }
 
     /**
-     * Update the newest pipeline time for adaptive polling.
-     * Should be called after fetching pipelines.
+     * Update the newest run time for adaptive polling.
+     * Should be called after fetching runs.
      */
-    fun updateNewestPipelineTime(pipelineCreatedAt: String) {
-        try {
-            val pipelineTime = Instant.parse(pipelineCreatedAt)
-            val current = newestPipelineTime
-
-            if (current == null || pipelineTime.isAfter(current)) {
-                logger.debug("Updated newest pipeline time: $pipelineCreatedAt")
-                newestPipelineTime = pipelineTime
-            }
-        } catch (e: Exception) {
-            logger.warn("Failed to parse pipeline timestamp: $pipelineCreatedAt", e)
+    fun updateNewestRunTime(runCreatedAt: Instant) {
+        val current = newestRunTime
+        if (current == null || runCreatedAt.isAfter(current)) {
+            logger.debug("Updated newest run time: $runCreatedAt")
+            newestRunTime = runCreatedAt
         }
     }
 
@@ -180,7 +174,7 @@ class PipelinePollingService(private val project: Project) : Disposable {
     }
 
     override fun dispose() {
-        logger.logLifecycleEvent("PipelinePollingService disposing")
+        logger.logLifecycleEvent("RunPollingService disposing")
         stopPolling()
         scope.cancel()
     }

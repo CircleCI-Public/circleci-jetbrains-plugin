@@ -1,6 +1,11 @@
 package com.circleci.idea.state
 
+import com.circleci.idea.run.CreatedFilter
+import com.circleci.idea.run.RunScope
+import com.circleci.idea.run.RunStatus
+import com.circleci.idea.run.RunStatusFilter
 import kotlinx.coroutines.flow.StateFlow
+import java.time.Instant
 
 /**
  * Root state interface for CircleCI plugin.
@@ -54,7 +59,7 @@ data class Project(
 )
 
 /**
- * Projects data state - actual pipeline/workflow/job data for each project.
+ * Projects data state - the runs (and their workflows and jobs) last loaded for each project.
  */
 data class ProjectsDataState(
     // Key: project slug
@@ -66,63 +71,60 @@ data class ProjectsDataState(
 
 data class ProjectData(
     val projectSlug: String,
-    val pipelines: List<Pipeline> = emptyList(),
+    val runs: List<Run> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
-    val nextPageToken: String? = null,
+    val nextCursor: String? = null,
 )
 
-data class Pipeline(
+data class Run(
     val id: String,
-    val number: Int,
-    val projectSlug: String,
-    val state: String,
-    val createdAt: String,
+    val number: Long?,
+    val projectId: String?,
+    // Null when it can't be told from the run alone (a cross-project run from a
+    // non-GitHub/Bitbucket provider); resolve it from projectId when needed.
+    val projectSlug: String?,
+    // "org/repo", for labelling runs from more than one project
+    val repositoryName: String?,
+    val status: RunStatus,
+    val createdAt: Instant?,
     val branch: String?,
-    val vcs: VcsInfo?,
-    val trigger: TriggerInfo?,
+    val tag: String?,
+    val revision: String?,
+    val commitSubject: String?,
+    val commitAuthor: String?,
+    val triggeredBy: String?,
+    val errors: List<RunError> = emptyList(),
     val workflows: List<Workflow> = emptyList(),
 )
 
-data class VcsInfo(
-    val branch: String?,
-    val revision: String?,
-    val commit: CommitInfo?,
-    val providerName: String?,
-)
-
-data class CommitInfo(
-    val subject: String?,
-    val body: String?,
-)
-
-data class TriggerInfo(
+data class RunError(
     val type: String?,
-    val actor: Actor?,
-)
-
-data class Actor(
-    val login: String?,
-    val avatarUrl: String?,
+    val message: String?,
 )
 
 data class Workflow(
     val id: String,
     val name: String,
-    val status: String,
-    val createdAt: String,
-    val stoppedAt: String?,
+    val status: RunStatus,
+    val createdAt: Instant?,
+    val endedAt: Instant?,
+    val runId: String,
+    val runNumber: Long?,
+    val projectSlug: String?,
     val jobs: List<Job> = emptyList(),
 )
 
 data class Job(
     val id: String,
-    val jobNumber: Long?,
+    val number: Long?,
     val name: String,
-    val status: String,
-    val type: String,
-    val startedAt: String?,
-    val stoppedAt: String?,
+    val type: String?,
+    val status: RunStatus,
+    val startedAt: Instant?,
+    val endedAt: Instant?,
+    val workflowId: String,
+    val projectSlug: String?,
 )
 
 /**
@@ -142,22 +144,15 @@ data class ConfigError(
 )
 
 /**
- * Filters state - user-selected filters for pipelines.
+ * Filters state - user-selected filters for the run list.
  */
 data class FiltersState(
-    val branchFilter: BranchFilter = BranchFilter.CURRENT,
-    val myPipelinesOnly: Boolean = false,
-    // Empty = all statuses
-    val statusFilter: Set<String> = emptySet(),
-    val authorFilter: String? = null,
+    val scope: RunScope = RunScope.CURRENT_BRANCH,
+    // Null = all statuses
+    val status: RunStatusFilter? = null,
+    // Null = all dates
+    val created: CreatedFilter? = null,
 )
-
-enum class BranchFilter {
-    CURRENT,
-    ALL,
-    DEFAULT,
-    CUSTOM,
-}
 
 /**
  * UI state - transient UI-specific state.
@@ -173,7 +168,7 @@ data class UIState(
 
 data class NotificationPreferences(
     val enabled: Boolean = true,
-    val myPipelinesOnly: Boolean = false,
+    val myRunsOnly: Boolean = false,
     val statusFilter: Set<String> = setOf("failed", "failing", "canceled", "on_hold", "error", "unauthorized"),
 )
 

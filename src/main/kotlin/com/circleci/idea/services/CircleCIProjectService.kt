@@ -33,14 +33,6 @@ class CircleCIProjectService(private val project: Project) {
     }
 
     /**
-     * Refresh pipelines for all selected projects.
-     */
-    fun refreshPipelines() {
-        // TODO: Implement pipeline refresh logic using API client
-        // This will be implemented after API client is ready
-    }
-
-    /**
      * Cleanup resources when project is closed.
      */
     fun disconnect() {

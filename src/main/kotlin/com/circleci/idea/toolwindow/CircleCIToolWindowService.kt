@@ -39,8 +39,8 @@ class CircleCIToolWindowService(private val project: Project) {
         treeModel?.reloadRoot()
     }
 
-    fun refreshPipelines() {
-        treeModel?.refreshPipelines()
+    fun refreshRuns() {
+        treeModel?.refreshRuns()
     }
 
     /**

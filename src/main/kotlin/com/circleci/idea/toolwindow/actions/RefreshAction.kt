@@ -12,12 +12,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
- * Action to refresh projects and pipelines.
+ * Action to refresh projects and runs.
  */
 class RefreshAction :
     AnAction(
         "Refresh",
-        "Refresh CircleCI projects and pipelines",
+        "Refresh CircleCI projects and runs",
         AllIcons.Actions.Refresh,
     ),
     DumbAware {

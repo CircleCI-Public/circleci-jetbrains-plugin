@@ -1,8 +1,12 @@
 package com.circleci.idea.state
 
+import com.circleci.idea.run.RunScope
+import com.circleci.idea.run.RunStatus
+import com.circleci.idea.run.RunStatusFilter
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import java.time.Instant
 
 class CircleCIStateStoreTest : BasePlatformTestCase() {
     private lateinit var stateStore: CircleCIStateStore
@@ -31,86 +35,52 @@ class CircleCIStateStoreTest : BasePlatformTestCase() {
 
     fun testUpdateFilters() =
         runBlocking {
-            stateStore.updateFilters { it.copy(branchFilter = BranchFilter.ALL, myPipelinesOnly = true) }
+            stateStore.updateFilters { it.copy(scope = RunScope.MY_RUNS, status = RunStatusFilter.FAILED) }
 
             val filtersState = stateStore.filters.first()
-            assertEquals(BranchFilter.ALL, filtersState.branchFilter)
-            assertTrue(filtersState.myPipelinesOnly)
+            assertEquals(RunScope.MY_RUNS, filtersState.scope)
+            assertEquals(RunStatusFilter.FAILED, filtersState.status)
         }
 
-    fun testAddPipelines() =
+    fun testSetRuns() =
         runBlocking {
-            val pipeline =
-                Pipeline(
-                    id = "test-id",
-                    number = 1,
-                    projectSlug = "gh/test/repo",
-                    state = "success",
-                    createdAt = "2024-01-01T00:00:00Z",
-                    branch = "main",
-                    vcs = null,
-                    trigger = null,
-                )
+            stateStore.setRuns("gh/test/repo", listOf(run("test-id")))
 
-            stateStore.addPipelines("gh/test/repo", listOf(pipeline))
-
-            val projectsData = stateStore.projectsData.first()
-            val projectData = projectsData.data["gh/test/repo"]
+            val projectData = stateStore.projectsData.first().data["gh/test/repo"]
             assertNotNull(projectData)
-            assertEquals(1, projectData?.pipelines?.size)
-            assertEquals("test-id", projectData?.pipelines?.first()?.id)
+            assertEquals(1, projectData?.runs?.size)
+            assertEquals("test-id", projectData?.runs?.first()?.id)
         }
 
     fun testUpdateWorkflows() =
         runBlocking {
-            val pipeline =
-                Pipeline(
-                    id = "pipeline-1",
-                    number = 1,
-                    projectSlug = "gh/test/repo",
-                    state = "success",
-                    createdAt = "2024-01-01T00:00:00Z",
-                    branch = "main",
-                    vcs = null,
-                    trigger = null,
-                    workflows = emptyList(),
-                )
-
-            stateStore.setPipelines("gh/test/repo", listOf(pipeline))
+            val run = run("run-1")
+            stateStore.setRuns("gh/test/repo", listOf(run))
 
             val workflow =
                 Workflow(
                     id = "workflow-1",
                     name = "build",
-                    status = "success",
-                    createdAt = "2024-01-01T00:00:00Z",
-                    stoppedAt = "2024-01-01T00:05:00Z",
+                    status = RunStatus.SUCCESS,
+                    createdAt = Instant.parse("2024-01-01T00:00:00Z"),
+                    endedAt = Instant.parse("2024-01-01T00:05:00Z"),
+                    runId = run.id,
+                    runNumber = run.number,
+                    projectSlug = run.projectSlug,
                 )
 
-            stateStore.updateWorkflows("gh/test/repo", "pipeline-1", listOf(workflow))
+            stateStore.updateWorkflows("gh/test/repo", "run-1", listOf(workflow))
+            // A refresh of the run list keeps the workflows already loaded.
+            stateStore.setRuns("gh/test/repo", listOf(run))
 
-            val projectsData = stateStore.projectsData.first()
-            val projectData = projectsData.data["gh/test/repo"]
-            assertNotNull(projectData)
-            assertEquals(1, projectData?.pipelines?.first()?.workflows?.size)
-            assertEquals("workflow-1", projectData?.pipelines?.first()?.workflows?.first()?.id)
+            val projectData = stateStore.projectsData.first().data["gh/test/repo"]
+            assertEquals(1, projectData?.runs?.first()?.workflows?.size)
+            assertEquals("workflow-1", projectData?.runs?.first()?.workflows?.first()?.id)
         }
 
     fun testClearAllData() =
         runBlocking {
-            val pipeline =
-                Pipeline(
-                    id = "test-id",
-                    number = 1,
-                    projectSlug = "gh/test/repo",
-                    state = "success",
-                    createdAt = "2024-01-01T00:00:00Z",
-                    branch = "main",
-                    vcs = null,
-                    trigger = null,
-                )
-
-            stateStore.addPipelines("gh/test/repo", listOf(pipeline))
+            stateStore.setRuns("gh/test/repo", listOf(run("test-id")))
             stateStore.clearAllData()
 
             val projectsData = stateStore.projectsData.first()
@@ -119,4 +89,21 @@ class CircleCIStateStoreTest : BasePlatformTestCase() {
             val projects = stateStore.projects.first()
             assertTrue(projects.selectedProjects.isEmpty())
         }
+
+    private fun run(id: String) =
+        Run(
+            id = id,
+            number = 1,
+            projectId = "project-id",
+            projectSlug = "gh/test/repo",
+            repositoryName = "test/repo",
+            status = RunStatus.SUCCESS,
+            createdAt = Instant.parse("2024-01-01T00:00:00Z"),
+            branch = "main",
+            tag = null,
+            revision = "abc1234",
+            commitSubject = "Fix the build",
+            commitAuthor = "someone",
+            triggeredBy = "someone",
+        )
 }

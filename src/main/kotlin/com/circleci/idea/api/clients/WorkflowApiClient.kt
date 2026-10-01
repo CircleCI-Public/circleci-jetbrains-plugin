@@ -1,31 +1,12 @@
 package com.circleci.idea.api.clients
 
 import com.circleci.idea.api.CircleCIApiClient
-import com.circleci.idea.api.models.PaginatedResponse
-import com.circleci.idea.api.models.WorkflowInfo
-import com.google.gson.reflect.TypeToken
 
 /**
  * API client for workflow-related operations.
- * Handles fetching workflows and workflow actions (rerun, cancel, approve).
+ * Handles workflow actions (rerun, cancel, approve).
  */
 class WorkflowApiClient : CircleCIApiClientBase() {
-    /**
-     * Get workflows for a pipeline.
-     *
-     * @param client The initialized API client
-     * @param pipelineId Pipeline ID
-     * @return Paginated list of workflows
-     */
-    fun getWorkflows(
-        client: CircleCIApiClient,
-        pipelineId: String,
-    ): Result<PaginatedResponse<WorkflowInfo>> {
-        return executeRequest(client, "/api/v2/pipeline/$pipelineId/workflow") { data ->
-            gson.fromJson(data.toString(), object : TypeToken<PaginatedResponse<WorkflowInfo>>() {}.type)
-        }
-    }
-
     /**
      * Rerun a workflow.
      *

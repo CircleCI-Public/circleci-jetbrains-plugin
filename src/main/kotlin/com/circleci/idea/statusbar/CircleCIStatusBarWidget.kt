@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Status bar widget for CircleCI.
- * Shows the current status of the latest pipeline/workflow.
+ * Shows the current status of the latest run/workflow.
  */
 class CircleCIStatusBarWidget(private val project: Project) : StatusBarWidget {
     private val logger = CircleCILogger.getInstance()
@@ -57,12 +57,12 @@ class CircleCIStatusBarWidget(private val project: Project) : StatusBarWidget {
             }
         }
 
-        // Observe projects data to get latest pipeline status
+        // Observe projects data to get latest run status
         scope.launch {
             stateStore.projectsData.collectLatest { projectsDataState ->
                 // Find the latest workflow status across all projects
                 val latestStatus = findLatestWorkflowStatus(projectsDataState)
-                presentation.updatePipelineStatus(
+                presentation.updateRunStatus(
                     isLoading = projectsDataState.isRefreshing,
                     latestStatus = latestStatus,
                 )
@@ -77,11 +77,11 @@ class CircleCIStatusBarWidget(private val project: Project) : StatusBarWidget {
     private fun findLatestWorkflowStatus(projectsDataState: com.circleci.idea.state.ProjectsDataState): String? {
         val allWorkflows =
             projectsDataState.data.values
-                .flatMap { it.pipelines }
+                .flatMap { it.runs }
                 .flatMap { it.workflows }
                 .sortedByDescending { it.createdAt }
 
-        return allWorkflows.firstOrNull()?.status
+        return allWorkflows.firstOrNull()?.status?.token
     }
 
     /**

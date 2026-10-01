@@ -1,298 +1,192 @@
 package com.circleci.idea.toolwindow.actions
 
 import com.circleci.idea.git.GitBranchService
-import com.circleci.idea.state.BranchFilter
+import com.circleci.idea.project.CircleCIProjectService
+import com.circleci.idea.run.CreatedAge
+import com.circleci.idea.run.CreatedFilter
+import com.circleci.idea.run.RunScope
+import com.circleci.idea.run.RunStatusFilter
 import com.circleci.idea.state.CircleCIStateStore
+import com.circleci.idea.state.FiltersState
 import com.circleci.idea.toolwindow.CircleCIToolWindowService
-import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.ToggleAction
 import com.intellij.openapi.actionSystem.ex.ComboBoxAction
 import com.intellij.openapi.project.DumbAware
-import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.project.Project
 import javax.swing.JComponent
 
 /**
- * Branch filter combo box action.
+ * Base for the run list's filter combo boxes.
  */
-class BranchFilterAction : ComboBoxAction(), DumbAware {
-    override fun createPopupActionGroup(button: JComponent?): DefaultActionGroup {
-        return DefaultActionGroup().apply {
-            add(SetBranchFilterAction("Current Branch", BranchFilter.CURRENT))
-            add(SetBranchFilterAction("All Branches", BranchFilter.ALL))
-            add(SetBranchFilterAction("Default Branch", BranchFilter.DEFAULT))
-            addSeparator()
-            add(SetCustomBranchFilterAction())
-        }
-    }
-
+abstract class RunFilterComboAction : ComboBoxAction(), DumbAware {
     override fun update(e: AnActionEvent) {
         val project = e.project
         if (project == null) {
             e.presentation.isEnabled = false
             return
         }
+        e.presentation.text = text(project, CircleCIStateStore.getInstance(project).filters.value)
+        e.presentation.isEnabled = true
+    }
 
+    protected abstract fun text(
+        project: Project,
+        filters: FiltersState,
+    ): String
+
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
+}
+
+/**
+ * Base for a single filter choice: checked when [isSelected], and applying
+ * [apply] to the filters when chosen.
+ */
+abstract class SetRunFilterAction(text: String) : ToggleAction(text), DumbAware {
+    protected abstract fun isSelected(filters: FiltersState): Boolean
+
+    protected abstract fun apply(filters: FiltersState): FiltersState
+
+    override fun isSelected(e: AnActionEvent): Boolean {
+        val project = e.project ?: return false
+        return isSelected(CircleCIStateStore.getInstance(project).filters.value)
+    }
+
+    override fun setSelected(
+        e: AnActionEvent,
+        state: Boolean,
+    ) {
+        val project = e.project ?: return
         val stateStore = CircleCIStateStore.getInstance(project)
-        val filters = stateStore.filters.value
+        val updated = apply(stateStore.filters.value)
+        if (updated == stateStore.filters.value) return
+
+        stateStore.updateFilters { updated }
+        stateStore.persist()
+
+        // Rebuild the tree to apply the filter
+        project.getService(CircleCIToolWindowService::class.java).reloadTree()
+    }
+
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
+}
+
+/**
+ * Which runs to list: those on the current branch, the default branch, all
+ * branches, or the user's own runs across every project.
+ */
+class RunScopeFilterAction : RunFilterComboAction() {
+    override fun createPopupActionGroup(
+        button: JComponent,
+        dataContext: DataContext,
+    ): DefaultActionGroup {
+        return DefaultActionGroup().apply {
+            add(SetRunScopeAction(RunScope.CURRENT_BRANCH))
+            add(SetRunScopeAction(RunScope.DEFAULT_BRANCH))
+            add(SetRunScopeAction(RunScope.ALL_BRANCHES))
+            addSeparator()
+            add(SetRunScopeAction(RunScope.MY_RUNS))
+        }
+    }
+
+    override fun text(
+        project: Project,
+        filters: FiltersState,
+    ): String {
         val gitService = GitBranchService.getInstance(project)
-
-        val text =
-            when (filters.branchFilter) {
-                BranchFilter.CURRENT -> {
-                    val currentBranch = gitService.getCurrentBranch()
-                    if (currentBranch != null) "Branch: $currentBranch" else "Branch: Current"
-                }
-                BranchFilter.ALL -> "Branch: All"
-                BranchFilter.DEFAULT -> {
-                    val defaultBranch = gitService.getDefaultBranch()
-                    "Branch: $defaultBranch"
-                }
-                BranchFilter.CUSTOM -> "Branch: Custom"
-            }
-
-        e.presentation.text = text
-        e.presentation.isEnabled = true
-    }
-
-    override fun getActionUpdateThread(): ActionUpdateThread {
-        return ActionUpdateThread.BGT
-    }
-}
-
-/**
- * Action to set a specific branch filter.
- */
-class SetBranchFilterAction(
-    private val displayName: String,
-    private val filter: BranchFilter,
-) : AnAction(displayName), DumbAware {
-    override fun actionPerformed(e: AnActionEvent) {
-        val project = e.project ?: return
-        val stateStore = CircleCIStateStore.getInstance(project)
-
-        stateStore.updateFilters { it.copy(branchFilter = filter) }
-        stateStore.persist()
-
-        // Refresh tree to apply filter
-        project.getService(CircleCIToolWindowService::class.java).reloadTree()
-    }
-
-    override fun update(e: AnActionEvent) {
-        val project = e.project
-        if (project == null) {
-            e.presentation.isEnabled = false
-            return
+        return when (filters.scope) {
+            RunScope.CURRENT_BRANCH -> "Branch: ${currentBranch(project, gitService) ?: "current"}"
+            RunScope.DEFAULT_BRANCH -> "Branch: ${gitService.getDefaultBranch()}"
+            RunScope.ALL_BRANCHES -> "Branch: all"
+            RunScope.MY_RUNS -> "My runs"
         }
-
-        val stateStore = CircleCIStateStore.getInstance(project)
-        val currentFilter = stateStore.filters.value.branchFilter
-
-        // Show checkmark if this filter is selected
-        e.presentation.icon =
-            if (currentFilter == filter) {
-                AllIcons.Actions.Checked
-            } else {
-                null
-            }
-    }
-
-    override fun getActionUpdateThread(): ActionUpdateThread {
-        return ActionUpdateThread.BGT
     }
 }
 
 /**
- * Action to set a custom branch filter.
+ * The current branch to name in the toolbar: the selected projects' branch
+ * when they agree, otherwise null (each project lists its own repo's branch).
  */
-class SetCustomBranchFilterAction : AnAction("Custom Branch..."), DumbAware {
-    override fun actionPerformed(e: AnActionEvent) {
-        val project = e.project ?: return
+private fun currentBranch(
+    project: Project,
+    gitService: GitBranchService,
+): String? {
+    val projects = project.getService(CircleCIProjectService::class.java).getSelectedProjectObjects()
+    if (projects.isEmpty()) return gitService.getCurrentBranch()
+    return projects.map { gitService.getCurrentBranch(it.localPath) }.distinct().singleOrNull()
+}
 
-        val branchName =
-            Messages.showInputDialog(
-                project,
-                "Enter branch name:",
-                "Filter by Branch",
-                Messages.getQuestionIcon(),
-            )
+private class SetRunScopeAction(private val scope: RunScope) : SetRunFilterAction(scope.label) {
+    override fun isSelected(filters: FiltersState): Boolean = filters.scope == scope
 
-        if (branchName.isNullOrBlank()) {
-            return
-        }
-
-        val stateStore = CircleCIStateStore.getInstance(project)
-        stateStore.updateFilters {
-            it.copy(
-                branchFilter = BranchFilter.CUSTOM,
-                // Reusing authorFilter for custom branch name
-                authorFilter = branchName,
-            )
-        }
-        stateStore.persist()
-
-        // Refresh tree to apply filter
-        project.getService(CircleCIToolWindowService::class.java).reloadTree()
-    }
-
-    override fun getActionUpdateThread(): ActionUpdateThread {
-        return ActionUpdateThread.BGT
-    }
+    override fun apply(filters: FiltersState): FiltersState = filters.copy(scope = scope)
 }
 
 /**
- * Toggle action for "My Pipelines Only" filter.
+ * Narrow the run list to a single status.
  */
-class MyPipelinesOnlyAction :
-    ToggleAction(
-        "My Pipelines Only",
-        "Show only pipelines triggered by you",
-        AllIcons.General.User,
-    ),
-    DumbAware {
-    override fun isSelected(e: AnActionEvent): Boolean {
-        val project = e.project ?: return false
-        val stateStore = CircleCIStateStore.getInstance(project)
-        return stateStore.filters.value.myPipelinesOnly
-    }
-
-    override fun setSelected(
-        e: AnActionEvent,
-        state: Boolean,
-    ) {
-        val project = e.project ?: return
-        val stateStore = CircleCIStateStore.getInstance(project)
-
-        stateStore.updateFilters { it.copy(myPipelinesOnly = state) }
-        stateStore.persist()
-
-        // Refresh tree to apply filter
-        project.getService(CircleCIToolWindowService::class.java).reloadTree()
-    }
-
-    override fun getActionUpdateThread(): ActionUpdateThread {
-        return ActionUpdateThread.BGT
-    }
-}
-
-/**
- * Status filter action.
- */
-class StatusFilterAction : ComboBoxAction(), DumbAware {
-    override fun createPopupActionGroup(button: JComponent?): DefaultActionGroup {
+class RunStatusFilterAction : RunFilterComboAction() {
+    override fun createPopupActionGroup(
+        button: JComponent,
+        dataContext: DataContext,
+    ): DefaultActionGroup {
         return DefaultActionGroup().apply {
-            add(ToggleStatusFilterAction("Success", "success"))
-            add(ToggleStatusFilterAction("Failed", "failed"))
-            add(ToggleStatusFilterAction("Failing", "failing"))
-            add(ToggleStatusFilterAction("Running", "running"))
-            add(ToggleStatusFilterAction("On Hold", "on_hold"))
-            add(ToggleStatusFilterAction("Canceled", "canceled"))
-            add(ToggleStatusFilterAction("Error", "error"))
+            add(SetRunStatusAction(null))
             addSeparator()
-            add(ClearStatusFilterAction())
+            RunStatusFilter.entries.forEach { add(SetRunStatusAction(it)) }
         }
     }
 
-    override fun update(e: AnActionEvent) {
-        val project = e.project
-        if (project == null) {
-            e.presentation.isEnabled = false
-            return
+    override fun text(
+        project: Project,
+        filters: FiltersState,
+    ): String = "Status: ${filters.status?.label?.lowercase() ?: "all"}"
+}
+
+private class SetRunStatusAction(private val status: RunStatusFilter?) :
+    SetRunFilterAction(status?.label ?: "All Statuses") {
+    override fun isSelected(filters: FiltersState): Boolean = filters.status == status
+
+    override fun apply(filters: FiltersState): FiltersState = filters.copy(status = status)
+}
+
+/**
+ * Narrow the run list to runs created more or less recently than a given age.
+ */
+class RunCreatedFilterAction : RunFilterComboAction() {
+    override fun createPopupActionGroup(
+        button: JComponent,
+        dataContext: DataContext,
+    ): DefaultActionGroup {
+        return DefaultActionGroup().apply {
+            add(SetRunCreatedAction(null))
+            addSeparator()
+            add(createdGroup("Newer Than", newer = true))
+            add(createdGroup("Older Than", newer = false))
         }
-
-        val stateStore = CircleCIStateStore.getInstance(project)
-        val statusFilter = stateStore.filters.value.statusFilter
-
-        val text =
-            if (statusFilter.isEmpty()) {
-                "Status: All"
-            } else if (statusFilter.size == 1) {
-                "Status: ${statusFilter.first().capitalize()}"
-            } else {
-                "Status: ${statusFilter.size} selected"
-            }
-
-        e.presentation.text = text
-        e.presentation.isEnabled = true
     }
 
-    override fun getActionUpdateThread(): ActionUpdateThread {
-        return ActionUpdateThread.BGT
-    }
-}
-
-/**
- * Toggle action for specific status filter.
- */
-class ToggleStatusFilterAction(
-    private val displayName: String,
-    private val status: String,
-) : ToggleAction(displayName), DumbAware {
-    override fun isSelected(e: AnActionEvent): Boolean {
-        val project = e.project ?: return false
-        val stateStore = CircleCIStateStore.getInstance(project)
-        return stateStore.filters.value.statusFilter.contains(status)
-    }
-
-    override fun setSelected(
-        e: AnActionEvent,
-        state: Boolean,
-    ) {
-        val project = e.project ?: return
-        val stateStore = CircleCIStateStore.getInstance(project)
-
-        stateStore.updateFilters { filters ->
-            val newStatusFilter =
-                if (state) {
-                    filters.statusFilter + status
-                } else {
-                    filters.statusFilter - status
-                }
-            filters.copy(statusFilter = newStatusFilter)
+    private fun createdGroup(
+        text: String,
+        newer: Boolean,
+    ): DefaultActionGroup {
+        return DefaultActionGroup.createPopupGroup { text }.apply {
+            CreatedAge.entries.forEach { add(SetRunCreatedAction(CreatedFilter(it, newer))) }
         }
-        stateStore.persist()
-
-        // Refresh tree to apply filter
-        project.getService(CircleCIToolWindowService::class.java).reloadTree()
     }
 
-    override fun getActionUpdateThread(): ActionUpdateThread {
-        return ActionUpdateThread.BGT
-    }
+    override fun text(
+        project: Project,
+        filters: FiltersState,
+    ): String = "Created: ${filters.created?.label?.lowercase() ?: "any time"}"
 }
 
-/**
- * Action to clear all status filters.
- */
-class ClearStatusFilterAction : AnAction("Clear Filters"), DumbAware {
-    override fun actionPerformed(e: AnActionEvent) {
-        val project = e.project ?: return
-        val stateStore = CircleCIStateStore.getInstance(project)
+private class SetRunCreatedAction(private val created: CreatedFilter?) :
+    SetRunFilterAction(created?.age?.label ?: "Any Time") {
+    override fun isSelected(filters: FiltersState): Boolean = filters.created == created
 
-        stateStore.updateFilters { it.copy(statusFilter = emptySet()) }
-        stateStore.persist()
-
-        // Refresh tree to apply filter
-        project.getService(CircleCIToolWindowService::class.java).reloadTree()
-    }
-
-    override fun update(e: AnActionEvent) {
-        val project = e.project ?: return
-        val stateStore = CircleCIStateStore.getInstance(project)
-        e.presentation.isEnabled = stateStore.filters.value.statusFilter.isNotEmpty()
-    }
-
-    override fun getActionUpdateThread(): ActionUpdateThread {
-        return ActionUpdateThread.BGT
-    }
-}
-
-/**
- * Helper function to capitalize first letter.
- */
-private fun String.capitalize(): String {
-    return this.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    override fun apply(filters: FiltersState): FiltersState = filters.copy(created = created)
 }

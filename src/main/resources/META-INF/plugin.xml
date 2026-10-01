@@ -6,21 +6,21 @@
     <description><![CDATA[
     <p>CircleCI integration for JetBrains IDEs</p>
 
-    <p>Monitor, manage, and debug CircleCI pipelines directly within your IDE. This extension provides:</p>
+    <p>Monitor, manage, and debug CircleCI runs directly within your IDE. This extension provides:</p>
     <ul>
-      <li>Real-time pipeline, workflow, and job status monitoring</li>
-      <li>Pipeline management (rerun, cancel, approve workflows)</li>
+      <li>Real-time run, workflow, and job status monitoring</li>
+      <li>Run management (rerun, cancel, approve workflows)</li>
       <li>SSH debugging support for failed jobs</li>
       <li>CircleCI YAML configuration validation and IntelliSense</li>
       <li>Local configuration testing (unversioned config runs)</li>
       <li>Test results and artifact viewing</li>
-      <li>Desktop notifications for pipeline status changes</li>
+      <li>Desktop notifications for run status changes</li>
     </ul>
 
     <p>Features include:</p>
     <ul>
-      <li><strong>Pipeline Monitoring:</strong> View pipelines, workflows, and jobs in a hierarchical tree view</li>
-      <li><strong>Real-time Updates:</strong> Get instant notifications when pipeline status changes</li>
+      <li><strong>Run Monitoring:</strong> View runs, workflows, and jobs in a hierarchical tree view, filtered by branch, status, and age, or across all your projects</li>
+      <li><strong>Real-time Updates:</strong> Get instant notifications when run status changes</li>
       <li><strong>Workflow Actions:</strong> Rerun workflows from start or from failed jobs, cancel running workflows, approve on-hold jobs</li>
       <li><strong>SSH Debugging:</strong> Rerun failed jobs with SSH enabled and connect directly from the IDE</li>
       <li><strong>Config Validation:</strong> Validate CircleCI YAML configuration files before committing</li>
@@ -42,6 +42,12 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.lsp</depends>
     <depends optional="true" config-file="git-support.xml">Git4Idea</depends>
+
+    <dependencies>
+        <!-- VcsRepositoryManager and Repository, for the current branch of a project's repository -->
+        <module name="intellij.platform.vcs.dvcs"/>
+        <module name="intellij.platform.vcs.dvcs.impl"/>
+    </dependencies>
     <depends optional="true" config-file="terminal-support.xml">org.jetbrains.plugins.terminal</depends>
 
     <extensions defaultExtensionNs="com.intellij">
@@ -72,11 +78,7 @@
         <projectService
             serviceImplementation="com.circleci.idea.project.CircleCIProjectService"/>
         <projectService
-            serviceImplementation="com.circleci.idea.pipeline.PipelineDataService"/>
-        <projectService
-            serviceImplementation="com.circleci.idea.workflow.WorkflowDataService"/>
-        <projectService
-            serviceImplementation="com.circleci.idea.job.JobDataService"/>
+            serviceImplementation="com.circleci.idea.run.RunListService"/>
         <projectService
             serviceImplementation="com.circleci.idea.job.JobDetailsService"/>
         <projectService
@@ -116,6 +118,11 @@
             serviceImplementation="com.circleci.idea.lsp.CircleCILanguageServerManager"/>
     </extensions>
 
+    <projectListeners>
+        <listener class="com.circleci.idea.project.CircleCIRepositoryMappingListener"
+                  topic="com.intellij.dvcs.repo.VcsRepositoryMappingListener"/>
+    </projectListeners>
+
     <actions>
         <!-- Main Menu Actions -->
         <group id="CircleCI.MainMenu" text="CircleCI" description="CircleCI actions" popup="true">
@@ -131,10 +138,10 @@
                     text="Logout from CircleCI"
                     description="Sign out and clear credentials"/>
 
-            <action id="CircleCI.RefreshPipelines"
-                    class="com.circleci.idea.actions.RefreshPipelinesAction"
-                    text="Refresh Pipelines"
-                    description="Refresh pipeline list"
+            <action id="CircleCI.RefreshRuns"
+                    class="com.circleci.idea.actions.RefreshRunsAction"
+                    text="Refresh Runs"
+                    description="Refresh the run list"
                     icon="AllIcons.Actions.Refresh"/>
 
             <separator/>
@@ -147,7 +154,7 @@
             <action id="CircleCI.TestRun"
                     class="com.circleci.idea.actions.TestRunAction"
                     text="Test Run Configuration"
-                    description="Run pipeline with local configuration"/>
+                    description="Start a run with local configuration"/>
 
             <separator/>
 

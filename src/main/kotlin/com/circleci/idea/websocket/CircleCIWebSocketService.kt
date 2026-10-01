@@ -338,9 +338,9 @@ class CircleCIWebSocketService {
                 val workflowId = dataContent.get("workflow_id")?.asString
                 val status = dataContent.get("status")?.asString
                 val projectSlug = dataContent.get("project_slug")?.asString
-                val pipelineId = dataContent.get("pipeline_id")?.asString
+                val runId = dataContent.get("pipeline_id")?.asString
 
-                if (workflowId == null || status == null || projectSlug == null || pipelineId == null) {
+                if (workflowId == null || status == null || projectSlug == null || runId == null) {
                     logger.debug("Incomplete workflow.completed event data, skipping")
                     return
                 }
@@ -353,7 +353,7 @@ class CircleCIWebSocketService {
                             workflowId,
                             status,
                             projectSlug,
-                            pipelineId,
+                            runId,
                         ),
                     )
                 }

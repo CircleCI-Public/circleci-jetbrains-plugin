@@ -30,10 +30,6 @@ class CircleCIConfigurable : Configurable {
     // General settings
     private val hostUrlField = JBTextField()
 
-    // Filter settings
-    private val branchFilterCombo = ComboBox(arrayOf("Current Branch", "All Branches", "Default Branch"))
-    private val myPipelinesOnlyCheck = JBCheckBox("Show only my pipelines")
-
     // Auto-refresh settings
     private val autoRefreshEnabledCheck = JBCheckBox("Enable auto-refresh")
     private val fastPollIntervalField = JBTextField()
@@ -41,7 +37,7 @@ class CircleCIConfigurable : Configurable {
 
     // Notification settings
     private val notificationsEnabledCheck = JBCheckBox("Enable notifications")
-    private val notifyMyPipelinesOnlyCheck = JBCheckBox("Notify only for my pipelines")
+    private val notifyMyRunsOnlyCheck = JBCheckBox("Notify only for my runs")
 
     // SSH settings
     private val githubSshKeyField = JBTextField()
@@ -79,12 +75,6 @@ class CircleCIConfigurable : Configurable {
         formBuilder.addComponent(JBLabel("<html><b>General</b></html>"))
         formBuilder.addLabeledComponent(JBLabel("Host URL:"), hostUrlField)
 
-        // Filters section
-        formBuilder.addSeparator(5)
-        formBuilder.addComponent(JBLabel("<html><b>Filters</b></html>"))
-        formBuilder.addLabeledComponent(JBLabel("Branch filter:"), branchFilterCombo)
-        formBuilder.addComponent(myPipelinesOnlyCheck)
-
         // Auto-refresh section
         formBuilder.addSeparator(5)
         formBuilder.addComponent(JBLabel("<html><b>Auto-Refresh</b></html>"))
@@ -93,18 +83,18 @@ class CircleCIConfigurable : Configurable {
             JBLabel("Fast poll interval (seconds):"),
             fastPollIntervalField,
         )
-        formBuilder.addComponent(JBLabel("<html><font color='gray'>For pipelines less than 1 day old</font></html>"))
+        formBuilder.addComponent(JBLabel("<html><font color='gray'>For runs less than 1 day old</font></html>"))
         formBuilder.addLabeledComponent(
             JBLabel("Slow poll interval (seconds):"),
             slowPollIntervalField,
         )
-        formBuilder.addComponent(JBLabel("<html><font color='gray'>For pipelines more than 1 day old</font></html>"))
+        formBuilder.addComponent(JBLabel("<html><font color='gray'>For runs more than 1 day old</font></html>"))
 
         // Notifications section
         formBuilder.addSeparator(5)
         formBuilder.addComponent(JBLabel("<html><b>Notifications</b></html>"))
         formBuilder.addComponent(notificationsEnabledCheck)
-        formBuilder.addComponent(notifyMyPipelinesOnlyCheck)
+        formBuilder.addComponent(notifyMyRunsOnlyCheck)
 
         // SSH Configuration section
         formBuilder.addSeparator(5)
@@ -137,8 +127,6 @@ class CircleCIConfigurable : Configurable {
 
         return tokenChanged ||
             hostUrlField.text != settings.hostUrl ||
-            getBranchFilterValue() != settings.branchFilter ||
-            myPipelinesOnlyCheck.isSelected != settings.myPipelinesOnly ||
             autoRefreshEnabledCheck.isSelected != settings.autoRefreshEnabled ||
             fastPollIntervalField.text.toIntOrNull() != settings.fastPollIntervalSeconds ||
             slowPollIntervalField.text.toIntOrNull() != settings.slowPollIntervalSeconds ||
@@ -168,8 +156,6 @@ class CircleCIConfigurable : Configurable {
         }
 
         settings.hostUrl = hostUrlField.text
-        settings.branchFilter = getBranchFilterValue()
-        settings.myPipelinesOnly = myPipelinesOnlyCheck.isSelected
         settings.autoRefreshEnabled = autoRefreshEnabledCheck.isSelected
         settings.fastPollIntervalSeconds = fastPollIntervalField.text.toIntOrNull() ?: 30
         settings.slowPollIntervalSeconds = slowPollIntervalField.text.toIntOrNull() ?: 120
@@ -208,20 +194,10 @@ class CircleCIConfigurable : Configurable {
         }
 
         hostUrlField.text = settings.hostUrl
-        myPipelinesOnlyCheck.isSelected = settings.myPipelinesOnly
         autoRefreshEnabledCheck.isSelected = settings.autoRefreshEnabled
         fastPollIntervalField.text = settings.fastPollIntervalSeconds.toString()
         slowPollIntervalField.text = settings.slowPollIntervalSeconds.toString()
         notificationsEnabledCheck.isSelected = settings.notificationsEnabled
-
-        // Set branch filter
-        branchFilterCombo.selectedIndex =
-            when (settings.branchFilter) {
-                "current" -> 0
-                "all" -> 1
-                "default" -> 2
-                else -> 0
-            }
 
         // Set log level
         logLevelCombo.selectedIndex =
@@ -232,18 +208,6 @@ class CircleCIConfigurable : Configurable {
                 "debug" -> 3
                 else -> 2
             }
-    }
-
-    /**
-     * Get branch filter value from combo box.
-     */
-    private fun getBranchFilterValue(): String {
-        return when (branchFilterCombo.selectedIndex) {
-            0 -> "current"
-            1 -> "all"
-            2 -> "default"
-            else -> "current"
-        }
     }
 
     /**
@@ -262,10 +226,10 @@ class CircleCIConfigurable : Configurable {
     /**
      * Get polling service from the default project.
      */
-    private fun getPollingService(): com.circleci.idea.polling.PipelinePollingService? {
+    private fun getPollingService(): com.circleci.idea.polling.RunPollingService? {
         return try {
             val project = ProjectManager.getInstance().defaultProject
-            project.getService(com.circleci.idea.polling.PipelinePollingService::class.java)
+            project.getService(com.circleci.idea.polling.RunPollingService::class.java)
         } catch (e: Exception) {
             logger.warn("Failed to get polling service from default project", e)
             null

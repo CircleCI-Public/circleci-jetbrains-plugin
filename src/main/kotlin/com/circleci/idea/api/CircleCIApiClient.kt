@@ -3,7 +3,7 @@ package com.circleci.idea.api
 import com.circleci.idea.logging.CircleCILogger
 import com.google.gson.Gson
 import com.google.gson.JsonObject
-import okhttp3.Call
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -11,13 +11,14 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.IOException
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.math.min
 import kotlin.math.pow
 
 /**
- * HTTP client for CircleCI API v2.
+ * HTTP client for the CircleCI API (v1.1, v2 and v3).
  *
  * Features:
  * - Configurable base URL for cloud/server
@@ -37,7 +38,7 @@ class CircleCIApiClient(
     private val logger = CircleCILogger.getInstance()
 
     // In-flight request deduplication
-    private val inFlightRequests = ConcurrentHashMap<String, Call>()
+    private val inFlightRequests = ConcurrentHashMap<String, CompletableFuture<ApiResponse>>()
 
     // Rate limiter
     private val rateLimiter = RateLimiter(maxRequestsPerSecond = 50)
@@ -162,43 +163,49 @@ class CircleCIApiClient(
 
     /**
      * Execute request with deduplication and rate limiting.
+     *
+     * Concurrent identical GETs share the first one's response: an OkHttp
+     * call can only be executed once, so a duplicate waits on its result
+     * rather than executing the call again. Other methods aren't idempotent,
+     * so each one is sent.
      */
     private fun executeRequest(request: Request): ApiResponse {
-        val requestKey = "${request.method} ${request.url}"
+        if (request.method != "GET") {
+            return send(request)
+        }
+
+        val requestKey = request.url.toString()
+        val pending = CompletableFuture<ApiResponse>()
+        val inFlight = inFlightRequests.putIfAbsent(requestKey, pending)
+        if (inFlight != null) {
+            logger.debug("Deduplicating in-flight request: GET $requestKey")
+            return inFlight.join()
+        }
+
+        return try {
+            runCatching { send(request) }
+                .onSuccess { pending.complete(it) }
+                .onFailure { pending.completeExceptionally(it) }
+                .getOrThrow()
+        } finally {
+            inFlightRequests.remove(requestKey, pending)
+        }
+    }
+
+    private fun send(request: Request): ApiResponse {
         val startTime = System.currentTimeMillis()
 
         // Log API request
         logger.logApiRequest(request.method, request.url.toString())
 
-        // Check for in-flight duplicate request
-        val existingCall = inFlightRequests[requestKey]
-        if (existingCall != null && !existingCall.isCanceled()) {
-            logger.debug("Deduplicating in-flight request: $requestKey")
-            // Wait for existing request to complete
-            return try {
-                val response = existingCall.execute()
-                parseResponse(response, request, startTime)
-            } catch (e: IOException) {
-                logger.error("Network error for deduplicated request: ${e.message}", e)
-                ApiResponse.Error(e.message ?: "Network error", 0)
-            }
-        }
-
         // Apply rate limiting
         rateLimiter.acquire()
 
-        // Execute new request
-        val call = client.newCall(request)
-        inFlightRequests[requestKey] = call
-
         return try {
-            val response = call.execute()
-            parseResponse(response, request, startTime)
+            client.newCall(request).execute().use { response -> parseResponse(response, request, startTime) }
         } catch (e: IOException) {
             logger.logApiError(request.method, request.url.toString(), 0, e.message ?: "Network error")
             ApiResponse.Error(e.message ?: "Network error", 0)
-        } finally {
-            inFlightRequests.remove(requestKey)
         }
     }
 
@@ -259,17 +266,10 @@ class CircleCIApiClient(
         queryParams: Map<String, String> = emptyMap(),
     ): String {
         val cleanPath = path.trimStart('/')
-        val url = "$baseUrl/$cleanPath"
-
-        return if (queryParams.isEmpty()) {
-            url
-        } else {
-            val params =
-                queryParams.entries.joinToString("&") { (key, value) ->
-                    "$key=$value"
-                }
-            "$url?$params"
-        }
+        val builder = "$baseUrl/$cleanPath".toHttpUrl().newBuilder()
+        // Encoded here, as filter values carry characters such as "/" in branch names.
+        queryParams.forEach { (key, value) -> builder.addQueryParameter(key, value) }
+        return builder.build().toString()
     }
 }
 

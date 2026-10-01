@@ -8,7 +8,7 @@ import javax.swing.tree.DefaultMutableTreeNode
 
 /**
  * Custom cell renderer for job steps tree.
- * Uses ColoredTreeCellRenderer for proper styling consistent with pipeline tree.
+ * Uses ColoredTreeCellRenderer for proper styling consistent with the run tree.
  */
 class JobStepTreeCellRenderer : ColoredTreeCellRenderer() {
     override fun customizeCellRenderer(

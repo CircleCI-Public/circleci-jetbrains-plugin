@@ -10,7 +10,7 @@ import com.google.gson.JsonObject
  * Base class for specialized CircleCI API clients.
  * Provides shared error handling, parsing, and request execution logic.
  *
- * Each specialized client (Pipeline, Workflow, Job, etc.) extends this base
+ * Each specialized client (Run, Workflow, Job, etc.) extends this base
  * to implement domain-specific API methods while inheriting common functionality.
  */
 abstract class CircleCIApiClientBase {
