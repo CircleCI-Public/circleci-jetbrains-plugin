@@ -1,7 +1,6 @@
 package com.circleci.idea.toolwindow.tree
 
 import com.circleci.idea.logging.CircleCILogger
-import com.circleci.idea.run.RunStatus
 import com.circleci.idea.state.Run
 import com.intellij.collaboration.ui.codereview.avatar.Avatar
 import com.intellij.collaboration.ui.codereview.avatar.CodeReviewAvatarUtils
@@ -15,7 +14,6 @@ import com.intellij.util.ui.ImageUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.awt.Color
 import java.awt.Image
 import java.io.IOException
 import javax.imageio.ImageIO
@@ -23,9 +21,8 @@ import javax.swing.Icon
 
 /**
  * Avatars of the people who triggered runs, drawn as the Pull Requests list
- * draws reviewers': a circle in a coloured ring, here coloured by the run's
- * status. Loaded in the background and cached, so a tree row shows nothing
- * in the avatar's place until it arrives.
+ * draws reviewers': a circle in a ring. Loaded in the background and cached,
+ * so a tree row shows nothing in the avatar's place until it arrives.
  *
  * Only GitHub serves an avatar for a login at a predictable URL, so runs of
  * other providers' projects have none.
@@ -41,10 +38,7 @@ class RunAvatars(scope: CoroutineScope) {
     /** The run's avatar in a ring of its status's colour, or null when there's no avatar to show. */
     fun iconFor(run: Run): Icon? {
         val url = avatarUrl(run) ?: return null
-        return CodeReviewAvatarUtils.createIconWithOutline(
-            icons.getIcon(url, Avatar.Sizes.SMALL),
-            ringColor(run.status),
-        )
+        return CodeReviewAvatarUtils.createIconWithOutline(icons.getIcon(url, Avatar.Sizes.SMALL), RING_COLOR)
     }
 
     private class AvatarLoader : AsyncImageIconsProvider.AsyncImageLoader<String> {
@@ -64,6 +58,9 @@ class RunAvatars(scope: CoroutineScope) {
     }
 
     companion object {
+        // The same neutral ring for every run: the status icon beside it already says how the run went.
+        private val RING_COLOR = JBColor.namedColor("Review.Avatar.Border.Status.Empty", JBColor(0xD3D5DB, 0x4E5157))
+
         private const val MAX_CACHED = 200
         private const val EXPIRES_AFTER_MINUTES = 60
 
@@ -78,17 +75,5 @@ class RunAvatars(scope: CoroutineScope) {
             val login = run.triggeredBy?.takeIf { it.isNotBlank() } ?: return null
             return "https://github.com/$login.png?size=$REQUEST_SIZE"
         }
-
-        private fun ringColor(status: RunStatus): Color =
-            when {
-                status == RunStatus.SUCCESS -> Avatar.Color.ACCEPTED_BORDER
-                status.isFailure ->
-                    JBColor.namedColor(
-                        "Review.Avatar.Border.Status.Rejected",
-                        JBColor(0xE55765, 0xDB5C5C),
-                    )
-                status.isActive -> Avatar.Color.WAIT_FOR_UPDATES_BORDER
-                else -> JBColor.namedColor("Review.Avatar.Border.Status.Empty", JBColor.GRAY)
-            }
     }
 }
