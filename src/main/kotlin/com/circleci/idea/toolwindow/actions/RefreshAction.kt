@@ -35,10 +35,9 @@ class RefreshAction :
             // Always refresh projects (auth is checked inside)
             projectService.refresh()
 
-            // Force tree reload after refresh
-            com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
-                project.getService(com.circleci.idea.toolwindow.CircleCIToolWindowService::class.java)?.reloadTree()
-            }
+            // Re-fetch the runs in place, keeping the tree as it is. A
+            // change to the project list rebuilds it on its own.
+            project.getService(com.circleci.idea.toolwindow.CircleCIToolWindowService::class.java)?.refreshRuns()
         }
     }
 

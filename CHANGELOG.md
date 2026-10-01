@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "CircleCI Settings..." in the CircleCI tool window's options (gear) menu
 
 ### Fixed
+- Refreshing the runs (the Refresh button, or after rerunning or canceling from the tree) no longer collapses the tree or loses the selection: it updates the tree in place. Rebuilding it for a filter or branch change keeps what was open, selected and focused, and restoring the tree doesn't scroll it
 - Workflows' jobs failed to load ("Workflow not found") because the V2 jobs endpoint doesn't serve them
 - Loading could fail with "Already Executed" when two identical requests overlapped; concurrent identical GETs now share one response
 - Projects weren't detected (so no runs showed) until a manual refresh when the tool window opened before the IDE had found the Git repositories; projects are now re-detected once the repositories are mapped

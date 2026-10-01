@@ -47,9 +47,11 @@ class CircleCITreeModel(
     private val stateManager = TreeStateManager()
     private var tree: Tree? = null
 
-    // Nodes expanded before the root was last rebuilt. The rebuilt nodes load
-    // asynchronously, so this is reapplied as each level's children arrive.
+    // Nodes expanded, and the node selected, before the root was last
+    // rebuilt. The rebuilt nodes load asynchronously, so these are reapplied
+    // as each level's children arrive.
     private var expandedBeforeReload: Set<String> = emptySet()
+    private var selectedBeforeReload: String? = null
 
     init {
         // Listen to project changes and reload root
@@ -98,7 +100,16 @@ class CircleCITreeModel(
      */
     fun reloadRoot() {
         SwingUtilities.invokeLater {
-            expandedBeforeReload = tree?.let { stateManager.captureState(it) } ?: emptySet()
+            val tree = tree
+            if (tree != null) {
+                // A reload can come before the last one's nodes have all
+                // loaded (the project list and the selection change together
+                // on startup, say), so keep what's still waiting to be put back.
+                val present = stateManager.captureIdentifiers(tree)
+                expandedBeforeReload = stateManager.captureState(tree) + (expandedBeforeReload - present)
+                selectedBeforeReload = stateManager.captureSelection(tree) ?: selectedBeforeReload
+            }
+            val hadFocus = tree?.hasFocus() == true
 
             val rootNode = root as RootNode
             rootNode.removeAllChildren()
@@ -116,8 +127,10 @@ class CircleCITreeModel(
             }
             reload(rootNode)
 
-            val tree = tree ?: return@invokeLater
+            if (tree == null) return@invokeLater
             stateManager.restoreState(tree, rootNode, expandedBeforeReload)
+            restoreSelection(rootNode)
+            if (hadFocus) tree.requestFocusInWindow()
             // A lone list has nothing to choose between, so open it.
             val lone = rootNode.firstChild as? CircleCITreeNode
             if (rootNode.childCount == 1 && lone != null && lone.canLoadChildren()) {
@@ -178,10 +191,8 @@ class CircleCITreeModel(
                 },
             )
             nodeStructureChanged(parent)
-            tree?.let {
-                stateManager.restoreState(it, parent, expanded)
-                stateManager.restoreSelection(it, parent, selected)
-            }
+            tree?.let { stateManager.restoreState(it, parent, expanded) }
+            restoreSelection(parent, selected)
         }
     }
 
@@ -328,8 +339,8 @@ class CircleCITreeModel(
                     node,
                     if (refresh) expanded else expanded + expandedBeforeReload,
                 )
-                stateManager.restoreSelection(it, node, selected)
             }
+            restoreSelection(node, selected)
 
             if (refresh) {
                 refreshLoadedChildren(node)
@@ -353,6 +364,20 @@ class CircleCITreeModel(
                 nodeStructureChanged(child)
             }
         }
+    }
+
+    /**
+     * Reselect what was selected before this node's children were replaced,
+     * or else what was selected before the last root reload, once it loads.
+     */
+    private fun restoreSelection(
+        node: CircleCITreeNode,
+        selected: String? = null,
+    ) {
+        val tree = tree ?: return
+        stateManager.restoreSelection(tree, node, selected ?: selectedBeforeReload)
+        // Once something's selected (that, or whatever the user picked since), stop waiting for it.
+        if (tree.selectionPath != null) selectedBeforeReload = null
     }
 
     private inline fun <reified N : CircleCITreeNode, K> existingChildren(

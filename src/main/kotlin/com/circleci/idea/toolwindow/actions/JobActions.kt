@@ -81,8 +81,8 @@ abstract class JobAction(
             // Handle result
             withContext(Dispatchers.Main) {
                 if (result.isSuccess) {
-                    // Refresh tree to show updated state
-                    project.getService(CircleCIToolWindowService::class.java).reloadTree()
+                    // Refresh the tree in place to show the updated state
+                    project.getService(CircleCIToolWindowService::class.java).refreshRuns()
                 } else {
                     val error = result.exceptionOrNull()?.message ?: "Unknown error"
                     Messages.showErrorDialog(

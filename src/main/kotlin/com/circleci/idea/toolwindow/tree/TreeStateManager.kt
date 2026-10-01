@@ -43,6 +43,22 @@ class TreeStateManager {
     ) {
         if (expandedIdentifiers.isEmpty()) return
 
+        // Expanding a node scrolls its children into view; putting back the
+        // tree the user had shouldn't move it.
+        val scrollsOnExpand = tree.scrollsOnExpand
+        tree.scrollsOnExpand = false
+        try {
+            expandMatching(tree, node, expandedIdentifiers)
+        } finally {
+            tree.scrollsOnExpand = scrollsOnExpand
+        }
+    }
+
+    private fun expandMatching(
+        tree: Tree,
+        node: CircleCITreeNode,
+        expandedIdentifiers: Set<String>,
+    ) {
         fun expandMatchingNodes(path: TreePath) {
             val current = path.lastPathComponent as? CircleCITreeNode ?: return
 
@@ -56,6 +72,18 @@ class TreeStateManager {
         }
 
         expandMatchingNodes(pathTo(node))
+    }
+
+    /**
+     * The identifiers of every node in the tree, expanded or not.
+     */
+    fun captureIdentifiers(tree: Tree): Set<String> {
+        val root = tree.model.root as? CircleCITreeNode ?: return emptySet()
+        return root.depthFirstEnumeration().toList().mapNotNull {
+            (it as? CircleCITreeNode)?.let(
+                ::getNodeIdentifier,
+            )
+        }.toSet()
     }
 
     /**
