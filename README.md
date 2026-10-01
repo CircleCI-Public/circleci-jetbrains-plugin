@@ -104,12 +104,11 @@ Available settings:
 ### Viewing Runs
 
 1. Open the CircleCI tool window (View → Tool Windows → CircleCI)
-2. It shows the selected project's runs, each run's workflows, and their jobs
+2. It shows the runs of the project chosen in its title bar (one found in the workspace, or another by its slug), each run's workflows, and their jobs
 3. Click to expand/collapse items
 4. Right-click for context menu actions
 
 The filters above the runs work like those on the Pull Requests list (each reads just its name until set, and clears back to it; the funnel clears them all), and much like `circleci run get`'s:
-- **Project**: one found in the workspace, or another by its slug
 - **Branch**: runs on the current branch, the default branch, all branches, or *My runs* — the runs you triggered, across all projects
 - **Status**: canceled, failed, failing, not run, queued, running, or success
 - **Created**: runs newer or older than 1 hour up to 1 month

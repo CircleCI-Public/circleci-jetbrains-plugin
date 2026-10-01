@@ -205,9 +205,13 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         panel.add(filterBar, BorderLayout.NORTH)
     }
 
-    /** Actions for the tool window's title bar, as the Pull Requests list keeps its refresh. */
+    /**
+     * Actions for the tool window's title bar: the project whose runs to list,
+     * then refreshing, as the Pull Requests list keeps its refresh there.
+     */
     fun titleActions(): List<AnAction> =
         listOf(
+            com.circleci.idea.toolwindow.actions.ProjectChooserAction(),
             com.circleci.idea.toolwindow.actions.RefreshAction(),
             com.circleci.idea.toolwindow.actions.ToggleAutoRefreshAction(),
         )

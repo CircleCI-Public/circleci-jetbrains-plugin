@@ -2,7 +2,6 @@ package com.circleci.idea.toolwindow
 
 import com.circleci.idea.git.GitBranchService
 import com.circleci.idea.project.CircleCIProjectService
-import com.circleci.idea.project.models.CircleCIProject
 import com.circleci.idea.run.CreatedAge
 import com.circleci.idea.run.CreatedFilter
 import com.circleci.idea.run.RunScope
@@ -12,7 +11,6 @@ import com.circleci.idea.state.FiltersState
 import com.intellij.collaboration.ui.codereview.list.search.DropDownComponentFactory
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.Messages
 import com.intellij.ui.InplaceButton
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
@@ -25,9 +23,10 @@ import java.awt.FlowLayout
  * The run list's filters as the IDE's Pull Requests list shows its own: a
  * row of drop-downs, and a funnel before them that resets them.
  *
- * Project and Branch always have a value ("Branch: Current [main] ▾"), so
- * have nothing to clear. Status and Created are optional: each reads just
- * its name while unset, and can be cleared back to it.
+ * Branch always has a value ("Branch: Current [main] ▾"), so has nothing to
+ * clear. Status and Created are optional: each reads just its name while
+ * unset, and can be cleared back to it. The project they apply to isn't a
+ * filter; it's chosen in the tool window's title bar.
  */
 class RunFilterBar(
     private val project: Project,
@@ -41,61 +40,41 @@ class RunFilterBar(
     private val filters: FiltersState
         get() = stateStore.filters.value
 
-    private val projectState = MutableStateFlow(projectService.getSelectedProject())
     private val branchState = MutableStateFlow(filters.scope)
     private val statusState = MutableStateFlow(filters.status)
     private val createdState = MutableStateFlow(filters.created)
 
-    // The last choice, null, is "Other Project...".
-    private val projectText =
-        ChipText<CircleCIProject?>(
-            chip = { it?.getDisplayName() ?: "None" },
-            popup = { it?.getDisplayName() ?: OTHER_PROJECT },
-        )
-    private val projectChip =
+    private val branchChip =
         RequiredFilterChip(
-            "Project",
-            projectState,
+            "Branch",
+            branchState,
             scope,
-            choices = { projectService.getAllProjects() + null },
-            text = projectText,
-            choose = { chosen -> (chosen ?: promptForProject())?.let { projectService.selectProject(it.slug) } },
+            choices = { RunScope.entries },
+            text = ChipText(chip = { branchLabel(it, short = true) }, popup = { branchLabel(it, short = false) }),
         ).component
 
     init {
         add(InplaceButton("Reset filters", AllIcons.General.Filter) { resetFilters() })
-        add(projectChip)
-        add(
-            RequiredFilterChip(
-                "Branch",
-                branchState,
-                scope,
-                choices = { RunScope.entries },
-                text = ChipText(chip = { branchLabel(it, short = true) }, popup = { branchLabel(it, short = false) }),
-            ).component,
-        )
+        add(branchChip)
         add(DropDownComponentFactory(statusState).create(scope, "Status", RunStatusFilter.entries, {}, { it.label }))
         add(DropDownComponentFactory(createdState).create(scope, "Created", CREATED_CHOICES, {}, { it.label }))
 
-        projectChip.isVisible = filters.scope != RunScope.MY_RUNS
         followFilters()
     }
 
-    /** Apply each drop-down's choice, and keep the project one showing the selected project. */
+    /** Apply each drop-down's choice. */
     private fun followFilters() {
         scope.launch {
-            branchState.collect { scope ->
-                projectChip.isVisible = scope != RunScope.MY_RUNS
-                update { it.copy(scope = scope) }
-            }
+            branchState.collect { scope -> update { it.copy(scope = scope) } }
         }
         scope.launch { statusState.collect { status -> update { it.copy(status = status) } } }
         scope.launch { createdState.collect { created -> update { it.copy(created = created) } } }
+        // The branch names in the labels follow the selected project.
         scope.launch {
-            projectService.selectedProject.collect { projectState.value = projectService.getSelectedProject() }
-        }
-        scope.launch {
-            projectService.projects.collect { projectState.value = projectService.getSelectedProject() }
+            projectService.selectedProject.collect {
+                branchChip.revalidate()
+                branchChip.repaint()
+            }
         }
     }
 
@@ -140,30 +119,8 @@ class RunFilterBar(
         return branch?.let { "$role [$it]" } ?: role
     }
 
-    /** Ask for a project's slug, and add it. */
-    private fun promptForProject(): CircleCIProject? {
-        val slug =
-            Messages.showInputDialog(
-                project,
-                "The CircleCI project's slug, as vcs/org/repo (e.g., gh/myorg/myrepo):",
-                "Other CircleCI Project",
-                null,
-            )?.trim()
-        if (slug.isNullOrEmpty()) return null
-        if (!projectService.addProjectBySlug(slug)) {
-            Messages.showErrorDialog(
-                project,
-                "\"$slug\" isn't a project slug: use vcs/org/repo, e.g. gh/myorg/myrepo",
-                "Invalid Project Slug",
-            )
-            return null
-        }
-        return projectService.getSelectedProject()
-    }
-
     private companion object {
         const val GAP = 4
-        const val OTHER_PROJECT = "Other Project..."
 
         val CREATED_CHOICES: List<CreatedFilter> =
             listOf(true, false).flatMap { newer -> CreatedAge.entries.map { CreatedFilter(it, newer) } }
