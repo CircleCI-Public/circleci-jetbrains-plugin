@@ -2,6 +2,7 @@ package com.circleci.idea.toolwindow.tree
 
 import com.circleci.idea.icons.CircleCIIcons
 import com.circleci.idea.icons.StatusDotIcon
+import com.circleci.idea.run.RunStatus
 import com.circleci.idea.run.elapsedSince
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.SimpleTextAttributes
@@ -24,7 +25,7 @@ import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.TreeCellRenderer
 
 /**
- * Renders the run tree. Runs take two lines, as the Pull Requests list's
+ * Renders the run tree, marking statuses with small coloured dots. Runs take two lines, as the Pull Requests list's
  * rows do: the run's status and title, its details in grey underneath, and
  * the avatar of whoever triggered it in a column on the right. Everything
  * else (workflows, jobs, messages) takes one line.
@@ -68,12 +69,13 @@ class CircleCITreeCellRenderer : TreeCellRenderer {
             detailFor(value)?.let { appendDetail(it) }
         }
 
+        // Statuses are the same small dots as on runs, throughout the tree.
         private fun iconFor(node: CircleCITreeNode): Icon? =
             when (node) {
                 is RootNode -> CircleCIIcons.PLUGIN_ICON
                 is LoadingNode, is LoadMoreNode, is EmptyNode -> null
-                is ErrorNode -> CircleCIIcons.Status.FAILED
-                else -> node.getStatus()?.let { CircleCIIcons.getStatusIcon(it) }
+                is ErrorNode -> StatusDotIcon.of(RunStatus.FAILED)
+                else -> node.getStatus()?.let { StatusDotIcon.of(it) }
             }
 
         private fun attributesFor(node: CircleCITreeNode): SimpleTextAttributes =
