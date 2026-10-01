@@ -222,8 +222,8 @@ class CircleCITreeModel(
         refresh: Boolean,
     ) {
         val fetch = runFetcher(node) ?: return
-        loadInto(node, refresh, "runs", { fetch(null) }) { page ->
-            val existing = existingChildren<RunNode, String>(node) { it.run.id }
+        loadInto(node, refresh, "runs", { fetch(null) }) { page, previous ->
+            val existing = existingChildren<RunNode, String>(previous) { it.run.id }
             if (page.items.isEmpty()) {
                 node.add(EmptyNode(emptyRunsMessage(node)))
             }
@@ -250,9 +250,14 @@ class CircleCITreeModel(
         node: RunNode,
         refresh: Boolean,
     ) {
-        loadInto(node, refresh, "workflows", { runListService.fetchWorkflows(node.run) }) { (run, workflows) ->
+        loadInto(
+            node,
+            refresh,
+            "workflows",
+            { runListService.fetchWorkflows(node.run) },
+        ) { (run, workflows), previous ->
             node.run = run
-            val existing = existingChildren<WorkflowNode, String>(node) { it.workflow.id }
+            val existing = existingChildren<WorkflowNode, String>(previous) { it.workflow.id }
             if (workflows.isEmpty()) {
                 node.add(
                     EmptyNode(
@@ -277,7 +282,7 @@ class CircleCITreeModel(
         node: WorkflowNode,
         refresh: Boolean,
     ) {
-        loadInto(node, refresh, "jobs", { runListService.fetchJobs(node.workflow) }) { jobs ->
+        loadInto(node, refresh, "jobs", { runListService.fetchJobs(node.workflow) }) { jobs, _ ->
             if (jobs.isEmpty()) {
                 node.add(EmptyNode("No jobs"))
             }
@@ -297,7 +302,8 @@ class CircleCITreeModel(
         refresh: Boolean,
         what: String,
         fetch: suspend () -> Result<T>,
-        populate: (T) -> Unit,
+        // Given the result and the node's children before it, some of which it may keep.
+        populate: (T, List<CircleCITreeNode>) -> Unit,
     ) {
         val generation = ++node.loadGeneration
         if (!refresh) {
@@ -317,10 +323,12 @@ class CircleCITreeModel(
 
             val expanded = captureExpansion()
             val selected = tree?.let { stateManager.captureSelection(it) }
+            // Taken before clearing, so populate can keep the nodes still listed (and so their expansion).
+            val previous = node.children().toList().filterIsInstance<CircleCITreeNode>()
             node.removeAllChildren()
             result.fold(
                 onSuccess = {
-                    populate(it)
+                    populate(it, previous)
                     node.childrenLoaded = true
                 },
                 onFailure = { error ->
@@ -381,9 +389,9 @@ class CircleCITreeModel(
     }
 
     private inline fun <reified N : CircleCITreeNode, K> existingChildren(
-        node: CircleCITreeNode,
+        previous: List<CircleCITreeNode>,
         key: (N) -> K,
-    ): Map<K, N> = node.children().toList().filterIsInstance<N>().associateBy(key)
+    ): Map<K, N> = previous.filterIsInstance<N>().associateBy(key)
 
     private fun captureExpansion(): Set<String> {
         return tree?.let { stateManager.captureState(it) } ?: emptySet()
