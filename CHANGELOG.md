@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - "CircleCI Settings..." in the CircleCI tool window's options (gear) menu
+- Until you log in, the CircleCI tool window shows the project and ways to log in, as the IDE's Pull Requests view does. "Log In with Token..." opens a "Log In to CircleCI" dialog (server, token, and Generate... to create one); "Log In via CircleCI..." is a placeholder for browser login. If your token is rejected, the view says why
 - "SSH into Job" on a running job's page opens an SSH session into it in a Terminal tab, one per session, using the IDE's SSH client: your ~/.ssh/config, SSH agent and keys, with the IDE asking for a passphrase or to trust the host when needed. Needs the bundled SSH and Terminal plugins
 
 ### Fixed

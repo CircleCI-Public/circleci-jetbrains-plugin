@@ -5,6 +5,7 @@ import com.circleci.idea.job.JobDetailsService
 import com.circleci.idea.job.JobRef
 import com.circleci.idea.polling.RunPollingService
 import com.circleci.idea.project.CircleCIProjectService
+import com.circleci.idea.state.CircleCIStateStore
 import com.circleci.idea.toolwindow.tree.CircleCITreeCellRenderer
 import com.circleci.idea.toolwindow.tree.CircleCITreeModel
 import com.circleci.idea.toolwindow.tree.CircleCITreeNode
@@ -26,7 +27,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.awt.BorderLayout
+import java.awt.CardLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.JComponent
@@ -38,6 +41,12 @@ import javax.swing.tree.TreeSelectionModel
  */
 class CircleCIToolWindowContent(private val project: Project) : Disposable {
     private val panel = JBPanel<JBPanel<*>>(BorderLayout())
+
+    // The runs, or the signed-out view in their place until you log in.
+    private val cards = CardLayout()
+    private val root = JBPanel<JBPanel<*>>(cards)
+    private val signedOutPanel = SignedOutPanel(project)
+    private var signedIn: Boolean? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val treeModel = CircleCITreeModel(project, scope)
     private val tree = Tree(treeModel)
@@ -45,6 +54,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
     private val authService = CircleCIAuthService.getInstance(project)
     private val jobDetailsService = project.getService(JobDetailsService::class.java)
     private val pollingService = project.getService(RunPollingService::class.java)
+    private val stateStore = CircleCIStateStore.getInstance(project)
 
     init {
         setupTree()
@@ -58,11 +68,16 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         toolWindowService.setTreeModel(treeModel)
         toolWindowService.setTree(tree)
 
+        root.add(panel, RUNS_CARD)
+        root.add(signedOutPanel, SIGNED_OUT_CARD)
+
         // Restore authentication and initialize API client
         authService.restoreAuthentication()
 
         // Auto-detect projects if authenticated
         autoDetectProjects()
+
+        observeAuth()
 
         // Note: Tree will auto-reload via StateFlow listeners in CircleCITreeModel
         // when projects are detected and selectedProjects is updated
@@ -85,6 +100,29 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
             // Start polling for run updates
             pollingService.startPolling()
         }
+    }
+
+    /**
+     * Show the runs when there's a token that hasn't been rejected, and the
+     * signed-out view otherwise; reload the runs on logging in.
+     */
+    private fun observeAuth() {
+        scope.launch {
+            stateStore.auth.collect { auth ->
+                // Reading the stored token goes to the credential store: keep it off the EDT.
+                val hasToken = withContext(Dispatchers.IO) { authService.getToken() != null }
+                val nowSignedIn = auth.isAuthenticated || (hasToken && auth.error == null)
+                signedOutPanel.refresh(auth.error.takeIf { !nowSignedIn })
+                if (nowSignedIn == signedIn) return@collect
+
+                val wasSignedOut = signedIn == false
+                signedIn = nowSignedIn
+                cards.show(root, if (nowSignedIn) RUNS_CARD else SIGNED_OUT_CARD)
+                if (nowSignedIn && wasSignedOut) autoDetectProjects()
+            }
+        }
+        // The project choice follows what's detected.
+        scope.launch { projectService.projects.collect { signedOutPanel.refresh(stateStore.auth.value.error) } }
     }
 
     /**
@@ -250,11 +288,16 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
     }
 
     fun getContent(): JComponent {
-        return panel
+        return root
     }
 
     override fun dispose() {
         pollingService.stopPolling()
         scope.cancel()
+    }
+
+    private companion object {
+        const val RUNS_CARD = "runs"
+        const val SIGNED_OUT_CARD = "signed-out"
     }
 }
