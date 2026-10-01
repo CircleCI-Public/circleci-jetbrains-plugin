@@ -1,11 +1,12 @@
 import org.gradle.process.CommandLineArgumentProvider
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 import java.util.Base64
 
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "2.2.21"
+    id("org.jetbrains.kotlin.jvm") version "2.4.20"
     id("org.jetbrains.intellij.platform") version "2.19.0"
     id("org.jetbrains.kotlinx.kover") version "0.9.11"
 
@@ -64,7 +65,7 @@ dependencies {
     intellijPlatform {
         // Unified IntelliJ IDEA distribution. The native LSP API (com.intellij.modules.lsp)
         // isn't in open-source builds, so the plugin can't target them.
-        intellijIdea("2025.3") {
+        intellijIdea("2026.2") {
             // Use the multi-platform archive from the IntelliJ Maven repository instead of
             // the OS installer (avoids mounting a .dmg on macOS, and is what CI downloads too).
             useInstaller = false
@@ -84,7 +85,11 @@ tasks {
     }
 
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_21)
+            // Don't use stdlib APIs newer than the Kotlin bundled with the oldest supported IDE (2026.1).
+            apiVersion.set(KotlinVersion.KOTLIN_2_3)
+        }
     }
 
     test {
@@ -112,7 +117,7 @@ intellijPlatform {
         version = "1.3.1"
 
         ideaVersion {
-            sinceBuild = "253"
+            sinceBuild = "261"
             untilBuild = "262.*"
         }
     }
@@ -208,7 +213,9 @@ dependencyCheck {
     formats = listOf("HTML", "JSON")
     suppressionFile = "$projectDir/config/owasp-suppressions.xml"
     analyzers {
-        ossIndexEnabled = false
+        ossIndex {
+            enabled = false
+        }
     }
 }
 

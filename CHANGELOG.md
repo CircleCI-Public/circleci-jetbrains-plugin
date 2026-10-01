@@ -11,11 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migrated the CircleCI YAML Language Server integration from lsp4ij to IntelliJ's native LSP API
   - The plugin no longer requires the Red Hat LSP4IJ plugin
   - The language server shows in the status bar's Language Services widget
-  - Requires a commercial or unified IntelliJ-based IDE; open-source builds and Android Studio are no longer supported
+  - Requires IntelliJ IDEA or another commercial JetBrains IDE, 2026.1 or newer; open-source builds and Android Studio are no longer supported
 
 ### Infrastructure
-- Target platform raised to IntelliJ IDEA 2025.3 (build 253), compatible through 2026.2 (262.*)
-- Upgraded Kotlin from 1.9.21 to 2.2.21
+- Target platform raised to IntelliJ IDEA 2026.2; supports 2026.1 (build 261) through 2026.2 (262.*)
+  - Uses the 2026.1+ `LspIntegrationProvider` / `LspClientDescriptor` API
+  - Build auto-provisions the Java 25 toolchain via the Foojay resolver
+- Upgraded Kotlin from 1.9.21 to 2.4.20 (API version pinned to 2.3 for 2026.1 compatibility)
 - Upgraded Gradle from 8.13 to 9.8.0 and IntelliJ Platform Gradle Plugin from 2.11.0 to 2.19.0
   - Also bumped Kover (0.9.11), detekt (1.23.8), ktlint Gradle plugin (14.2.0) and OWASP dependency-check (13.0.0)
 - Status bar widget no longer calls the internal `StatusBar.removeWidget` API on dispose

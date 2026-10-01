@@ -24,9 +24,9 @@
             the IDE JVM process and does not expose platform internals over a network
             boundary or to untrusted input. Review when upgrading the target
             platform, where JetBrains may have addressed outstanding CVEs.
-            Current platform: IntelliJ IDEA 2025.3 (build 253).
+            Current platform: IntelliJ IDEA 2026.2 (build 262).
         </notes>
-        <filePath regex="true">.*idea-2025\.3.*</filePath>
+        <filePath regex="true">.*idea-2026\.2.*</filePath>
         <cvssBelow>10</cvssBelow>
     </suppress>
 

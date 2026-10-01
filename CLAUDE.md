@@ -30,7 +30,8 @@ task test       # Verify tests pass
 - **Language**: Kotlin
 - **Tests**: JUnit 4 (not 5) - signature: `assertEquals(message, expected, actual)`
 - **Style**: ktlint (auto-fix with `task format`)
-- **LSP**: IntelliJ native LSP API (`com.intellij.modules.lsp`); not available in open-source IDE builds
+- **Platform**: IntelliJ IDEA 2026.1+ (`sinceBuild` 261), built against 2026.2
+- **LSP**: IntelliJ native LSP API (`com.intellij.modules.lsp`, `LspIntegrationProvider`); not available in open-source IDE builds
 - **Excluded Test**: CircleCIStateStoreTest (requires IDE environment)
 
 ## File Structure

@@ -13,9 +13,9 @@ A JetBrains IDE plugin for monitoring, managing, and debugging CircleCI pipeline
 
 ## Requirements
 
-- IntelliJ IDEA 2023.2+ or compatible JetBrains IDE
+- IntelliJ IDEA 2026.1+ or another commercial JetBrains IDE (2026.1+); the native LSP API isn't available in open-source builds or Android Studio
 - CircleCI account with API token
-- Java 17+
+- For development: JDK 21 to run Gradle (the build downloads the JDK 25 toolchain automatically)
 
 ## Installation
 

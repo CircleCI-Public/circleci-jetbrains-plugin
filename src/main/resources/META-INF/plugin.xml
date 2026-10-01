@@ -108,8 +108,8 @@
             isLogByDefault="true"/>
 
         <!-- Language Server Protocol Support -->
-        <platform.lsp.serverSupportProvider
-            implementation="com.circleci.idea.lsp.CircleCILspServerSupportProvider"/>
+        <platform.lsp.integrationProvider
+            implementation="com.circleci.idea.lsp.CircleCILspIntegrationProvider"/>
 
         <!-- Application Service for LSP Manager -->
         <applicationService

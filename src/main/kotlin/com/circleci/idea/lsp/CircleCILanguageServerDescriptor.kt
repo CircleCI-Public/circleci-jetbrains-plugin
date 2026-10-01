@@ -8,10 +8,10 @@ import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.IconLoader
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.platform.lsp.api.LspServer
-import com.intellij.platform.lsp.api.LspServerSupportProvider
-import com.intellij.platform.lsp.api.ProjectWideLspServerDescriptor
-import com.intellij.platform.lsp.api.lsWidget.LspServerWidgetItem
+import com.intellij.platform.lsp.api.LspClient
+import com.intellij.platform.lsp.api.LspIntegrationProvider
+import com.intellij.platform.lsp.api.ProjectWideLspClientDescriptor
+import com.intellij.platform.lsp.api.lsWidget.LspClientWidgetItem
 
 /**
  * Whether the file is a CircleCI config file (a .yml or .yaml file in a .circleci directory).
@@ -25,25 +25,25 @@ internal fun isCircleCIConfigFile(file: VirtualFile): Boolean {
 /**
  * Starts the CircleCI YAML Language Server when a CircleCI config file is opened.
  */
-class CircleCILspServerSupportProvider : LspServerSupportProvider {
+class CircleCILspIntegrationProvider : LspIntegrationProvider {
     override fun fileOpened(
         project: Project,
         file: VirtualFile,
-        serverStarter: LspServerSupportProvider.LspServerStarter,
+        clientStarter: LspIntegrationProvider.LspClientStarter,
     ) {
         if (isCircleCIConfigFile(file)) {
-            serverStarter.ensureServerStarted(CircleCILanguageServerDescriptor(project))
+            clientStarter.ensureClientStarted(CircleCILanguageServerDescriptor(project))
         }
     }
 
-    override fun createLspServerWidgetItem(
-        lspServer: LspServer,
+    override fun createWidgetItem(
+        lspClient: LspClient,
         currentFile: VirtualFile?,
-    ): LspServerWidgetItem =
-        LspServerWidgetItem(
-            lspServer,
+    ): LspClientWidgetItem =
+        LspClientWidgetItem(
+            lspClient,
             currentFile,
-            IconLoader.getIcon("/icons/circleci.svg", CircleCILspServerSupportProvider::class.java),
+            IconLoader.getIcon("/icons/circleci.svg", CircleCILspIntegrationProvider::class.java),
             CircleCIConfigurable::class.java,
         )
 }
@@ -55,7 +55,7 @@ class CircleCILspServerSupportProvider : LspServerSupportProvider {
  * which enable everything the server advertises in its capabilities.
  */
 class CircleCILanguageServerDescriptor(project: Project) :
-    ProjectWideLspServerDescriptor(project, "CircleCI YAML Language Server") {
+    ProjectWideLspClientDescriptor(project, "CircleCI YAML Language Server") {
     private val logger = CircleCILogger.getInstance()
     private val lspManager = CircleCILanguageServerManager.getInstance()
 
