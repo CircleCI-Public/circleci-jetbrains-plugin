@@ -1,143 +1,90 @@
 package com.circleci.idea.auth
 
-import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.settings.CircleCISettings
+import com.circleci.idea.state.User
+import com.intellij.ide.BrowserUtil
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.ui.Messages
-import com.intellij.ui.components.JBLabel
+import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
-import com.intellij.util.ui.FormBuilder
-import com.intellij.util.ui.JBUI
-import java.awt.event.ActionEvent
-import javax.swing.AbstractAction
-import javax.swing.Action
+import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.panel
 import javax.swing.JComponent
-import javax.swing.JPanel
 
 /**
- * Login dialog for CircleCI authentication.
- * Allows users to enter their API token and optionally configure the host URL.
+ * "Log In to CircleCI" with a personal API token, laid out like the IDE's
+ * own GitHub token login: the server, the token (with a button to create
+ * one), and Log In, which checks the token before closing.
  */
 class CircleCILoginDialog(
     private val project: Project,
 ) : DialogWrapper(project) {
-    private val logger = CircleCILogger.getInstance()
-    private val tokenField = JBPasswordField()
-    private val hostUrlField = JBTextField()
     private val authService = CircleCIAuthService.getInstance(project)
+    private val serverField = JBTextField(serverName(CircleCISettings.getInstance().hostUrl))
+    private val tokenField = JBPasswordField()
 
     init {
-        title = "Login to CircleCI"
-        hostUrlField.text = CircleCISettings.getInstance().hostUrl
+        title = "Log In to CircleCI"
+        setOKButtonText("Log In")
         init()
     }
 
-    override fun createCenterPanel(): JComponent {
-        val instructionsLabel =
-            JBLabel(
-                "<html>Enter your CircleCI personal API token.<br>" +
-                    "You can create one at: " +
-                    "<a href='https://app.circleci.com/settings/user/tokens'>CircleCI Settings</a></html>",
-            )
-        instructionsLabel.setCopyable(true)
+    override fun createCenterPanel(): JComponent =
+        panel {
+            row("Server:") {
+                cell(serverField).align(AlignX.FILL)
+            }
+            row("Token:") {
+                cell(tokenField).align(AlignX.FILL).resizableColumn()
+                    .comment("Use a personal API token from your CircleCI user settings.")
+                button("Generate...") { BrowserUtil.browse(tokensPage(hostUrl())) }
+            }
+        }.apply { preferredSize = preferredSize.apply { width = maxOf(width, PREFERRED_WIDTH) } }
 
-        val panel =
-            FormBuilder.createFormBuilder()
-                .addComponent(instructionsLabel, JBUI.scale(10))
-                .addSeparator(JBUI.scale(10))
-                .addLabeledComponent(JBLabel("API Token:"), tokenField, 1, false)
-                .addLabeledComponent(JBLabel("Host URL:"), hostUrlField, 1, false)
-                .addComponentFillVertically(JPanel(), 0)
-                .panel
+    override fun getPreferredFocusedComponent(): JComponent = tokenField
 
-        panel.preferredSize = JBUI.size(450, 200)
-        return panel
+    override fun doValidate(): ValidationInfo? {
+        if (serverField.text.isBlank()) return ValidationInfo("Enter the CircleCI server", serverField)
+        if (tokenField.password.isEmpty()) return ValidationInfo("Enter a token", tokenField)
+        return null
     }
 
+    // Called once doValidate passes.
     override fun doOKAction() {
         val token = String(tokenField.password)
-        val hostUrl = hostUrlField.text.trim()
-
-        if (token.isEmpty()) {
-            Messages.showErrorDialog(
+        val hostUrl = hostUrl()
+        // Checking the token is an API call: run it with a progress bar rather than on the EDT.
+        val result =
+            ProgressManager.getInstance().runProcessWithProgressSynchronously<Result<User>, Exception>(
+                { authService.login(token, hostUrl) },
+                "Logging In to CircleCI",
+                true,
                 project,
-                "Please enter your CircleCI API token",
-                "Token Required",
             )
-            return
-        }
-
-        if (hostUrl.isEmpty() || !isValidUrl(hostUrl)) {
-            Messages.showErrorDialog(
-                project,
-                "Please enter a valid CircleCI host URL",
-                "Invalid URL",
-            )
-            return
-        }
-
-        // Attempt to login
-        val result = authService.login(token, hostUrl)
-
         result.fold(
-            onSuccess = { user ->
-                Messages.showInfoMessage(
-                    project,
-                    "Successfully authenticated as ${user.name}",
-                    "Login Successful",
-                )
-                super.doOKAction()
-            },
-            onFailure = { error ->
-                Messages.showErrorDialog(
-                    project,
-                    "Authentication failed: ${error.message}",
-                    "Login Failed",
-                )
-            },
+            onSuccess = { super.doOKAction() },
+            onFailure = { setErrorText("Couldn't log in: ${it.message}", tokenField) },
         )
     }
 
-    override fun createActions(): Array<Action> {
-        return arrayOf(okAction, cancelAction, createHelpAction())
+    /** The server as a URL: "circleci.com" becomes "https://circleci.com". */
+    private fun hostUrl(): String {
+        val server = serverField.text.trim().trimEnd('/')
+        return if (server.startsWith("http://") || server.startsWith("https://")) server else "https://$server"
     }
 
-    private fun createHelpAction(): Action {
-        return object : AbstractAction("How to get a token?") {
-            override fun actionPerformed(e: ActionEvent?) {
-                Messages.showInfoMessage(
-                    project,
-                    "To create a CircleCI personal API token:\n\n" +
-                        "1. Go to https://app.circleci.com/settings/user/tokens\n" +
-                        "2. Click 'Create New Token'\n" +
-                        "3. Give it a name (e.g., 'IntelliJ Plugin')\n" +
-                        "4. Copy the token and paste it here\n\n" +
-                        "Note: The token will only be shown once, so make sure to copy it!",
-                    "How to Get an API Token",
-                )
-            }
+    private companion object {
+        const val PREFERRED_WIDTH = 520
+
+        /** The server as typed: a URL without its scheme. */
+        fun serverName(hostUrl: String): String = hostUrl.removePrefix("https://").removePrefix("http://").trimEnd('/')
+
+        /** Where to create a token: CircleCI cloud's web app lives on app.circleci.com. */
+        fun tokensPage(hostUrl: String): String {
+            val app = if (serverName(hostUrl) == "circleci.com") "https://app.circleci.com" else hostUrl
+            return "$app/settings/user/tokens"
         }
-    }
-
-    private fun isValidUrl(url: String): Boolean {
-        return try {
-            val normalized =
-                if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                    "https://$url"
-                } else {
-                    url
-                }
-            java.net.URL(normalized)
-            true
-        } catch (e: Exception) {
-            logger.debug("Invalid URL format during validation: $url", e)
-            false
-        }
-    }
-
-    override fun getPreferredFocusedComponent(): JComponent {
-        return tokenField
     }
 }
