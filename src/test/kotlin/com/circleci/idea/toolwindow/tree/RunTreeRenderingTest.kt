@@ -104,23 +104,79 @@ class RunTreeRenderingTest : BasePlatformTestCase() {
         assertEquals("the run row follows the visible width", wide.width - NARROWER_BY, narrow.width)
     }
 
-    fun testAvatarIsOnTheRight() {
-        val (tree, root) = layOut(WIDTH)
+    fun testRowShrinksBelowItsText() {
+        val wide = layOut(WIDTH).first.getRowBounds(0)
+        val tight = layOut(TIGHT_WIDTH).first.getRowBounds(0)
+        assertEquals(
+            "a run row narrows with the window, past its text's width",
+            wide.width - (WIDTH - TIGHT_WIDTH),
+            tight.width,
+        )
+    }
+
+    /** A run row's renderer, laid out at its row's bounds. */
+    private fun renderedRun(
+        tree: Tree,
+        root: RootNode,
+        index: Int,
+    ): Container {
+        val row = tree.getRowForPath(TreePath(arrayOf(root, root.getChildAt(index))))
         val component =
             tree.cellRenderer.getTreeCellRendererComponent(
                 tree,
-                root.getChildAt(0),
+                root.getChildAt(index),
                 false,
-                true,
                 false,
-                0,
+                false,
+                row,
                 false,
             ) as Container
-        component.setBounds(tree.getRowBounds(0))
+        component.setBounds(tree.getRowBounds(row))
         layoutAll(component)
-        val avatar = component.components.filterIsInstance<JLabel>().single()
+        return component
+    }
+
+    /** The labels within a component, with their x relative to it. */
+    private fun labels(component: Container): List<Pair<JLabel, Int>> {
+        fun collect(
+            container: Container,
+            offset: Int,
+        ): List<Pair<JLabel, Int>> =
+            container.components.flatMap { child ->
+                when (child) {
+                    is JLabel -> listOf(child to offset + child.x)
+                    is Container -> collect(child, offset + child.x)
+                    else -> emptyList()
+                }
+            }
+        return collect(component, 0)
+    }
+
+    fun testColumnsAndLines() {
+        val (tree, root) = layOut(WIDTH)
+        val first = labels(renderedRun(tree, root, 0))
+        val second = labels(renderedRun(tree, root, 1))
+        val component = renderedRun(tree, root, 0)
+
+        val (title, titleX) = first.first { it.first.text.startsWith("#3102") }
+        val (_, detailsX) = first.first { it.first.text.contains("7d3b7bc") }
+        assertEquals("the details start under the status icon, at the title row's left edge", titleX, detailsX)
+        assertNotNull("the title row carries the status icon", title.icon)
+
+        val branchX = first.first { it.first.text == "main" }.second
+        assertEquals("the branch column lines up across runs", branchX, second.first { it.first.text == "main" }.second)
+        assertFalse(
+            "the branch isn't in the details",
+            first.any {
+                it.first.text.contains("7d3b7bc") && it.first.text.contains("main")
+            },
+        )
+
+        val (avatar, avatarX) = first.single { it.first.icon != null && it.first.text.isNullOrEmpty() }
         assertTrue("the avatar shows", avatar.isVisible)
-        assertEquals("the avatar sits at the right edge", component.width, avatar.x + avatar.width)
+        assertTrue("the avatar is right of the branch", avatarX > branchX)
+        val padding = component.width - (avatarX + avatar.width - avatar.insets.right)
+        assertTrue("the avatar has room around it ($padding px to the edge)", avatar.insets.left > 0 && padding > 0)
     }
 
     private companion object {
@@ -128,5 +184,6 @@ class RunTreeRenderingTest : BasePlatformTestCase() {
         const val HEIGHT = 300
         const val NARROWER_BY = 120
         const val EDGE_SLACK = 24
+        const val TIGHT_WIDTH = 160
     }
 }

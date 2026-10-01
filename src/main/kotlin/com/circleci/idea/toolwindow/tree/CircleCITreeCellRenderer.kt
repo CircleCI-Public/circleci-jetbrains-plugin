@@ -3,7 +3,6 @@ package com.circleci.idea.toolwindow.tree
 import com.circleci.idea.icons.CircleCIIcons
 import com.circleci.idea.run.elapsedSince
 import com.intellij.ui.ColoredTreeCellRenderer
-import com.intellij.ui.SimpleColoredComponent
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
@@ -107,18 +106,21 @@ class CircleCITreeCellRenderer : TreeCellRenderer {
     }
 
     /**
-     * A run: status icon and title, then its ref, revision and age in grey
-     * underneath, lined up with the title; the avatar on the right, centred
-     * across both lines.
+     * A run, in columns: its status icon and title, with its revision and
+     * age in grey underneath, from the row's left edge (the icon is part of
+     * the first line); then its branch; then the avatar of whoever triggered
+     * it, centred across both lines.
      *
-     * The row spans the tree's visible width, so the avatars form a column
-     * at its right edge. A tree sizes rows to their renderer, so this works
-     * out the room to the right of the row's indent itself.
+     * The row spans the tree's visible width, so the branch and avatar
+     * columns line up at its right edge, and shrinks with it: text that no
+     * longer fits ends in "…". A tree sizes rows to their renderer, so this
+     * works out the room to the right of the row's indent itself.
      */
     private class RunRowRenderer {
-        private val title = SimpleColoredComponent()
-        private val details = SimpleColoredComponent()
-        private val avatar = JBLabel()
+        private val title = JBLabel()
+        private val details = JBLabel().apply { font = JBUI.Fonts.smallFont() }
+        private val branch = JBLabel().apply { font = JBUI.Fonts.smallFont() }
+        private val avatar = JBLabel().apply { border = JBUI.Borders.empty(AVATAR_PADDING_V, AVATAR_PADDING_H) }
         private val lines =
             JBPanel<JBPanel<*>>().apply {
                 layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -126,16 +128,21 @@ class CircleCITreeCellRenderer : TreeCellRenderer {
                 add(title)
                 add(details)
             }
+        private val columns =
+            JBPanel<JBPanel<*>>(BorderLayout(JBUI.scale(GAP), 0)).apply {
+                isOpaque = false
+                add(branch, BorderLayout.CENTER)
+                add(avatar, BorderLayout.EAST)
+            }
         private val row = RowPanel()
 
         init {
-            for (line in listOf(title, details)) {
-                line.isOpaque = false
-                line.ipad = JBUI.emptyInsets()
-                line.alignmentX = Component.LEFT_ALIGNMENT
-            }
+            title.alignmentX = Component.LEFT_ALIGNMENT
+            details.alignmentX = Component.LEFT_ALIGNMENT
+            // The text gives way first when the row narrows: let it shrink to nothing.
+            lines.minimumSize = Dimension(0, 0)
             row.add(lines, BorderLayout.CENTER)
-            row.add(avatar, BorderLayout.EAST)
+            row.add(columns, BorderLayout.EAST)
         }
 
         fun render(
@@ -149,30 +156,53 @@ class CircleCITreeCellRenderer : TreeCellRenderer {
             // Grey, unless on the focused selection's background, where it wouldn't read.
             val detailForeground = if (selected && hasFocus) foreground else UIUtil.getContextHelpForeground()
 
-            title.clear()
             title.icon = CircleCIIcons.getStatusIcon(run.status)
             title.iconTextGap = JBUI.scale(ICON_GAP)
-            title.append(node.getDisplayText(), SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, foreground))
+            title.text = node.getDisplayText()
+            title.foreground = foreground
 
-            details.clear()
-            // Indent the details to line up with the title's text, past its icon.
-            details.ipad = JBUI.insetsLeft(title.icon.iconWidth + title.iconTextGap)
-            val parts =
+            details.text =
                 listOfNotNull(
-                    node.getRefText(),
                     run.revision?.take(SHORT_REVISION_LENGTH),
                     run.createdAt?.let(::formatTimeAgo),
-                )
-            details.append(
-                parts.joinToString(" · "),
-                SimpleTextAttributes(SimpleTextAttributes.STYLE_SMALLER, detailForeground),
-            )
+                ).joinToString(" · ")
+            details.foreground = detailForeground
+
+            val width = roomRightOfIndent(tree, node)
+            branch.text = node.getRefText().orEmpty()
+            branch.foreground = detailForeground
+            branch.preferredSize = Dimension(branchColumnWidth(node, width), branch.preferredSize.height)
 
             avatar.icon = RunAvatars.getInstance().iconFor(run)
             avatar.isVisible = avatar.icon != null
             row.toolTipText = run.triggeredBy?.let { "Triggered by $it" }
-            row.rowWidth = roomRightOfIndent(tree, node)
+            row.rowWidth = width
             return row
+        }
+
+        /**
+         * One width for the branch column across the list, so it lines up:
+         * the widest of the runs' refs, but at most a share of the row, past
+         * which a long branch name ends in "…".
+         */
+        private fun branchColumnWidth(
+            node: RunNode,
+            rowWidth: Int?,
+        ): Int {
+            val metrics = branch.getFontMetrics(branch.font)
+            val siblings =
+                node.parent?.let {
+                        parent ->
+                    (0 until parent.childCount).map { parent.getChildAt(it) }
+                } ?: listOf(node)
+            val widest =
+                siblings.filterIsInstance<RunNode>().maxOfOrNull {
+                    metrics.stringWidth(
+                        it.getRefText().orEmpty(),
+                    )
+                } ?: 0
+            val cap = rowWidth?.let { (it * BRANCH_COLUMN_SHARE).toInt() } ?: widest
+            return minOf(widest, cap)
         }
 
         /**
@@ -193,7 +223,10 @@ class CircleCITreeCellRenderer : TreeCellRenderer {
         }
     }
 
-    /** A run's row, as wide as it's told it may be (so its avatar sits at the right edge). */
+    /**
+     * A run's row, exactly as wide as it's told it may be: the room right
+     * of its indent, however much or little its text would like.
+     */
     private class RowPanel : JBPanel<RowPanel>(BorderLayout(JBUI.scale(GAP), 0)) {
         var rowWidth: Int? = null
 
@@ -204,7 +237,7 @@ class CircleCITreeCellRenderer : TreeCellRenderer {
 
         override fun getPreferredSize(): Dimension {
             val size = super.getPreferredSize()
-            return rowWidth?.let { Dimension(maxOf(it, size.width), size.height) } ?: size
+            return rowWidth?.let { Dimension(it, size.height) } ?: size
         }
     }
 
@@ -214,6 +247,9 @@ class CircleCITreeCellRenderer : TreeCellRenderer {
         const val ICON_GAP = 4
         const val VERTICAL_PADDING = 3
         const val RIGHT_MARGIN = 8
+        const val AVATAR_PADDING_V = 2
+        const val AVATAR_PADDING_H = 6
+        const val BRANCH_COLUMN_SHARE = 0.3
 
         /**
          * Format a timestamp as "X ago" (e.g., "2h ago", "5m ago").

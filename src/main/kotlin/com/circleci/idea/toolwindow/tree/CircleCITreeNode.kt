@@ -68,16 +68,14 @@ class RunNode(run: Run, val showProject: Boolean = false) : CircleCITreeNode(run
         return number + description
     }
 
-    /** The ref the run was for, e.g. "[main]", or "[org/repo:main]" when [showProject]. */
+    /** The ref the run was for, e.g. "main", or "org/repo:main" when [showProject]. */
     fun getRefText(): String? {
         val ref = run.branch ?: run.tag
         val project = if (showProject) run.repositoryName else null
-        val bracket =
-            when {
-                project != null && ref != null -> "$project:$ref"
-                else -> project ?: ref
-            }
-        return bracket?.let { "[$it]" }
+        return when {
+            project != null && ref != null -> "$project:$ref"
+            else -> project ?: ref
+        }
     }
 
     override fun getStatus(): RunStatus = run.status
