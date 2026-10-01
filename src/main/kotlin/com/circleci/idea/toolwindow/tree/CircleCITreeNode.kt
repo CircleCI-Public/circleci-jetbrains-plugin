@@ -82,24 +82,17 @@ class RunNode(run: Run, val showProject: Boolean = false) : CircleCITreeNode(run
 
     override fun canLoadChildren(): Boolean = true
 
+    // No length caps: the row's label ends in "…" itself when it runs out of room.
     private companion object {
-        const val SUBJECT_MAX = 50
-        const val ERROR_MAX = 60
+        /** A commit subject's first line. */
+        fun subjectLine(subject: String): String = subject.lineSequence().first().trim()
 
-        /** A commit subject's first line, capped in length. */
-        fun subjectLine(subject: String): String = truncate(subject.lineSequence().first().trim(), SUBJECT_MAX)
-
-        /** An error message's first sentence, capped in length. */
+        /** An error message's first sentence. */
         fun errorSummary(message: String): String {
             val line = message.trim().lineSequence().firstOrNull().orEmpty()
             val sentenceEnd = line.indexOf(". ")
-            return truncate(if (sentenceEnd >= 0) line.substring(0, sentenceEnd + 1) else line, ERROR_MAX)
+            return if (sentenceEnd >= 0) line.substring(0, sentenceEnd + 1) else line
         }
-
-        fun truncate(
-            text: String,
-            max: Int,
-        ): String = if (text.length > max) text.take(max).trimEnd() + "…" else text
     }
 }
 

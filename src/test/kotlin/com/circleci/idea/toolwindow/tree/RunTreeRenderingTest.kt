@@ -104,6 +104,12 @@ class RunTreeRenderingTest : BasePlatformTestCase() {
         assertEquals("the run row follows the visible width", wide.width - NARROWER_BY, narrow.width)
     }
 
+    fun testTitleIsNotCappedInLength() {
+        val subject = "feat: " + "a long commit subject ".repeat(6).trim()
+        val node = RunNode(run("a").copy(commitSubject = subject))
+        assertEquals("the whole subject, for the label to fit to the room", "#3102 $subject", node.getDisplayText())
+    }
+
     fun testRowShrinksBelowItsText() {
         val wide = layOut(WIDTH).first.getRowBounds(0)
         val tight = layOut(TIGHT_WIDTH).first.getRowBounds(0)
