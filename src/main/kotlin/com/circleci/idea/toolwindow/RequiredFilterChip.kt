@@ -28,7 +28,9 @@ class RequiredFilterChip<T>(
     private val choices: () -> List<T>,
     private val text: ChipText<T>,
     private val choose: (T) -> Unit = { state.value = it },
-) : FilterComponent(Supplier { name }) {
+    // The platform adds the ": " after the name only while a value is
+    // selected, which this never reports (to have no clear button), so add it here.
+) : FilterComponent(Supplier { "$name: " }) {
     /** The component to add to the filter row. */
     val component: JComponent = initUi()
 
