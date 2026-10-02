@@ -2,9 +2,13 @@ package com.circleci.idea.actions
 
 import com.circleci.idea.auth.CircleCIAuthService
 import com.circleci.idea.auth.CircleCILoginDialog
+import com.circleci.idea.auth.CircleCIOAuthLoginDialog
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.ui.popup.JBPopupFactory
 
 /**
  * Action to log in to CircleCI.
@@ -36,8 +40,20 @@ class LoginAction : AnAction() {
             }
         }
 
-        // Show login dialog
-        val dialog = CircleCILoginDialog(project)
-        dialog.show()
+        // Log in the browser or with a token, as the GitHub plugin offers
+        val choices =
+            DefaultActionGroup(
+                DumbAwareAction.create("Log In via CircleCI...") { CircleCIOAuthLoginDialog(project).show() },
+                DumbAwareAction.create("Log In with Token...") { CircleCILoginDialog(project).show() },
+            )
+        JBPopupFactory.getInstance()
+            .createActionGroupPopup(
+                "Log In to CircleCI",
+                choices,
+                e.dataContext,
+                JBPopupFactory.ActionSelectionAid.SPEEDSEARCH,
+                false,
+            )
+            .showCenteredInCurrentWindow(project)
     }
 }

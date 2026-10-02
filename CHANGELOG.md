@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- "Log In via CircleCI..." logs in with your CircleCI account in the browser, as the IDE's GitHub plugin does: a dialog waits while you approve the plugin on CircleCI (Cancel to give up; it stops waiting after 5 minutes), then the browser returns to the IDE and shows the same page as the CircleCI CLI's login. It's offered in the CircleCI tool window, Tools | CircleCI | Login to CircleCI (beside "Log In with Token..."), and Settings. The token it gets lasts 90 days, after which you log in again; logging in again from the same IDE replaces it, rather than adding another to your account
 - "CircleCI Settings..." in the CircleCI tool window's options (gear) menu
 - A "Log Out" button on the CircleCI settings page, beside the authentication status
 - Until you log in, the CircleCI tool window shows the project and ways to log in, as the IDE's Pull Requests view does. "Log In with Token..." opens a "Log In to CircleCI" dialog (server, token, and Generate... to create one); "Log In via CircleCI..." is a placeholder for browser login. If your token is rejected, the view says why
@@ -25,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Run status desktop notifications, which never appeared: the websocket they listened to was never connected. The unused followed-projects lookup (API v1.1) is gone too
 
 ### Changed
+- Settings | CircleCI says whether you're logged in in the browser or with a token, and offers both ways to log in in place of the API Token field
 - Logging in, validating config, and rerunning and canceling workflows use the V3 API. Config validation resolves private orbs in the project's organization. Only approving a hold and canceling a job still use V2, which have no V3 equivalent yet
 - The CircleCI tool window lists one project's runs at a time (from those found in the workspace, or another by slug), with the runs at the top of the tree rather than under a row for their project
 - The run filters are a row of drop-downs like the Pull Requests list's (Branch, Status, Created, and a funnel to reset them). Branch always has a value ("Branch: Current [main]"); Status and Created read just their name until set, and can be cleared. The project, and Refresh and Auto-Refresh, are in the tool window's title bar

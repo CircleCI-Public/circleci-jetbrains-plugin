@@ -11,16 +11,20 @@ import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
+import java.awt.Component
 import javax.swing.JComponent
 
 /**
  * "Log In to CircleCI" with a personal API token, laid out like the IDE's
  * own GitHub token login: the server, the token (with a button to create
  * one), and Log In, which checks the token before closing.
+ *
+ * @param parent The component to show over, when there's no project window (Settings, say)
  */
 class CircleCILoginDialog(
     private val project: Project,
-) : DialogWrapper(project) {
+    parent: Component? = null,
+) : DialogWrapper(project, parent, false, IdeModalityType.IDE) {
     private val authService = CircleCIAuthService.getInstance(project)
     private val serverField = JBTextField(serverName(CircleCISettings.getInstance().hostUrl))
     private val tokenField = JBPasswordField()

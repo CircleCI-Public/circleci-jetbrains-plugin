@@ -1,15 +1,15 @@
 package com.circleci.idea.settings
 
 import com.circleci.idea.auth.CircleCIAuthService
+import com.circleci.idea.auth.CircleCILoginDialog
+import com.circleci.idea.auth.CircleCIOAuthLoginDialog
 import com.circleci.idea.logging.CircleCILogger
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
@@ -30,8 +30,9 @@ class CircleCIConfigurable : Configurable {
 
     // Authentication settings
     private val hostUrlField = JBTextField()
-    private val apiTokenField = JBPasswordField()
     private val authStatusLabel = JBLabel()
+    private val browserLogInButton = JButton("Log In via CircleCI...").apply { addActionListener { logInViaBrowser() } }
+    private val tokenLogInButton = JButton("Log In with Token...").apply { addActionListener { logInWithToken() } }
     private val logOutButton = JButton("Log Out").apply { addActionListener { logOut() } }
 
     // Auto-refresh settings
@@ -72,11 +73,13 @@ class CircleCIConfigurable : Configurable {
         formBuilder.addSeparator(5)
         formBuilder.addComponent(JBLabel("<html><b>Authentication</b></html>"))
         formBuilder.addLabeledComponent(JBLabel("Host URL:"), hostUrlField)
-        formBuilder.addLabeledComponent(JBLabel("API Token:"), apiTokenField)
         formBuilder.addComponent(
             JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
                 add(authStatusLabel)
                 add(Box.createHorizontalStrut(JBUI.scale(10)))
+                add(browserLogInButton)
+                add(Box.createHorizontalStrut(JBUI.scale(4)))
+                add(tokenLogInButton)
                 add(logOutButton)
             },
         )
@@ -126,13 +129,8 @@ class CircleCIConfigurable : Configurable {
 
     override fun isModified(): Boolean {
         val settings = CircleCISettings.getInstance()
-        val token = String(apiTokenField.password)
 
-        // Check if token changed (only if not empty)
-        val tokenChanged = token.isNotEmpty() && getAuthService()?.getToken() != token
-
-        return tokenChanged ||
-            hostUrlField.text != settings.hostUrl ||
+        return hostUrlField.text != settings.hostUrl ||
             autoRefreshEnabledCheck.isSelected != settings.autoRefreshEnabled ||
             fastPollIntervalField.text.toIntOrNull() != settings.fastPollIntervalSeconds ||
             slowPollIntervalField.text.toIntOrNull() != settings.slowPollIntervalSeconds ||
@@ -142,30 +140,6 @@ class CircleCIConfigurable : Configurable {
 
     override fun apply() {
         val settings = CircleCISettings.getInstance()
-        val token = String(apiTokenField.password)
-
-        // Save token if provided
-        if (token.isNotEmpty()) {
-            val authService = getAuthService()
-            if (authService != null) {
-                val result = authService.login(token, hostUrlField.text)
-                result.fold(
-                    onSuccess = {
-                        showAuthStatus(true)
-                        apiTokenField.text = ""
-                        // The login above was in the default project; let open projects' tool windows know.
-                        val loggedInProject = ProjectManager.getInstance().defaultProject
-                        ApplicationManager.getApplication().executeOnPooledThread {
-                            CircleCIAuthService.restoreEverywhere(except = loggedInProject)
-                        }
-                    },
-                    onFailure = { error ->
-                        authStatusLabel.text =
-                            "<html><font color='red'>✗ Authentication failed: ${error.message}</font></html>"
-                    },
-                )
-            }
-        }
 
         settings.hostUrl = hostUrlField.text
         settings.autoRefreshEnabled = autoRefreshEnabledCheck.isSelected
@@ -193,11 +167,8 @@ class CircleCIConfigurable : Configurable {
      * Load settings into UI components.
      */
     private fun loadSettings(settings: CircleCISettings) {
-        // Clear API token field for security (don't pre-fill passwords)
-        apiTokenField.text = ""
-
         // Update auth status
-        showAuthStatus(getAuthService()?.isAuthenticated() == true)
+        showAuthStatus()
 
         hostUrlField.text = settings.hostUrl
         autoRefreshEnabledCheck.isSelected = settings.autoRefreshEnabled
@@ -216,14 +187,44 @@ class CircleCIConfigurable : Configurable {
             }
     }
 
-    private fun showAuthStatus(authenticated: Boolean) {
+    /** Whether, and how, you're logged in, with the buttons to log in or out. */
+    private fun showAuthStatus() {
+        val method = getAuthService()?.authMethod()
         authStatusLabel.text =
-            if (authenticated) {
-                "<html><font color='green'>✓ Authenticated</font></html>"
+            if (method != null) {
+                "<html><font color='green'>✓ Logged in ${method.description}</font></html>"
             } else {
-                "<html><font color='gray'>Not authenticated</font></html>"
+                "<html><font color='gray'>Not logged in</font></html>"
             }
-        logOutButton.isEnabled = authenticated
+        browserLogInButton.isVisible = method == null
+        tokenLogInButton.isVisible = method == null
+        logOutButton.isVisible = method != null
+    }
+
+    /**
+     * Log in in the browser, to the server in Host URL (applied or not).
+     * Logins here are in the default project; logging in reaches the open ones.
+     */
+    private fun logInViaBrowser() {
+        val project = ProjectManager.getInstance().defaultProject
+        if (CircleCIOAuthLoginDialog(project, hostUrl(), browserLogInButton).showAndGet()) afterLogIn()
+    }
+
+    private fun logInWithToken() {
+        val project = ProjectManager.getInstance().defaultProject
+        if (CircleCILoginDialog(project, tokenLogInButton).showAndGet()) afterLogIn()
+    }
+
+    // Logging in saves the server it was to; show it.
+    private fun afterLogIn() {
+        hostUrlField.text = CircleCISettings.getInstance().hostUrl
+        showAuthStatus()
+    }
+
+    /** Host URL as a URL: "circleci.com" becomes "https://circleci.com". */
+    private fun hostUrl(): String {
+        val server = hostUrlField.text.trim().trimEnd('/')
+        return if (server.startsWith("http://") || server.startsWith("https://")) server else "https://$server"
     }
 
     /**
@@ -239,8 +240,7 @@ class CircleCIConfigurable : Configurable {
             )
         if (answer != Messages.YES) return
         CircleCIAuthService.logOutEverywhere()
-        apiTokenField.text = ""
-        showAuthStatus(false)
+        showAuthStatus()
     }
 
     /**

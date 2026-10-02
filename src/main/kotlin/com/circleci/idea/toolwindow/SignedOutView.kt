@@ -16,6 +16,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.circleci.idea.auth.CircleCILoginDialog
+import com.circleci.idea.auth.CircleCIOAuthLoginDialog
 import com.circleci.idea.project.CircleCIProjectService
 import com.circleci.idea.project.models.CircleCIProject
 import com.intellij.openapi.project.Project
@@ -95,12 +96,11 @@ class SignedOutView(private val project: Project) {
         }
     }
 
-    // OAuth login is still to come; for now the button does nothing.
     @OptIn(ExperimentalFoundationApi::class) // Jewel's tooltips are built on TooltipArea
     @Composable
     private fun LogInViaCircleCI() {
-        Tooltip(tooltip = { Text("Coming soon: log in with your CircleCI account in the browser") }) {
-            DefaultButton(onClick = {}) { Text("Log In via CircleCI...") }
+        Tooltip(tooltip = { Text("Log in with your CircleCI account in the browser") }) {
+            DefaultButton(onClick = { CircleCIOAuthLoginDialog(project).show() }) { Text("Log In via CircleCI...") }
         }
     }
 
