@@ -141,7 +141,8 @@ class RunMapperTest {
                 {"name": "Spin up environment", "num": 0, "outcome": "succeeded", "phase": "ended",
                  "started_at": "2026-10-01T14:33:46.246Z", "ended_at": "2026-10-01T14:33:48.764Z",
                  "stderr_bytes": 0, "stdout_bytes": 210, "type": "spinup_environment"},
-                {"name": "Run tests", "num": 101, "outcome": "failed", "phase": "ended", "exit_code": 1}
+                {"name": "Run tests", "num": 101, "outcome": "failed", "phase": "ended", "exit_code": 1,
+                 "type": "run", "command": "#!/bin/bash -eo pipefail\n./gradlew test"}
               ]}, {"steps": [{"name": "Run tests", "num": 101, "phase": "started"}]}]}}}
             """.trimIndent()
         val entity: V3Entity<JobDetailWire> = gson.fromJson(json, object : TypeToken<V3Entity<JobDetailWire>>() {}.type)
@@ -158,6 +159,8 @@ class RunMapperTest {
         assertEquals("stdout bytes", 210L, steps[0].stdoutBytes)
         assertEquals("failed step", RunStatus.FAILED, steps[1].status)
         assertEquals("exit code", 1, steps[1].exitCode)
+        assertEquals("command", "#!/bin/bash -eo pipefail\n./gradlew test", steps[1].command)
+        assertEquals("no command outside run steps", null, steps[0].command)
         assertEquals("running step", RunStatus.RUNNING, job.executions[1].steps[0].status)
     }
 }

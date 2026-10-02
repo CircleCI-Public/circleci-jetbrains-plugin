@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Steps and output come from the V3 jobs API, grouped by parallel execution when there's more than one
   - A running step's output streams in as it's written, polled every 2 seconds as `circleci run get` does, with its colors
   - Opens on the first failed step, or the running one; a running job's steps update as it goes
-  - Steps and the selected step's output share a Steps tab, beside the Tests and Artifacts tabs
+  - Steps and the selected step's output share a Steps tab, beside the Tests and Artifacts tabs. As in the web app, a run step's command shows above its output (selectable, with a Copy button), and once a step ends, "CircleCI received exit code N" below it
   - The Tests tab reads the V3 tests API: filter by outcome (failures by default, when there are any) and by name or classname, sort by any column (click a heading again to reverse, and a third time for the job's order), and see the selected test's message with its colors
   - The Artifacts tab is a file tree from the V3 artifacts API (by execution when parallel), with speed search: open an artifact in the IDE (text, or images and the like, up to 8 MiB), download a file, folder or everything, open it in the browser, or copy its URL, from the toolbar or its context menu
   - Artifacts download with your API token, so private projects' artifacts work

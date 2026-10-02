@@ -1,11 +1,19 @@
 package com.circleci.idea.job
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -27,6 +35,7 @@ import com.intellij.execution.process.ProcessOutputTypes
 import com.intellij.execution.ui.ConsoleView
 import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Key
@@ -42,13 +51,20 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.lazy.tree.buildTree
 import org.jetbrains.jewel.foundation.lazy.tree.rememberTreeState
 import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.Orientation
+import org.jetbrains.jewel.ui.component.Divider
 import org.jetbrains.jewel.ui.component.HorizontalSplitLayout
 import org.jetbrains.jewel.ui.component.Icon
+import org.jetbrains.jewel.ui.component.IconActionButton
+import org.jetbrains.jewel.ui.component.InlineErrorBanner
+import org.jetbrains.jewel.ui.component.InlineSuccessBanner
 import org.jetbrains.jewel.ui.component.LazyTree
 import org.jetbrains.jewel.ui.component.SplitLayoutState
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.VerticallyScrollableContainer
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
+import java.awt.datatransfer.StringSelection
 
 /** A step, by the execution it ran in and its number. */
 data class StepKey(val execution: Int, val num: Int)
@@ -130,7 +146,7 @@ class StepsTab(
     fun View() {
         HorizontalSplitLayout(
             first = { StepTree() },
-            second = { SwingComponent(console.component, Modifier.fillMaxSize()) },
+            second = { StepOutput() },
             modifier = Modifier.fillMaxSize(),
             firstPaneMinWidth = MIN_PANE.dp,
             secondPaneMinWidth = MIN_PANE.dp,
@@ -179,6 +195,22 @@ class StepsTab(
                     is StepsItem.StepItem -> StepRow(item.step)
                 }
             }
+        }
+    }
+
+    /** The step's output, with its command above it where it has one, and its exit code below once it has one. */
+    @Composable
+    private fun StepOutput() {
+        val executions by executions.collectAsState()
+        val selected by selected.collectAsState()
+        val step =
+            selected?.let { key ->
+                executions?.firstOrNull { it.index == key.execution }?.steps?.firstOrNull { it.num == key.num }
+            }
+        Column(Modifier.fillMaxSize()) {
+            step?.command?.let { CommandBar(it) }
+            SwingComponent(console.component, Modifier.fillMaxWidth().weight(1f))
+            step?.exitCode?.let { ExitCodeBanner(it) }
         }
     }
 
@@ -293,4 +325,44 @@ private fun StepRow(step: Step) {
     }
 }
 
+/** A run step's script, as the web app shows it above the output: selectable, and scrolling if it's long. */
+@Composable
+private fun CommandBar(command: String) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(JewelTheme.globalColors.panelBackground)
+            .padding(start = 8.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        VerticallyScrollableContainer(
+            modifier = Modifier.weight(1f).heightIn(max = COMMAND_MAX_HEIGHT.dp),
+            scrollState = rememberScrollState(),
+        ) {
+            SelectionContainer { Text(command, style = JewelTheme.editorTextStyle) }
+        }
+        CopyButton(command)
+    }
+    Divider(Orientation.Horizontal, Modifier.fillMaxWidth())
+}
+
+@OptIn(ExperimentalFoundationApi::class) // Jewel's tooltips are built on TooltipArea
+@Composable
+private fun CopyButton(command: String) {
+    IconActionButton(
+        AllIconsKeys.Actions.Copy,
+        "Copy Command",
+        { CopyPasteManager.getInstance().setContents(StringSelection(command)) },
+    ) { Text("Copy Command") }
+}
+
+/** "CircleCI received exit code 1", as the web app shows it below the output. */
+@Composable
+private fun ExitCodeBanner(exitCode: Int) {
+    val text = "CircleCI received exit code $exitCode"
+    val modifier = Modifier.fillMaxWidth().padding(6.dp)
+    if (exitCode == 0) InlineSuccessBanner(text, modifier) else InlineErrorBanner(text, modifier)
+}
+
 private const val ICON = 16
+private const val COMMAND_MAX_HEIGHT = 120

@@ -202,6 +202,8 @@ data class Step(
     val endedAt: Instant?,
     val stdoutBytes: Long?,
     val stderrBytes: Long?,
+    // The script a "run" step ran, with its shebang line; null for other steps.
+    val command: String? = null,
 )
 
 /**

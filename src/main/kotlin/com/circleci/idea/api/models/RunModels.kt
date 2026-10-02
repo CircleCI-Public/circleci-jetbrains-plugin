@@ -281,6 +281,9 @@ data class StepWire(
     val outcome: String? = null,
     @SerializedName("exit_code")
     val exitCode: Int? = null,
+    // The script a "run" step ran; other steps have none.
+    @SerializedName("command")
+    val command: String? = null,
     @SerializedName("started_at")
     val startedAt: String? = null,
     @SerializedName("ended_at")

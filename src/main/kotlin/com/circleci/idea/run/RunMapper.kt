@@ -122,6 +122,7 @@ object RunMapper {
             endedAt = parseInstant(wire.endedAt),
             stdoutBytes = wire.stdoutBytes,
             stderrBytes = wire.stderrBytes,
+            command = wire.command?.takeIf { it.isNotBlank() },
         )
     }
 
