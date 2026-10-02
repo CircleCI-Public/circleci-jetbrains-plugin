@@ -1,17 +1,13 @@
 version: '3'
 
 vars:
-  PLUGIN_NAME: CircleCI
-  PLUGIN_ID: com.circleci.idea
-  GITHUB_ORG: "{{.GITHUB_ORG | default \"circleci-petri\"}}"
-  GITHUB_REPO: "{{.GITHUB_REPO | default \"circleci-idea-plugin\"}}"
+  REPO: CircleCI-Public/circleci-jetbrains-plugin
+  MARKETPLACE_ID: 34719
   VERSION:
-    sh: grep '^version = ' build.gradle.kts | sed 's/version = "\(.*\)"/\1/'
+    sh: sed -n 's/^version = "\([^"]*\)".*/\1/p' build.gradle.kts
   BUILD_DIR: build/distributions
   PLUGIN_ZIP: "{{.BUILD_DIR}}/circleci-idea-plugin-{{.VERSION}}.zip"
   SIGNED_PLUGIN_ZIP: "{{.BUILD_DIR}}/circleci-idea-plugin-{{.VERSION}}-signed.zip"
-  DOCS_DIR: docs
-  UPDATE_XML: "{{.DOCS_DIR}}/updatePlugins.xml"
 
 tasks:
   default:
@@ -24,7 +20,6 @@ tasks:
     desc: Clean build artifacts
     cmds:
       - ./gradlew clean
-      - rm -rf {{.DOCS_DIR}}
 
   build:
     desc: Build the plugin
@@ -86,79 +81,36 @@ tasks:
     desc: Sign the plugin artifact (requires CERTIFICATE_CHAIN, PRIVATE_KEY, PRIVATE_KEY_PASSWORD env vars)
     cmds:
       - ./gradlew signPlugin
-      - echo "✅ Signed artifact at build/distributions/"
+      - echo "✅ Signed artifact at {{.SIGNED_PLUGIN_ZIP}}"
 
-  publish-marketplace:
-    desc: Publish signed plugin to JetBrains Marketplace (requires PUBLISH_TOKEN env var)
+  ci:release:
+    desc: Publish the release if a release PR was just merged, then update the release PR (in CI, with the signed plugin built)
+    vars:
+      RELEASE_PLEASE_ARGS: >-
+        --token "$GITHUB_TOKEN"
+        --repo-url {{.REPO}}
+        --target-branch "$CIRCLE_BRANCH"
+        --config-file .circleci/release/release-please-config.json
+        --manifest-file .circleci/release/release-please-manifest.json
     cmds:
-      - ./gradlew publishPlugin
-      - echo "✅ Plugin published to JetBrains Marketplace"
+      # A no-op unless a release PR was just merged, when it makes that release and its tag.
+      - npx release-please github-release {{.RELEASE_PLEASE_ARGS}}
+      - task: ci:release:publish
+      - npx release-please release-pr {{.RELEASE_PLEASE_ARGS}}
 
-  release:
-    desc: Full release (clean, test, build, sign, publish to Marketplace and GitHub)
-    cmds:
-      - task: clean
-      - task: test
-      - task: _build-release
-      - task: publish-marketplace
-      - task: _publish-release
-      - echo ""
-      - echo "✅ Release v{{.VERSION}} completed!"
-      - echo "📦 https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/releases/tag/v{{.VERSION}}"
-
-  release-quick:
-    desc: Quick release (skip tests, useful for docs/minor fixes)
-    cmds:
-      - task: _build-release
-      - task: publish-marketplace
-      - task: _publish-release
-      - echo ""
-      - echo "✅ Release v{{.VERSION}} completed!"
-      - echo "📦 https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/releases/tag/v{{.VERSION}}"
-
-  # Internal Tasks (prefixed with _)
-  _build-release:
+  ci:release:publish:
     internal: true
-    cmds:
-      - ./gradlew buildPlugin
-      - task: sign
-      - mkdir -p {{.DOCS_DIR}}
-      - |
-        cat > {{.UPDATE_XML}} << 'EOF'
-        <?xml version="1.0" encoding="UTF-8"?>
-        <plugins>
-          <plugin id="{{.PLUGIN_ID}}" url="https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/releases/download/v{{.VERSION}}/circleci-idea-plugin-{{.VERSION}}.zip" version="{{.VERSION}}">
-            <name>{{.PLUGIN_NAME}}</name>
-            <description><![CDATA[
-              CircleCI integration for JetBrains IDEs.
-              Monitor, manage, and debug CircleCI pipelines directly within your IDE.
-            ]]></description>
-            <vendor email="support@circleci.com" url="https://circleci.com">CircleCI</vendor>
-            <idea-version since-build="232" until-build="241.*"/>
-            <change-notes><![CDATA[
-              See https://github.com/{{.GITHUB_ORG}}/{{.GITHUB_REPO}}/releases/tag/v{{.VERSION}} for release notes.
-            ]]></change-notes>
-          </plugin>
-        </plugins>
-        EOF
-
-  _publish-release:
-    internal: true
+    status:
+      # Only when this commit is the one just released.
+      - test "$(git ls-remote origin refs/tags/v{{.VERSION}} | cut -f1)" != "$(git rev-parse HEAD)"
     cmds:
       - |
-        # Create GitHub release with signed artifact
-        if gh release view v{{.VERSION}} &> /dev/null; then
-          echo "⚠️  Release v{{.VERSION}} exists, deleting..."
-          gh release delete v{{.VERSION}} -y
-        fi
-        gh release create v{{.VERSION}} \
-          --title "{{.PLUGIN_NAME}} v{{.VERSION}}" \
-          --notes-file CHANGELOG.md \
-          {{.SIGNED_PLUGIN_ZIP}}
+        curl --fail --silent --show-error --header "Authorization: Bearer $PUBLISH_TOKEN" \
+          --form pluginId={{.MARKETPLACE_ID}} --form file=@{{.SIGNED_PLUGIN_ZIP}} \
+          https://plugins.jetbrains.com/plugin/uploadPlugin
       - |
-        # Update plugin repository
-        git add {{.DOCS_DIR}}
-        if ! git diff --cached --quiet; then
-          git commit -m "Update plugin repository for v{{.VERSION}}"
-          git push origin main
-        fi
+        upload_url=$(curl --fail --silent --show-error --header "Authorization: Bearer $GITHUB_TOKEN" \
+          https://api.github.com/repos/{{.REPO}}/releases/tags/v{{.VERSION}} | jq -r '.upload_url | sub("\\{.*"; "")')
+        curl --fail --silent --show-error --output /dev/null --header "Authorization: Bearer $GITHUB_TOKEN" \
+          --header "Content-Type: application/zip" --data-binary @{{.SIGNED_PLUGIN_ZIP}} \
+          "$upload_url?name={{base .SIGNED_PLUGIN_ZIP}}"

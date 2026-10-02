@@ -12,10 +12,12 @@ task test       # Run tests + verify
 task run        # Launch IDE
 task lint       # Static analysis
 task format     # Auto-fix style
-task release    # Full release
 ```
 
 View all: `task --list`
+
+Releases are made by merging release-please's release PR (see `RELEASE.md`). Only `feat:` and
+`fix:` commits make a release.
 
 ## Before Committing
 

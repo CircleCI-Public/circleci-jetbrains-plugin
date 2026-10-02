@@ -53,6 +53,15 @@ commands:
           paths:
             - ~/.gradle/caches/build-cache-1
 
+  install-task:
+    steps:
+      - run:
+          name: Install Task
+          command: |
+            curl --fail --silent --show-error --location https://taskfile.dev/install.sh \
+              | sh -s -- -d -b "$HOME/.local/bin"
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$BASH_ENV"
+
 jobs:
   build-and-test:
     executor: jdk
@@ -95,6 +104,12 @@ jobs:
           path: build/distributions
           destination: plugin-distribution
 
+      # For the release job
+      - persist_to_workspace:
+          root: .
+          paths:
+            - build/distributions
+
   # OWASP dependency check, in parallel with the build (hard gate; NVD_API_KEY sourced from
   # intellij-plugin-publication context)
   dependency-check:
@@ -130,110 +145,23 @@ jobs:
           path: build/reports
           destination: analysis-reports
 
-  publish-github:
-    executor: jdk
+  # Publishes the signed plugin from build-and-test (see RELEASE.md).
+  release:
+    docker:
+      - image: cimg/node:lts
 
     steps:
       - checkout
-      - with-gradle-cache:
-          steps:
-            # Install GitHub CLI
-            - run:
-                name: Install GitHub CLI
-                command: |
-                  type -p curl >/dev/null || sudo apt install curl -y
-                  curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-                    | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-                  sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-                  echo "deb [arch=$(dpkg --print-architecture) \
-                    signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
-                    https://cli.github.com/packages stable main" \
-                    | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-                  sudo apt update && sudo apt install gh -y
-
-            # Build and sign plugin
-            - run:
-                name: Build plugin
-                command: ./gradlew buildPlugin
-
-            - run:
-                name: Sign plugin
-                command: ./gradlew signPlugin
-
-            # Create GitHub Release
-            # RC tags (v*-rc.*) create a pre-release and skip updatePlugins.xml.
-            # Release tags (v*.*.*) create a full release and update updatePlugins.xml.
-            - run:
-                name: Create GitHub Release
-                command: |
-                  TAG="${CIRCLE_TAG}"
-                  VERSION=$(grep '^version = ' build.gradle.kts | sed 's/version = "\(.*\)"/\1/')
-                  SIGNED_ZIP="build/distributions/circleci-idea-plugin-${VERSION}-signed.zip"
-
-                  if [[ "$TAG" == *-rc.* ]]; then
-                    PRERELEASE_FLAG="--prerelease"
-                  else
-                    PRERELEASE_FLAG=""
-                  fi
-
-                  gh release create "${TAG}" \
-                    --title "CircleCI ${TAG}" \
-                    --notes-file CHANGELOG.md \
-                    ${PRERELEASE_FLAG} \
-                    "${SIGNED_ZIP}"
-
-                  # Only update the plugin repository XML for full releases
-                  if [[ "$TAG" != *-rc.* ]]; then
-                    mkdir -p docs
-                    cat > docs/updatePlugins.xml \<< EOF
-                    <?xml version="1.0" encoding="UTF-8"?>
-                    <plugins>
-                      <plugin id="com.circleci.idea" url="https://github.com/circleci-petri/circleci-idea-plugin/releases/download/${TAG}/circleci-idea-plugin-${VERSION}-signed.zip" version="${VERSION}">
-                        <name>CircleCI</name>
-                        <description><![CDATA[
-                          CircleCI integration for JetBrains IDEs.
-                          Monitor, manage, and debug CircleCI pipelines directly within your IDE.
-                        ]]></description>
-                        <vendor email="support@circleci.com" url="https://circleci.com">CircleCI</vendor>
-                        <idea-version since-build="243" until-build="253.*"/>
-                        <change-notes><![CDATA[
-                          See https://github.com/circleci-petri/circleci-idea-plugin/releases/tag/${TAG} for release notes.
-                        ]]></change-notes>
-                      </plugin>
-                    </plugins>
-                    EOF
-
-                    git config user.email "ci@circleci.com"
-                    git config user.name "CircleCI"
-                    git add docs/updatePlugins.xml
-                    if ! git diff --cached --quiet; then
-                      git commit -m "Update plugin repository for ${TAG}"
-                      git push origin main
-                    fi
-                  fi
-
-  publish-marketplace:
-    executor: jdk
-
-    steps:
-      - checkout
-      - with-gradle-cache:
-          steps:
-            # Build, sign, and publish to JetBrains Marketplace
-            - run:
-                name: Build plugin
-                command: ./gradlew buildPlugin
-
-            - run:
-                name: Sign plugin
-                command: ./gradlew signPlugin
-
-            - run:
-                name: Publish to JetBrains Marketplace
-                command: ./gradlew publishPlugin
+      - attach_workspace:
+          at: .
+      - install-task
+      - run:
+          name: Release
+          command: task ci:release
 
 workflows:
-  # Branch builds: run tests on every push, no publish steps
+  # Tests every push. On main, also keeps the release PR up to date, and publishes once it's
+  # merged.
   ci:
     jobs:
       - build-and-test:
@@ -246,97 +174,15 @@ workflows:
           filters:
             branches:
               only: /.*/
-
-  # RC tags (e.g. v1.3.1-rc.1): test, then optionally create a GitHub pre-release.
-  # Never publishes to the JetBrains Marketplace.
-  rc:
-    jobs:
-      - build-and-test:
-          context: intellij-plugin-publication
-          filters:
-            tags:
-              only: /^v.*-rc\..*/
-            branches:
-              ignore: /.*/
-      - dependency-check:
-          context: intellij-plugin-publication
-          filters:
-            tags:
-              only: /^v.*-rc\..*/
-            branches:
-              ignore: /.*/
-      - hold-github:
-          type: approval
+      - release:
+          # One at a time, so two merges can't both publish a version.
+          serial-group: << pipeline.project.slug >>/release
           requires:
             - build-and-test
             - dependency-check
+          context:
+            - intellij-plugin-publication
+            - devex-release
           filters:
-            tags:
-              only: /^v.*-rc\..*/
             branches:
-              ignore: /.*/
-      - publish-github:
-          requires:
-            - hold-github
-          context: intellij-plugin-publication
-          filters:
-            tags:
-              only: /^v.*-rc\..*/
-            branches:
-              ignore: /.*/
-
-  # Release tags (e.g. v1.3.1): test, create GitHub release, then optionally publish
-  # to the JetBrains Marketplace — each step behind its own approval gate.
-  release:
-    jobs:
-      - build-and-test:
-          context: intellij-plugin-publication
-          filters:
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
-            branches:
-              ignore: /.*/
-      - dependency-check:
-          context: intellij-plugin-publication
-          filters:
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
-            branches:
-              ignore: /.*/
-      - hold-github:
-          type: approval
-          requires:
-            - build-and-test
-            - dependency-check
-          filters:
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
-            branches:
-              ignore: /.*/
-      - publish-github:
-          requires:
-            - hold-github
-          context: intellij-plugin-publication
-          filters:
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
-            branches:
-              ignore: /.*/
-      - hold-marketplace:
-          type: approval
-          requires:
-            - publish-github
-          filters:
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
-            branches:
-              ignore: /.*/
-      - publish-marketplace:
-          requires:
-            - hold-marketplace
-          context: intellij-plugin-publication
-          filters:
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
-            branches:
-              ignore: /.*/
+              only: main

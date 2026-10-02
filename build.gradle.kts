@@ -1,4 +1,5 @@
 import org.gradle.process.CommandLineArgumentProvider
+import org.jetbrains.changelog.Changelog
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -13,6 +14,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.20"
     id("org.jetbrains.intellij.platform") version "2.19.0"
     id("org.jetbrains.kotlinx.kover") version "0.9.11"
+    // Reads this version's notes from CHANGELOG.md, for the Marketplace's change notes.
+    id("org.jetbrains.changelog") version "2.5.0"
 
     // Static Analysis Tools
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
@@ -21,7 +24,7 @@ plugins {
 }
 
 group = "com.circleci"
-version = "1.3.1"
+version = "1.3.1" // x-release-please-version
 
 repositories {
     mavenCentral()
@@ -157,7 +160,15 @@ intellijPlatform {
 
     pluginConfiguration {
         name = "CircleCI"
-        version = "1.3.1"
+        version = project.version.toString()
+        changeNotes =
+            providers.provider {
+                with(changelog) {
+                    getOrNull(project.version.toString())
+                        ?.let { renderItem(it.withHeader(false).withEmptySections(false), Changelog.OutputType.HTML) }
+                        .orEmpty()
+                }
+            }
 
         ideaVersion {
             sinceBuild = "261"

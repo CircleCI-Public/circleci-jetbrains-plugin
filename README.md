@@ -178,19 +178,14 @@ To debug the plugin:
 
 ### Download a release
 1. Run: ```gh release download \
-     --repo circleci-petri/circleci-idea-plugin \
-     --pattern "circleci-idea-plugin-*.zip" \
+     --repo CircleCI-Public/circleci-jetbrains-plugin \
+     --pattern "circleci-idea-plugin-*-signed.zip" \
    --output ~/Downloads/circleci-idea-plugin.zip```
 2. Go to intellij -> settings -> plugins -> gear icon -> install from disk
 
 ## Release Process
 
-1. Update version in `build.gradle.kts`
-2. Update CHANGELOG.md
-3. Create a git tag: `git tag v1.0.0`
-4. Push tag: `git push origin v1.0.0`
-5. Build release: `./gradlew buildPlugin`
-6. Upload to JetBrains Marketplace
+Merge the release PR that release-please keeps open. See [RELEASE.md](RELEASE.md).
 
 ## License
 

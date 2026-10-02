@@ -1,0 +1,18 @@
+{
+    "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+    "bootstrap-sha": "0b302ebd7870408d75ff33801c7275283958ad8e",
+    "include-component-in-tag": false,
+    "packages": {
+        ".": {
+            "release-type": "simple",
+            "package-name": "circleci-jetbrains-plugin",
+            "changelog-path": "CHANGELOG.md",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "build.gradle.kts"
+                }
+            ]
+        }
+    }
+}
