@@ -2,6 +2,7 @@ import org.gradle.process.CommandLineArgumentProvider
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
+import org.jetbrains.kotlin.gradle.plugin.getKotlinPluginVersion
 import java.util.Base64
 
 plugins {
@@ -38,6 +39,10 @@ dependencies {
         add("implementation", "org.apache.commons:commons-lang3:3.14.0")
         add("implementation", "org.apache.commons:commons-text:1.11.0")
     }
+    // Keeps every Kotlin artifact at the compiler's version. okio would otherwise pull in the
+    // 1.9.10 kotlin-stdlib-jdk7/jdk8 shims, which OWASP flags for Kotlin compiler CVEs.
+    implementation(platform("org.jetbrains.kotlin:kotlin-bom:${getKotlinPluginVersion()}"))
+
     // HTTP Client
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
