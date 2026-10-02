@@ -50,7 +50,33 @@ class ResourceUsageTest {
     }
 
     @Test
+    fun testChartSamples() {
+        val line = ChartSeries("Execution 0", listOf(1.0, 2.0, 3.0), Duration.ofSeconds(15))
+        assertEquals("last sample's time", 30.0, line.lastSeconds, 0.0)
+        assertEquals("nearest rounds", 1, line.nearest(20.0))
+        assertEquals("before the run", 0, line.nearest(-5.0))
+        assertEquals("past the end", 2, line.nearest(90.0))
+        assertNull("no samples", ChartSeries("Execution 1", emptyList(), Duration.ofSeconds(15)).nearest(0.0))
+
+        val shorter = ChartSeries("Execution 1", listOf(1.0), Duration.ofSeconds(15))
+        assertEquals("snaps to the longest series' samples", 15.0, snap(listOf(shorter, line), 10.0)!!, 0.0)
+        assertNull("nothing to snap to", snap(emptyList(), 10.0))
+    }
+
+    @Test
+    fun testChartExtents() {
+        val line = ChartSeries("Execution 0", listOf(1.0, 6.0), Duration.ofSeconds(15))
+        assertEquals("time reaches the last sample", 15.0, timeExtent(listOf(line)), 0.0)
+        assertEquals("no samples still has a range", 1.0, timeExtent(emptyList()), 0.0)
+        assertEquals("values above the limit", 6.0, valueExtent(listOf(line), ceiling = 4.0), 0.0)
+        assertEquals("limit above the values", 8.0, valueExtent(listOf(line), ceiling = 8.0), 0.0)
+        assertEquals("nothing still has a range", 1.0, valueExtent(emptyList(), ceiling = 0.0), 0.0)
+    }
+
+    @Test
     fun testFormatting() {
+        assertEquals("percent of limit", "63%", percentOf(2.5, 4.0))
+        assertEquals("seconds into the run", "1m 30s", formatSeconds(90.0))
         assertEquals("bytes", "512 B", formatBytes(512.0))
         assertEquals("mebibytes", "1.5 MiB", formatBytes(1.5 * 1024 * 1024))
         assertEquals("gibibytes", "16.0 GiB", formatBytes(17179869184.0))

@@ -2,8 +2,10 @@ package com.circleci.idea.job
 
 import com.circleci.idea.api.models.ExecutionUsageWire
 import com.circleci.idea.api.models.ResourceUsageWire
+import com.circleci.idea.run.formatElapsed
 import java.time.Duration
 import java.util.Locale
+import kotlin.math.roundToInt
 
 /**
  * A job's CPU and memory use, sampled at an interval through each parallel
@@ -60,6 +62,46 @@ data class ExecutionUsage(
         get() = interval.multipliedBy(cpuCores.size.toLong())
 }
 
+/** One line on a [UsageChart]: samples taken every [interval]. */
+data class ChartSeries(
+    val name: String,
+    val values: List<Double>,
+    val interval: Duration,
+) {
+    private val step: Double get() = interval.toMillis() / 1000.0
+
+    /** Seconds into the run of each sample. */
+    fun secondsAt(index: Int): Double = step * index
+
+    /** The sample nearest [seconds] into the run, or null with no samples. */
+    fun nearest(seconds: Double): Int? {
+        if (values.isEmpty()) return null
+        if (step <= 0) return 0
+        return (seconds / step).roundToInt().coerceIn(0, values.lastIndex)
+    }
+
+    val lastSeconds: Double get() = secondsAt((values.size - 1).coerceAtLeast(0))
+}
+
+/** The sample time nearest [seconds]. The longest series sets the snap points. */
+internal fun snap(
+    series: List<ChartSeries>,
+    seconds: Double,
+): Double? {
+    val longest = series.maxByOrNull { it.lastSeconds } ?: return null
+    return longest.nearest(seconds)?.let(longest::secondsAt)
+}
+
+/** How far into the run the chart reaches; one second with no samples, so it still has a range. */
+internal fun timeExtent(series: List<ChartSeries>): Double =
+    (series.maxOfOrNull { it.lastSeconds } ?: 0.0).takeIf { it > 0 } ?: 1.0
+
+/** The highest of the samples and [ceiling]; one with neither, so the chart still has a range. */
+internal fun valueExtent(
+    series: List<ChartSeries>,
+    ceiling: Double,
+): Double = maxOf(ceiling, series.maxOfOrNull { it.values.maxOrNull() ?: 0.0 } ?: 0.0).takeIf { it > 0 } ?: 1.0
+
 /**
  * A series' summary. [peakPercentOfLimit] is the headline: under 50% on both
  * CPU and memory means a smaller resource class would do.
@@ -101,6 +143,16 @@ enum class UsageMetric(val title: String) {
 
     fun format(value: Double): String = if (this == CPU) formatCores(value) else formatBytes(value)
 }
+
+internal fun formatSeconds(seconds: Double): String =
+    formatElapsed(
+        Duration.ofMillis((seconds * 1000.0).toLong()),
+    )
+
+internal fun percentOf(
+    value: Double,
+    limit: Double,
+): String = String.format(Locale.ROOT, "%.0f%%", value / limit * 100)
 
 internal fun formatCores(cores: Double): String = String.format(Locale.ROOT, "%.2f", cores)
 

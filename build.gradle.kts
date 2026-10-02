@@ -7,6 +7,8 @@ import java.util.Base64
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.4.20"
+    // Compiles the resource usage charts' @Composable functions.
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.20"
     id("org.jetbrains.intellij.platform") version "2.19.0"
     id("org.jetbrains.kotlinx.kover") version "0.9.11"
 
@@ -45,6 +47,10 @@ dependencies {
 
     // WebSocket
     implementation("com.pusher:pusher-java-client:2.4.4")
+
+    // Charts. Only the jar: the IDE provides Compose (see composeUI() below), and
+    // KoalaPlot's material3 dependency is only used by chart types we don't draw.
+    implementation("io.github.koalaplot:koalaplot-core-desktop:0.12.1") { isTransitive = false }
 
     // Note: Kotlin stdlib and coroutines are provided by IntelliJ Platform
 
@@ -86,6 +92,8 @@ dependencies {
         bundledPlugin("intellij.ssh.plugin")
         bundledPlugin("org.jetbrains.plugins.terminal")
         bundledModule("intellij.libraries.jediterm.core")
+        // Compose and Jewel, which the resource usage charts are drawn with.
+        composeUI()
         // The archive doesn't bundle a JetBrains Runtime; runIde and tests need one.
         jetbrainsRuntime()
 

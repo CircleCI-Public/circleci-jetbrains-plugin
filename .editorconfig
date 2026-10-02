@@ -15,6 +15,8 @@ indent_size = 4
 continuation_indent_size = 4
 ij_kotlin_allow_trailing_comma = true
 ij_kotlin_allow_trailing_comma_on_call_site = true
+# Compose names @Composable functions like types.
+ktlint_function_naming_ignore_when_annotated_with = Composable
 
 [*.{yml,yaml}]
 indent_size = 2
