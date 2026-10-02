@@ -46,26 +46,24 @@ private class SshTerminalRunner(
         SshTtyConnector(connect(), target.title)
 
     private fun connect(): SshShellProcess {
+        val endpoint = target.endpoint
+        val port = endpoint.port ?: DEFAULT_PORT
+        // The proxy's username names the session; a direct endpoint ignores
+        // it, so use the local one, as ssh does.
+        val user = (endpoint as? SshEndpoint.Proxy)?.user ?: System.getProperty("user.name")
         // Nothing stored (password, key path, passphrase): the IDE prompts for what it needs.
         val noStoredSecret = { null }
         val passwords =
-            PlatformSshPasswordProvider(
-                SshTarget.HOST,
-                SshTarget.PORT,
-                target.user,
-                noStoredSecret,
-                noStoredSecret,
-                noStoredSecret,
-            )
+            PlatformSshPasswordProvider(endpoint.host, port, user, noStoredSecret, noStoredSecret, noStoredSecret)
         return try {
             val connection =
-                ConnectionBuilder(SshTarget.HOST)
-                    // The job's SSH user is "<job-id>-<execution index>". Set last, so a User
-                    // in ~/.ssh/config (or the local login name) can't take its place.
-                    .withSshConnectionConfig { it.copy(user = target.user, port = SshTarget.PORT) }
+                ConnectionBuilder(endpoint.host)
+                    // Set last, so a User in ~/.ssh/config (or the local login name)
+                    // can't take the place of the proxy's session username.
+                    .withSshConnectionConfig { it.copy(user = user, port = port) }
                     .withParsingOpenSSHConfig(true)
                     .withSshPasswordProvider(passwords)
-            checkUser(connection)
+            checkUser(connection, user)
             connection.shellBuilder()
                 .withAllocatePty(true)
                 .execute()
@@ -74,13 +72,16 @@ private class SshTerminalRunner(
         }
     }
 
-    /** Make sure the configuration resolves to the job's user, and say who it connects as. */
-    private fun checkUser(connection: ConnectionBuilder) {
+    /** Make sure the configuration resolves to the user to connect as, and say who that is. */
+    private fun checkUser(
+        connection: ConnectionBuilder,
+        user: String,
+    ) {
         val resolved = connection.buildConnectionConfig()
-        logger.info("Opening SSH session as ${resolved.user}@${SshTarget.HOST}:${resolved.port}")
-        if (resolved.user != target.user) {
+        logger.info("Opening SSH session as ${resolved.user}@${resolved.host}:${resolved.port}")
+        if (resolved.user != user) {
             throw ExecutionException(
-                "SSH would connect as ${resolved.user} rather than ${target.user}. Connect from a terminal with: " +
+                "SSH would connect as ${resolved.user} rather than $user. Connect from a terminal with: " +
                     target.command,
                 null,
             )
@@ -93,6 +94,7 @@ private class SshTerminalRunner(
     override fun isTerminalSessionPersistent(): Boolean = false
 
     private companion object {
+        const val DEFAULT_PORT = 22
         const val CONNECT_HINT =
             "A job accepts SSH connections only after it's rerun with SSH, while it runs (and for a while after its " +
                 "steps finish), and only with an SSH key on the account that reran it."

@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "CircleCI Settings..." in the CircleCI tool window's options (gear) menu
 - A "Log Out" button on the CircleCI settings page, beside the authentication status
 - Until you log in, the CircleCI tool window shows the project and ways to log in, as the IDE's Pull Requests view does. "Log In with Token..." opens a "Log In to CircleCI" dialog (server, token, and Generate... to create one); "Log In via CircleCI..." is a placeholder for browser login. If your token is rejected, the view says why
-- "SSH into Job" on a running job's page opens an SSH session into it in a Terminal tab, one per session, using the IDE's SSH client: your ~/.ssh/config, SSH agent and keys, with the IDE asking for a passphrase or to trust the host when needed. Needs the bundled SSH and Terminal plugins
+- "SSH into Job" on a running job's page opens an SSH session into it in a Terminal tab, one per session, using the IDE's SSH client: your ~/.ssh/config, SSH agent and keys, with the IDE asking for a passphrase or to trust the host when needed. It connects where the job's "Enable SSH" step says to, in either format it prints: the ssh.circleci.com proxy (`ssh <job-id>-<execution>@ssh.circleci.com`), or a direct address and port (as runner and server print). "Copy SSH Command" copies the same. Needs the bundled SSH and Terminal plugins
 
 ### Fixed
 - Logging in from the settings page now reaches the projects you have open, whose tool windows only noticed after a restart; changing the auto-refresh settings restarts polling in every open project rather than none

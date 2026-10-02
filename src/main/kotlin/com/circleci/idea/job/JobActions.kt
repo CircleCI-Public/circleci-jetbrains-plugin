@@ -4,7 +4,6 @@ import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.icons.CircleCIIcons
 import com.circleci.idea.run.RunWebUrls
 import com.circleci.idea.ssh.SshSessionService
-import com.circleci.idea.ssh.SshTarget
 import com.circleci.idea.state.JobDetail
 import com.circleci.idea.toolwindow.CircleCIToolWindowService
 import com.intellij.icons.AllIcons
@@ -16,10 +15,8 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.ui.Messages
-import java.awt.datatransfer.StringSelection
 import javax.swing.Icon
 
 /**
@@ -158,8 +155,8 @@ private class CancelJobAction(panel: JobPanel) :
 }
 
 /** The selected step's execution of the job, to SSH into. */
-private fun sshTarget(panel: JobPanel): SshTarget =
-    SshTarget(panel.ref.jobId, panel.selectedExecution, panel.ref.name, panel.ref.number)
+private fun sshJob(panel: JobPanel): SshSessionService.Job =
+    SshSessionService.Job(panel.ref.jobId, panel.selectedExecution, panel.ref.name, panel.ref.number)
 
 /**
  * Opens an SSH session into the selected step's execution, in a Terminal
@@ -176,13 +173,13 @@ private class ConnectSshAction(panel: JobPanel) :
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        SshSessionService.getInstance(project).open(sshTarget(panel))
+        SshSessionService.getInstance(project).open(sshJob(panel))
     }
 }
 
 /**
- * Copies the command to SSH into the selected step's execution. It only
- * connects to a job rerun with SSH, while it runs.
+ * Copies the command to SSH into the selected step's execution, as its
+ * "Enable SSH" step printed it. Only a job rerun with SSH has one.
  */
 private class CopySshCommandAction(panel: JobPanel) :
     JobPageAction(
@@ -194,12 +191,8 @@ private class CopySshCommandAction(panel: JobPanel) :
     override fun isEnabled(detail: JobDetail?): Boolean = detail?.status?.isActive == true
 
     override fun actionPerformed(e: AnActionEvent) {
-        val command = sshTarget(panel).command
-        CopyPasteManager.getInstance().setContents(StringSelection(command))
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("CircleCI Notifications")
-            .createNotification("Copied: $command", NotificationType.INFORMATION)
-            .notify(e.project)
+        val project = e.project ?: return
+        SshSessionService.getInstance(project).copyCommand(sshJob(panel))
     }
 }
 

@@ -4,8 +4,8 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 
 /**
- * One execution of a job to SSH into. A job rerun with SSH accepts
- * connections as `<job-id>-<execution>@ssh.circleci.com`, using the SSH key
+ * One execution of a job to SSH into, at the [endpoint] its "Enable SSH"
+ * step printed. A job accepts SSH once it's rerun with SSH, with the SSH key
  * of the account that reran it.
  */
 data class SshTarget(
@@ -13,22 +13,15 @@ data class SshTarget(
     val execution: Int,
     val jobName: String,
     val jobNumber: Long?,
+    val endpoint: SshEndpoint,
 ) {
-    val user: String
-        get() = "$jobId-$execution"
-
     /** The equivalent OpenSSH command, to copy. */
     val command: String
-        get() = "ssh $user@$HOST"
+        get() = endpoint.command
 
     /** A session tab's title: the job, and the execution when that matters. */
     val title: String
         get() = jobName + (jobNumber?.let { " #$it" } ?: "") + if (execution > 0) " (execution $execution)" else ""
-
-    companion object {
-        const val HOST = "ssh.circleci.com"
-        const val PORT = 22
-    }
 }
 
 /**
