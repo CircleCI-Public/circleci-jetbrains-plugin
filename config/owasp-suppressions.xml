@@ -65,6 +65,16 @@
         <cvssBelow>10</cvssBelow>
     </suppress>
 
+    <suppress>
+        <notes>
+            False positive: OWASP misidentifies KoalaPlot (a Compose charting
+            library) as Koala Framework, a PHP web framework. The Koala Framework
+            XSS CVE does not apply to this Kotlin library.
+        </notes>
+        <packageUrl regex="true">^pkg:maven/io\.github\.koalaplot/.*$</packageUrl>
+        <cpe>cpe:/a:koala-framework:koala_framework</cpe>
+    </suppress>
+
     <!-- ==================================================================== -->
     <!-- BUILD-TOOL DEPENDENCIES - Not Shipped in Plugin                      -->
     <!-- ==================================================================== -->

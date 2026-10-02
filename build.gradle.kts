@@ -2,6 +2,7 @@ import org.gradle.process.CommandLineArgumentProvider
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
+import org.jetbrains.kotlin.gradle.plugin.getKotlinPluginVersion
 import java.util.Base64
 
 plugins {
@@ -38,6 +39,10 @@ dependencies {
         add("implementation", "org.apache.commons:commons-lang3:3.14.0")
         add("implementation", "org.apache.commons:commons-text:1.11.0")
     }
+    // Keeps every Kotlin artifact at the compiler's version. okio would otherwise pull in the
+    // 1.9.10 kotlin-stdlib-jdk7/jdk8 shims, which OWASP flags for Kotlin compiler CVEs.
+    implementation(platform("org.jetbrains.kotlin:kotlin-bom:${getKotlinPluginVersion()}"))
+
     // HTTP Client
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
@@ -105,15 +110,22 @@ dependencies {
     }
 }
 
+// Compile with Java 25, which 2026.2 runs on. The bytecode and JDK APIs stay at Java 21, which
+// the oldest supported IDE (2026.1) runs on.
+kotlin {
+    jvmToolchain(25)
+}
+
 tasks {
     withType<JavaCompile> {
-        sourceCompatibility = "21"
-        targetCompatibility = "21"
+        options.release = 21
     }
 
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_21)
+            // Don't use JDK APIs newer than Java 21, which 2026.1 runs on.
+            freeCompilerArgs.add("-Xjdk-release=21")
             // Don't use stdlib APIs newer than the Kotlin bundled with the oldest supported IDE (2026.1).
             apiVersion.set(KotlinVersion.KOTLIN_2_3)
         }
@@ -235,6 +247,9 @@ ktlint {
 
 // OWASP Dependency-Check - Security Vulnerability Scanning
 dependencyCheck {
+    // Only what ships in the plugin zip. The other configurations hold the IDE distributions
+    // (compile target and verifier IDEs, many GB) and build tooling, which aren't ours to patch.
+    scanConfigurations = listOf("runtimeClasspath")
     failBuildOnCVSS = 7.0f
     nvd.apiKey = providers.environmentVariable("NVD_API_KEY").orNull
     formats = listOf("HTML", "JSON")
