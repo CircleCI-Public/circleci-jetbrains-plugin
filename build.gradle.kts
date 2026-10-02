@@ -105,15 +105,22 @@ dependencies {
     }
 }
 
+// Compile with Java 25, which 2026.2 runs on. The bytecode and JDK APIs stay at Java 21, which
+// the oldest supported IDE (2026.1) runs on.
+kotlin {
+    jvmToolchain(25)
+}
+
 tasks {
     withType<JavaCompile> {
-        sourceCompatibility = "21"
-        targetCompatibility = "21"
+        options.release = 21
     }
 
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_21)
+            // Don't use JDK APIs newer than Java 21, which 2026.1 runs on.
+            freeCompilerArgs.add("-Xjdk-release=21")
             // Don't use stdlib APIs newer than the Kotlin bundled with the oldest supported IDE (2026.1).
             apiVersion.set(KotlinVersion.KOTLIN_2_3)
         }
