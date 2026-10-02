@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - "Open in Browser" links to the run, workflow or job's own page
   - Removed the unused branch filter and "Show only my pipelines" options from Settings; the toolbar filters replace them
 - Jobs open as editor tabs instead of the single Job Details tab, so several can be open at once. Below the IDE's toolbar of job actions, the page is drawn with the IDE's bundled Compose and Jewel; step output and test messages stay in the IDE's console
+- The CircleCI tool window's run tree and signed-out view are drawn with Compose and Jewel too, as the job page is. The filters above the runs stay the IDE's own Pull Requests drop-downs, and right-clicking a run, workflow or job still offers the IDE's actions
   - Steps and output come from the V3 jobs API, grouped by parallel execution when there's more than one
   - A running step's output streams in as it's written, polled every 2 seconds as `circleci run get` does, with its colors
   - Opens on the first failed step, or the running one; a running job's steps update as it goes

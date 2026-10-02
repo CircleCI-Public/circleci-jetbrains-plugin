@@ -1,5 +1,7 @@
 package com.circleci.idea.toolwindow.tree
 
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.snapshotFlow
 import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.api.clients.V3Page
 import com.circleci.idea.auth.CircleCIAuthService
@@ -12,7 +14,6 @@ import com.circleci.idea.settings.CircleCISettings
 import com.circleci.idea.state.CircleCIStateStore
 import com.circleci.idea.state.Run
 import com.intellij.openapi.project.Project
-import com.intellij.ui.treeStructure.Tree
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,17 +21,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.jetbrains.jewel.foundation.lazy.SelectableLazyListState
+import org.jetbrains.jewel.foundation.lazy.tree.TreeState
 import javax.swing.SwingUtilities
-import javax.swing.tree.DefaultTreeModel
-import javax.swing.tree.TreePath
 
 /**
- * Tree model for the CircleCI tree view: projects (or "My runs"), their runs,
- * each run's workflows and each workflow's jobs.
+ * The run tree's nodes: the runs listed (the selected project's, or "My
+ * runs"), each run's workflows and each workflow's jobs.
  *
- * Children load asynchronously when a node is first expanded. A refresh
- * re-fetches every loaded level in place, keeping the nodes (and so the
- * expansion and selection) of runs and workflows that are still listed.
+ * Children load asynchronously when a node is first opened. A refresh
+ * re-fetches every loaded level in place, keeping the nodes of runs and
+ * workflows that are still listed. What's open and selected is kept by key
+ * in [treeState], so it carries over to the nodes a reload rebuilds, which
+ * load again if they're open.
  *
  * All node mutation happens on the EDT: the coroutine [scope] runs on
  * Dispatchers.Main, and the fetches switch to IO themselves.
@@ -38,7 +41,7 @@ import javax.swing.tree.TreePath
 class CircleCITreeModel(
     private val project: Project,
     private val scope: CoroutineScope,
-) : DefaultTreeModel(RootNode()) {
+) {
     private val logger = CircleCILogger.getInstance()
     private val projectService = project.getService(CircleCIProjectService::class.java)
     private val apiService = CircleCIApiService.getInstance()
@@ -47,13 +50,20 @@ class CircleCITreeModel(
     private val stateStore = CircleCIStateStore.getInstance(project)
     private val runListService = RunListService.getInstance(project)
     private val pollingService = project.getService(RunPollingService::class.java)
-    private val stateManager = TreeStateManager()
-    private var tree: Tree? = null
 
-    // Nodes expanded, and the node selected, before the root was last
-    // rebuilt. The rebuilt nodes load asynchronously, so these are reapplied
-    // as each level's children arrive.
-    private var expandedBeforeReload: Set<String> = emptySet()
+    /** The (hidden) root, whose children are the runs listed. */
+    val root = RootNode()
+
+    private val _structure = MutableStateFlow(0)
+
+    /** Bumped each time nodes are added, removed or updated, for the view to rebuild its tree. */
+    val structure: StateFlow<Int> = _structure.asStateFlow()
+
+    /** How far the tree is scrolled, shared with its scrollbar. */
+    val scroll = LazyListState()
+
+    /** What's open and selected in the tree, by [keyOf]. */
+    val treeState = TreeState(SelectableLazyListState(scroll))
 
     // Loads and refreshes in flight, for the loading stripe.
     private var activeLoads = 0
@@ -61,7 +71,6 @@ class CircleCITreeModel(
 
     /** Whether any of the tree is loading or refreshing. */
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
-    private var selectedBeforeReload: String? = null
 
     init {
         // Listen to project changes and reload root
@@ -79,15 +88,20 @@ class CircleCITreeModel(
                 reloadRoot()
             }
         }
+
+        // Load what's opened; forget a failed load on closing, to retry on reopening.
+        scope.launch {
+            var previous = emptySet<Any>()
+            snapshotFlow { treeState.openNodes }.collect { open ->
+                forgetFailedLoads(previous - open)
+                previous = open
+                loadOpened()
+            }
+        }
     }
 
-    /**
-     * Set the tree instance for state management.
-     * Must be called before reloadRoot() to enable state preservation.
-     */
-    fun setTree(tree: Tree) {
-        this.tree = tree
-    }
+    /** The node selected in the tree, if it's still there. */
+    fun selectedNode(): CircleCITreeNode? = treeState.selectedKeys.firstOrNull()?.let { findNode(root, it) }
 
     /**
      * Re-fetch every loaded level of the tree in place. A run list whose last
@@ -104,48 +118,15 @@ class CircleCITreeModel(
      */
     fun reloadRoot() {
         SwingUtilities.invokeLater {
-            val tree = tree
-            if (tree != null) {
-                // A reload can come before the last one's nodes have all
-                // loaded (the project list and the selection change together
-                // on startup, say), so keep what's still waiting to be put back.
-                val present = stateManager.captureIdentifiers(tree)
-                expandedBeforeReload = stateManager.captureState(tree) + (expandedBeforeReload - present)
-                selectedBeforeReload = stateManager.captureSelection(tree) ?: selectedBeforeReload
-            }
-            val hadFocus = tree?.hasFocus() == true
-
-            val rootNode = root as RootNode
             if (runFetcher() != null) {
                 loadRuns(refresh = false)
             } else {
-                rootNode.loadGeneration++
-                rootNode.childrenLoaded = false
-                rootNode.removeAllChildren()
-                rootNode.add(EmptyNode("No CircleCI project found in this workspace"))
-                reload(rootNode)
+                root.loadGeneration++
+                root.childrenLoaded = false
+                root.removeAllChildren()
+                root.add(EmptyNode("No CircleCI project found in this workspace"))
+                structureChanged()
             }
-
-            if (tree != null && hadFocus) tree.requestFocusInWindow()
-        }
-    }
-
-    /**
-     * Override to indicate which nodes are leaves.
-     */
-    override fun isLeaf(node: Any?): Boolean {
-        return when (node) {
-            is CircleCITreeNode -> !node.canLoadChildren()
-            else -> super.isLeaf(node)
-        }
-    }
-
-    /**
-     * Load children for a given node asynchronously.
-     */
-    fun loadChildren(node: CircleCITreeNode) {
-        if (!node.childrenLoaded) {
-            loadChildren(node, refresh = false)
         }
     }
 
@@ -161,15 +142,13 @@ class CircleCITreeModel(
         parent.remove(loadMoreNode)
         val loadingNode = LoadingNode()
         parent.insert(loadingNode, index)
-        nodeStructureChanged(parent)
+        structureChanged()
 
         tracked {
             val result = authenticated { fetch(loadMoreNode.nextCursor) }
             // A refresh or reload replaced the list while this page was loading.
             if (generation != parent.loadGeneration || loadingNode.parent !== parent) return@tracked
 
-            val expanded = captureExpansion()
-            val selected = tree?.let { stateManager.captureSelection(it) }
             parent.remove(loadingNode)
             result.fold(
                 onSuccess = { page ->
@@ -181,9 +160,7 @@ class CircleCITreeModel(
                     parent.add(ErrorNode(error.message ?: "Failed to load more runs"))
                 },
             )
-            nodeStructureChanged(parent)
-            tree?.let { stateManager.restoreState(it, parent, expanded) }
-            restoreSelection(parent, selected)
+            structureChanged()
         }
     }
 
@@ -214,7 +191,7 @@ class CircleCITreeModel(
     /** List the runs at the top of the tree. */
     private fun loadRuns(refresh: Boolean) {
         val fetch = runFetcher() ?: return
-        val node = root as RootNode
+        val node = root
         val myRuns = isMyRuns()
         loadInto(node, refresh, "runs", { fetch(null) }) { page, previous ->
             val existing = existingChildren<RunNode, String>(previous) { it.run.id }
@@ -305,7 +282,7 @@ class CircleCITreeModel(
             // The run list's loading shows as the stripe above it (and the
             // empty tree's text); a run or workflow shows its own.
             if (node !== root) node.add(LoadingNode())
-            nodeStructureChanged(node)
+            structureChanged()
         }
 
         tracked {
@@ -318,8 +295,6 @@ class CircleCITreeModel(
                 return@tracked
             }
 
-            val expanded = captureExpansion()
-            val selected = tree?.let { stateManager.captureSelection(it) }
             // Taken before clearing, so populate can keep the nodes still listed (and so their expansion).
             val previous = node.children().toList().filterIsInstance<CircleCITreeNode>()
             node.removeAllChildren()
@@ -334,55 +309,47 @@ class CircleCITreeModel(
                     node.childrenLoaded = false
                 },
             )
-            nodeStructureChanged(node)
-            // The nodes a root reload rebuilt are first loaded here, so put
-            // back the expansion they had before it. A refresh only keeps
-            // what's expanded now, so a node collapsed since stays collapsed.
-            tree?.let {
-                stateManager.restoreState(
-                    it,
-                    node,
-                    if (refresh) expanded else expanded + expandedBeforeReload,
-                )
-            }
-            restoreSelection(node, selected)
-
             if (refresh) {
                 refreshLoadedChildren(node)
             }
+            structureChanged()
+            // Nodes rebuilt while open load again.
+            loadOpened()
         }
     }
 
     /**
      * After a refresh kept some loaded children: re-fetch those still
-     * expanded, and drop the rest so they load fresh when next expanded.
+     * open, and drop the rest so they load fresh when next opened.
      */
     private fun refreshLoadedChildren(node: CircleCITreeNode) {
-        val tree = tree
-        for (child in node.children().toList().filterIsInstance<CircleCITreeNode>()) {
+        val open = treeState.openNodes
+        for (child in children(node)) {
             if (!child.childrenLoaded) continue
-            if (tree != null && tree.isExpanded(TreePath(child.path))) {
+            if (keyOf(child) in open) {
                 loadChildren(child, refresh = true)
             } else {
                 child.childrenLoaded = false
                 child.removeAllChildren()
-                nodeStructureChanged(child)
             }
         }
     }
 
-    /**
-     * Reselect what was selected before this node's children were replaced,
-     * or else what was selected before the last root reload, once it loads.
-     */
-    private fun restoreSelection(
-        node: CircleCITreeNode,
-        selected: String? = null,
-    ) {
-        val tree = tree ?: return
-        stateManager.restoreSelection(tree, node, selected ?: selectedBeforeReload)
-        // Once something's selected (that, or whatever the user picked since), stop waiting for it.
-        if (tree.selectionPath != null) selectedBeforeReload = null
+    /** Load the children of the open nodes that have none yet. */
+    private fun loadOpened() {
+        nodesToLoad(root, treeState.openNodes).forEach { loadChildren(it, refresh = false) }
+    }
+
+    /** Clear the error (or loading) rows of nodes just closed, so opening them again retries. */
+    private fun forgetFailedLoads(closed: Set<Any>) {
+        val nodes = closed.mapNotNull { findNode(root, it) }.filter { !it.childrenLoaded && it.childCount > 0 }
+        if (nodes.isEmpty()) return
+        nodes.forEach { it.removeAllChildren() }
+        structureChanged()
+    }
+
+    private fun structureChanged() {
+        _structure.value++
     }
 
     /** Launch [block] on the EDT, counted as a load in flight until it ends, however it ends. */
@@ -403,10 +370,6 @@ class CircleCITreeModel(
         previous: List<CircleCITreeNode>,
         key: (N) -> K,
     ): Map<K, N> = previous.filterIsInstance<N>().associateBy(key)
-
-    private fun captureExpansion(): Set<String> {
-        return tree?.let { stateManager.captureState(it) } ?: emptySet()
-    }
 
     private fun emptyRunsMessage(): String {
         val filters = stateStore.filters.value

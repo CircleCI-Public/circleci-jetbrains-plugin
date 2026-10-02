@@ -129,8 +129,9 @@ fun getJobs(workflowId: String): Result<PaginatedResponse<JobInfo>> {
 - Implements `Disposable`
 - Uses `CoroutineScope` with `SupervisorJob + Dispatchers.Main`
 - Layout: `JBPanel<JBPanel<*>>(BorderLayout())`
-  - North: Toolbar
-  - Center: Main content (tree, panel, etc.)
+  - North: the run filters (`RunFilterBar`, the IDE's Pull Requests drop-downs)
+  - Center: the run tree, in a `JewelComposePanel`
+- Until you log in, `SignedOutView` (Compose) takes the runs' place
 
 **Disposal:**
 ```kotlin
@@ -142,20 +143,18 @@ override fun dispose() {
 #### Tree View Pattern
 
 **Components:**
-- `CircleCITreeModel` - Manages tree structure, async loading
+- `CircleCITreeModel` - Holds the nodes, loads them asynchronously, and keeps what's open and selected in a Jewel `TreeState`
 - `CircleCITreeNode` - Sealed class for node types
-- `CircleCITreeCellRenderer` - Custom rendering with icons
+- `RunTree.kt` - Builds Jewel's tree from the nodes, keyed by run, workflow or job id
+- `RunTreeView` - Draws it with Jewel's `LazyTree`, with the IDE's actions on right-click
 
-**Async Loading:**
+**Async Loading:** what's open is kept by key, not by node, so it carries
+over to the nodes a reload rebuilds. Whenever it changes, or nodes load,
+the open nodes with nothing loaded yet load their children:
 ```kotlin
-tree.addTreeExpansionListener(object : TreeExpansionListener {
-    override fun treeExpanded(event: TreeExpansionEvent) {
-        val node = event.path.lastPathComponent as? CircleCITreeNode ?: return
-        if (node.canLoadChildren() && !node.childrenLoaded) {
-            treeModel.loadChildren(node)  // Async
-        }
-    }
-})
+snapshotFlow { treeState.openNodes }.collect {
+    nodesToLoad(root, it).forEach { node -> loadChildren(node, refresh = false) }  // Async
+}
 ```
 
 **Node Types:**

@@ -4,7 +4,6 @@
   <CurrentIssues>
     <ID>ComplexCondition:CircleCIWebSocketService.kt$CircleCIWebSocketService.PusherWebSocketListener$jobId == null || status == null || workflowId == null || projectSlug == null</ID>
     <ID>ComplexCondition:CircleCIWebSocketService.kt$CircleCIWebSocketService.PusherWebSocketListener$workflowId == null || status == null || projectSlug == null || runId == null</ID>
-    <ID>CyclomaticComplexMethod:CircleCITreeCellRenderer.kt$CircleCITreeCellRenderer$override fun customizeCellRenderer( tree: JTree, value: Any?, selected: Boolean, expanded: Boolean, leaf: Boolean, row: Int, hasFocus: Boolean, )</ID>
     <ID>FunctionParameterNaming:CircleCINotificationService.kt$CircleCINotificationService$@Suppress("UNUSED_PARAMETER") _status: String</ID>
     <ID>FunctionParameterNaming:LogFormatter.kt$LogFormatter$@Suppress("UNUSED_PARAMETER") _level: LogLevel</ID>
     <ID>Indentation:CircleCIStatePersistence.kt$CircleCIStatePersistence$ </ID>
@@ -23,7 +22,6 @@
     <ID>TooGenericExceptionCaught:CircleCINotificationService.kt$CircleCINotificationService$e: Exception</ID>
     <ID>TooGenericExceptionCaught:CircleCIProjectService.kt$CircleCIProjectService$e: Exception</ID>
     <ID>TooGenericExceptionCaught:CircleCIStatePersistence.kt$CircleCIStatePersistence$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:CircleCITreeCellRenderer.kt$CircleCITreeCellRenderer$e: Exception</ID>
     <ID>TooGenericExceptionCaught:CircleCITreeModel.kt$CircleCITreeModel$e: Exception</ID>
     <ID>TooGenericExceptionCaught:CircleCIWebSocketService.kt$CircleCIWebSocketService$e: Exception</ID>
     <ID>TooGenericExceptionCaught:CircleCIWebSocketService.kt$CircleCIWebSocketService.PusherWebSocketListener$e: Exception</ID>
@@ -38,7 +36,7 @@
     <ID>TooManyFunctions:CircleCILogger.kt$CircleCILogger</ID>
     <ID>TooManyFunctions:CircleCINotificationService.kt$CircleCINotificationService</ID>
     <ID>TooManyFunctions:CircleCIStateStore.kt$CircleCIStateStore : CircleCIState</ID>
-    <ID>TooManyFunctions:CircleCITreeModel.kt$CircleCITreeModel : DefaultTreeModel</ID>
+    <ID>TooManyFunctions:CircleCITreeModel.kt$CircleCITreeModel</ID>
     <ID>TooManyFunctions:JobDetailsService.kt$JobDetailsService</ID>
   </CurrentIssues>
 </SmellBaseline>
