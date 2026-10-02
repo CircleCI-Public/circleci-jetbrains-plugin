@@ -12,10 +12,12 @@ task test       # Run tests + verify
 task run        # Launch IDE
 task lint       # Static analysis
 task format     # Auto-fix style
-task release    # Full release
 ```
 
 View all: `task --list`
+
+Releases are made by merging the release PR that CI keeps open (see `RELEASE.md`). The
+release program is Go, in `cmd/ci/release` (`task ci:release:test`).
 
 ## Before Committing
 
