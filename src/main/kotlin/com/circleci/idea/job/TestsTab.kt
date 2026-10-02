@@ -40,7 +40,6 @@ import com.intellij.openapi.util.Disposer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.jetbrains.jewel.bridge.JewelComposePanel
 import org.jetbrains.jewel.foundation.lazy.SingleSelectionLazyColumn
 import org.jetbrains.jewel.foundation.lazy.items
 import org.jetbrains.jewel.foundation.lazy.rememberSingleSelectionLazyListState
@@ -57,7 +56,6 @@ import org.jetbrains.jewel.ui.component.VerticalSplitLayout
 import org.jetbrains.jewel.ui.component.VerticallyScrollableContainer
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import java.util.Locale
-import javax.swing.JComponent
 
 /**
  * A job's tests: filtered by outcome and by name, sortable by column, with
@@ -88,9 +86,6 @@ class TestsTab(
 
     private val message: ConsoleView =
         TextConsoleBuilderFactory.getInstance().createBuilder(project).apply { setViewer(true) }.console
-
-    /** The tab as a Swing component, for the job page's tabs. */
-    val component: JComponent by lazy { JewelComposePanel { View() } }
 
     init {
         Disposer.register(parent, message)

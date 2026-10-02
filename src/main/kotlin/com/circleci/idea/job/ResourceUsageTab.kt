@@ -22,42 +22,35 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.circleci.idea.run.formatElapsed
-import com.intellij.ui.components.JBPanel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.jetbrains.jewel.bridge.JewelComposePanel
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Divider
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.VerticallyScrollableContainer
 import org.jetbrains.jewel.ui.typography
-import java.awt.BorderLayout
 
 /**
  * A job's CPU and memory use as charts against its resource class's limits,
  * with each execution's min, mean, max and peak share of the limit, as
  * `circleci job resource-usage get` reports them.
  */
-class ResourceUsagePanel(
+class ResourceUsageTab(
     private val ref: JobRef,
     private val scope: CoroutineScope,
     private val service: JobDetailsService,
-) : JBPanel<ResourceUsagePanel>(BorderLayout()) {
+) {
     private val _state = MutableStateFlow<UsageState>(UsageState.Message("Resource usage loads once the job ends"))
     val state: StateFlow<UsageState> = _state.asStateFlow()
 
-    init {
-        add(
-            JewelComposePanel {
-                val current by state.collectAsState()
-                ResourceUsageView(current)
-            },
-            BorderLayout.CENTER,
-        )
+    @Composable
+    fun View() {
+        val current by state.collectAsState()
+        ResourceUsageView(current)
     }
 
     /** Fetch and show the job's usage. Call on the EDT. */

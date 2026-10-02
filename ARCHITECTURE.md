@@ -242,11 +242,13 @@ src/main/kotlin/com/circleci/idea/
 ├── job/                          # Job pages (one editor tab per job)
 │   ├── JobDetailsService.kt      # Opens job pages; fetches job, tests, artifacts
 │   ├── JobEditorProvider.kt      # FileEditorProvider for JobVirtualFile
-│   ├── JobPanel.kt               # The page's tabs; steps tree and step output console
+│   ├── JobPanel.kt               # Toolbar over the Compose page: header and tabs; polls the job
+│   ├── JobPageUi.kt              # What the page's Compose views share (icons, Swing hosting)
+│   ├── StepsTab.kt               # Steps tree and step output console
 │   ├── StepOutputStream.kt       # Ranged stdout polling, as in the CLI
-│   ├── TestsPanel.kt             # Tests tab (TestFilter: client-side filtering)
-│   ├── ArtifactsPanel.kt         # Artifacts tab (ArtifactTree: the file tree)
-│   └── ResourceUsagePanel.kt     # Resource Usage tab (UsageChart: the line charts)
+│   ├── TestsTab.kt               # Tests tab (TestFilter: client-side filtering and sorting)
+│   ├── ArtifactsTab.kt           # Artifacts tab (ArtifactTree: the file tree)
+│   └── ResourceUsageTab.kt       # Resource Usage tab (UsageChart: the line charts)
 ├── ssh/                          # SSH sessions into jobs, in Terminal tabs
 │   ├── SshSessionService.kt      # Opens sessions (or explains why it can't)
 │   └── IdeSshConnector.kt        # IDE SSH client + Terminal runner (optional deps)

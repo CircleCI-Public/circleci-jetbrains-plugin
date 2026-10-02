@@ -34,15 +34,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Auto-refresh updates the tree in place, keeping expanded runs and workflows open
   - "Open in Browser" links to the run, workflow or job's own page
   - Removed the unused branch filter and "Show only my pipelines" options from Settings; the toolbar filters replace them
-- Jobs open as editor tabs instead of the single Job Details tab, so several can be open at once
+- Jobs open as editor tabs instead of the single Job Details tab, so several can be open at once. Below the IDE's toolbar of job actions, the page is drawn with the IDE's bundled Compose and Jewel; step output and test messages stay in the IDE's console
   - Steps and output come from the V3 jobs API, grouped by parallel execution when there's more than one
   - A running step's output streams in as it's written, polled every 2 seconds as `circleci run get` does, with its colors
   - Opens on the first failed step, or the running one; a running job's steps update as it goes
   - Steps and the selected step's output share a Steps tab, beside the Tests and Artifacts tabs
-  - The Tests tab reads the V3 tests API: filter by outcome (failures by default, when there are any) and by name or classname, sort by any column, and see the selected test's message with its colors
-  - The Artifacts tab is a file tree from the V3 artifacts API (by execution when parallel): open an artifact in the IDE (text, or images and the like, up to 8 MiB), download a file, folder or everything, open it in the browser, or copy its URL
+  - The Tests tab reads the V3 tests API: filter by outcome (failures by default, when there are any) and by name or classname, sort by any column (click a heading again to reverse, and a third time for the job's order), and see the selected test's message with its colors
+  - The Artifacts tab is a file tree from the V3 artifacts API (by execution when parallel), with speed search: open an artifact in the IDE (text, or images and the like, up to 8 MiB), download a file, folder or everything, open it in the browser, or copy its URL, from the toolbar or its context menu
   - Artifacts download with your API token, so private projects' artifacts work
-  - A new Resource Usage tab charts CPU and memory over the job's run against its resource class's limits, one line per parallel execution. Hover over a chart for each execution's sample at that point in the run. Below the charts, each execution's min, mean, max and peak share of the limit, and its network traffic. Drawn with the IDE's bundled Compose and Jewel, and KoalaPlot
+  - A new Resource Usage tab charts CPU and memory over the job's run against its resource class's limits, one line per parallel execution. Hover over a chart for each execution's sample at that point in the run. Below the charts, each execution's min, mean, max and peak share of the limit, and its network traffic. Charts are drawn with KoalaPlot
   - "Copy SSH Command" copies `ssh <job-id>-<execution>@ssh.circleci.com` for jobs rerun with SSH
   - Removed the Connect SSH button, which never enabled: the V1.1 job details it read have no SSH host
 - Migrated the CircleCI YAML Language Server integration from lsp4ij to IntelliJ's native LSP API

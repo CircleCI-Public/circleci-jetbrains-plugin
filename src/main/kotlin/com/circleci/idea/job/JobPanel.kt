@@ -1,59 +1,57 @@
 package com.circleci.idea.job
 
-import com.circleci.idea.icons.CircleCIIcons
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.circleci.idea.logging.CircleCILogger
-import com.circleci.idea.run.RunStatus
 import com.circleci.idea.run.elapsedSince
 import com.circleci.idea.state.JobDetail
-import com.circleci.idea.state.JobExecution
-import com.circleci.idea.state.Step
-import com.intellij.execution.filters.TextConsoleBuilderFactory
-import com.intellij.execution.process.AnsiEscapeDecoder
-import com.intellij.execution.process.ProcessOutputTypes
-import com.intellij.execution.ui.ConsoleView
-import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.util.Key
-import com.intellij.ui.ColoredTreeCellRenderer
-import com.intellij.ui.OnePixelSplitter
-import com.intellij.ui.SimpleTextAttributes
-import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
-import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.components.JBTabbedPane
-import com.intellij.ui.treeStructure.Tree
-import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.tree.TreeUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.jetbrains.jewel.bridge.JewelComposePanel
+import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.Orientation
+import org.jetbrains.jewel.ui.component.Divider
+import org.jetbrains.jewel.ui.component.Icon
+import org.jetbrains.jewel.ui.component.SimpleTabContent
+import org.jetbrains.jewel.ui.component.TabData
+import org.jetbrains.jewel.ui.component.TabStrip
+import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.theme.defaultTabStyle
+import org.jetbrains.jewel.ui.typography
 import java.awt.BorderLayout
-import javax.swing.BoxLayout
 import javax.swing.JComponent
-import javax.swing.JTree
-import javax.swing.tree.DefaultMutableTreeNode
-import javax.swing.tree.DefaultTreeModel
-import javax.swing.tree.TreePath
-import javax.swing.tree.TreeSelectionModel
-
-/** A step, by the execution it ran in and its number. */
-data class StepKey(val execution: Int, val num: Int)
 
 /**
- * A job's page, in tabs: its steps (by parallel execution, when there's
- * more than one) beside the selected step's output, streamed while it runs;
- * its tests; its artifacts; and its resource usage.
+ * A job's page, in tabs: its steps beside the selected step's output, its
+ * tests, its artifacts, and its resource usage. The IDE's toolbar of job
+ * actions sits above a Compose view of the rest.
  *
  * The job is re-read every few seconds until it ends, so new steps appear
  * and statuses change as it runs.
@@ -73,40 +71,33 @@ class JobPanel(
     var detail: JobDetail? = null
         private set
 
-    private val titleLabel = JBLabel(ref.name)
-    private val summaryLabel = JBLabel()
+    private val jobState = MutableStateFlow<JobDetail?>(null)
+    private val loadErrorState = MutableStateFlow<String?>(null)
+    private val _tab = MutableStateFlow(JobTab.STEPS)
+    val tab: StateFlow<JobTab> = _tab.asStateFlow()
 
-    private val stepsRoot = DefaultMutableTreeNode()
-    private val stepsModel = DefaultTreeModel(stepsRoot)
-    private val stepsTree = Tree(stepsModel)
-
-    private val console: ConsoleView =
-        TextConsoleBuilderFactory.getInstance().createBuilder(project).apply { setViewer(true) }.console
-
+    private val stepsTab = StepsTab(project, ref, scope, service, this) { detail }
     private val testsTab = TestsTab(project, this)
     private val artifactsTab = ArtifactsTab(project, ref, scope)
-    private val resourceUsagePanel = ResourceUsagePanel(ref, scope, service)
+    private val resourceUsageTab = ResourceUsageTab(ref, scope, service)
+
+    private val page: JComponent = JewelComposePanel { Page() }
 
     private var pollJob: Job? = null
-    private var streamJob: Job? = null
-    private var streamingStep: StepKey? = null
-
-    // Pick a step to show once, when the job first loads; after that the
-    // selection is the user's.
-    private var autoSelected = false
 
     val preferredFocusedComponent: JComponent
-        get() = stepsTree
+        get() = page
 
     /** The execution of the selected step, or of the first one. */
     val selectedExecution: Int
-        get() = selectedStep()?.execution ?: 0
+        get() = stepsTab.selected.value?.execution ?: 0
 
     init {
-        Disposer.register(this, console)
-        add(createHeader(), BorderLayout.NORTH)
-        add(createContent(), BorderLayout.CENTER)
-        console.print("Select a step to see its output.\n", ConsoleViewContentType.SYSTEM_OUTPUT)
+        val toolbar =
+            ActionManager.getInstance().createActionToolbar(ActionPlaces.TOOLBAR, JobActions.group(this), true)
+        toolbar.targetComponent = this
+        add(toolbar.component, BorderLayout.NORTH)
+        add(page, BorderLayout.CENTER)
         refresh()
     }
 
@@ -123,7 +114,7 @@ class JobPanel(
                     val job = result.getOrNull()
                     if (job == null) {
                         logger.warn("Failed to load job ${ref.jobId}: ${result.exceptionOrNull()?.message}")
-                        summaryLabel.text = "Failed to load job: ${result.exceptionOrNull()?.message}"
+                        loadErrorState.value = "Failed to load job: ${result.exceptionOrNull()?.message}"
                         return@launch
                     }
                     show(job)
@@ -139,154 +130,17 @@ class JobPanel(
             }
     }
 
-    private fun createHeader(): JComponent {
-        val toolbar =
-            ActionManager.getInstance().createActionToolbar(ActionPlaces.TOOLBAR, JobActions.group(this), true)
-        toolbar.targetComponent = this
-
-        titleLabel.font = JBUI.Fonts.label().biggerOn(2f).asBold()
-        val labels =
-            JBPanel<JBPanel<*>>().apply {
-                layout = BoxLayout(this, BoxLayout.Y_AXIS)
-                border = JBUI.Borders.empty(4, 8)
-                add(titleLabel)
-                add(summaryLabel)
-            }
-        return JBPanel<JBPanel<*>>(BorderLayout()).apply {
-            add(toolbar.component, BorderLayout.NORTH)
-            add(labels, BorderLayout.CENTER)
-        }
-    }
-
-    private fun createContent(): JComponent {
-        stepsTree.isRootVisible = false
-        stepsTree.selectionModel.selectionMode = TreeSelectionModel.SINGLE_TREE_SELECTION
-        stepsTree.cellRenderer = StepTreeCellRenderer()
-        stepsTree.emptyText.text = "Loading steps..."
-        stepsTree.addTreeSelectionListener { selectedStep()?.let { streamStep(it) } }
-
-        val steps =
-            OnePixelSplitter(false, STEPS_PROPORTION).apply {
-                firstComponent = JBScrollPane(stepsTree)
-                secondComponent = console.component
-            }
-
-        return JBTabbedPane().apply {
-            addTab("Steps", steps)
-            addTab("Tests", testsTab.component)
-            addTab("Artifacts", artifactsTab.component)
-            addTab("Resource Usage", resourceUsagePanel)
-        }
-    }
-
     private fun show(job: JobDetail) {
         detail = job
-
-        val parts = mutableListOf<String>()
-        ref.number?.let { parts.add("#$it") }
-        parts.add(job.status.label)
-        elapsedSince(job.startedAt, job.endedAt)?.let { parts.add(it) }
-        ref.workflowName?.let { workflow -> parts.add(ref.runNumber?.let { "$workflow (run #$it)" } ?: workflow) }
-        summaryLabel.text = parts.joinToString(" · ")
-        summaryLabel.icon = CircleCIIcons.getStatusIcon(job.status)
+        jobState.value = job
+        loadErrorState.value = null
 
         if (file.status != job.status) {
             file.status = job.status
             FileEditorManagerEx.getInstanceEx(project).updateFilePresentation(file)
         }
 
-        updateSteps(job.executions)
-    }
-
-    private fun updateSteps(executions: List<JobExecution>) {
-        val selected = selectedStep()
-        stepsRoot.removeAllChildren()
-        // Only executions expand; a lone execution's steps are leaves, and
-        // leaving room for handles they don't have indents them for nothing.
-        stepsTree.showsRootHandles = executions.size > 1
-        if (executions.size == 1) {
-            executions[0].steps.forEach { stepsRoot.add(DefaultMutableTreeNode(StepNode(0, it))) }
-        } else {
-            for (execution in executions) {
-                val executionNode = DefaultMutableTreeNode(ExecutionNode(execution))
-                execution.steps.forEach { executionNode.add(DefaultMutableTreeNode(StepNode(execution.index, it))) }
-                stepsRoot.add(executionNode)
-            }
-        }
-        stepsModel.reload()
-        TreeUtil.expandAll(stepsTree)
-        stepsTree.emptyText.text = "No steps yet"
-
-        val toSelect = selected ?: if (autoSelected) null else stepToShow(executions)
-        autoSelected = autoSelected || toSelect != null
-        toSelect?.let { key -> findStepPath(key)?.let { TreeUtil.selectPath(stepsTree, it) } }
-    }
-
-    /** The step worth opening on: the first that failed, or else the one running now. */
-    private fun stepToShow(executions: List<JobExecution>): StepKey? {
-        val steps = executions.flatMap { execution -> execution.steps.map { StepKey(execution.index, it.num) to it } }
-        val step =
-            steps.firstOrNull { (_, step) -> step.status.isFailure }
-                ?: steps.lastOrNull { (_, step) -> step.status.isActive }
-        return step?.first
-    }
-
-    private fun streamStep(key: StepKey) {
-        // Rebuilding the tree on each poll reselects the step being shown.
-        if (key == streamingStep) return
-        streamingStep = key
-        streamJob?.cancel()
-        console.clear()
-
-        val decoder = AnsiEscapeDecoder()
-        streamJob =
-            scope.launch {
-                var printedAny = false
-                val isStepActive = { findStep(key)?.status?.isActive ?: false }
-                service.stepOutput(ref.jobId, key.execution, key.num, isStepActive).events()
-                    .flowOn(Dispatchers.IO)
-                    .collect { event ->
-                        when (event) {
-                            is StepOutputEvent.Stdout -> printAnsi(decoder, event.text, ProcessOutputTypes.STDOUT)
-                            is StepOutputEvent.Stderr -> printAnsi(decoder, event.text, ProcessOutputTypes.STDERR)
-                            is StepOutputEvent.Failed ->
-                                console.print(
-                                    "Failed to load output: ${event.error.message}\n",
-                                    ConsoleViewContentType.ERROR_OUTPUT,
-                                )
-                        }
-                        printedAny = true
-                    }
-                if (!printedAny) {
-                    console.print("This step has no output.\n", ConsoleViewContentType.SYSTEM_OUTPUT)
-                }
-            }
-    }
-
-    private fun printAnsi(
-        decoder: AnsiEscapeDecoder,
-        text: String,
-        outputType: Key<*>,
-    ) {
-        decoder.escapeText(text, outputType) { chunk, attributes ->
-            console.print(chunk, ConsoleViewContentType.getConsoleViewType(attributes))
-        }
-    }
-
-    private fun selectedStep(): StepKey? {
-        val node = stepsTree.lastSelectedPathComponent as? DefaultMutableTreeNode ?: return null
-        val step = node.userObject as? StepNode ?: return null
-        return StepKey(step.execution, step.step.num)
-    }
-
-    private fun findStep(key: StepKey): Step? {
-        return detail?.executions?.firstOrNull { it.index == key.execution }?.steps?.firstOrNull { it.num == key.num }
-    }
-
-    private fun findStepPath(key: StepKey): TreePath? {
-        return TreeUtil.findNode(stepsRoot) { node ->
-            (node.userObject as? StepNode)?.let { StepKey(it.execution, it.step.num) == key } ?: false
-        }?.let { TreePath(it.path) }
+        stepsTab.show(job.executions)
     }
 
     private fun loadEndOfJobTabs() {
@@ -297,61 +151,84 @@ class JobPanel(
             )
         }
         artifactsTab.load()
-        resourceUsagePanel.load()
+        resourceUsageTab.load()
+    }
+
+    @Composable
+    private fun Page() {
+        val job by jobState.collectAsState()
+        val loadError by loadErrorState.collectAsState()
+        val tab by tab.collectAsState()
+        Column(Modifier.fillMaxSize()) {
+            Header(job, loadError)
+            val tabs =
+                JobTab.entries.map { entry ->
+                    TabData.Default(
+                        selected = entry == tab,
+                        content = { state -> SimpleTabContent(entry.title, state) },
+                        closable = false,
+                        onClick = { _tab.value = entry },
+                    )
+                }
+            TabStrip(tabs, JewelTheme.defaultTabStyle, Modifier.fillMaxWidth())
+            Divider(Orientation.Horizontal, Modifier.fillMaxWidth())
+            Box(Modifier.fillMaxSize()) {
+                when (tab) {
+                    JobTab.STEPS -> stepsTab.View()
+                    JobTab.TESTS -> testsTab.View()
+                    JobTab.ARTIFACTS -> artifactsTab.View()
+                    JobTab.RESOURCE_USAGE -> resourceUsageTab.View()
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun Header(
+        job: JobDetail?,
+        loadError: String?,
+    ) {
+        Column(
+            Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(ref.name, style = JewelTheme.typography.h3TextStyle)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                job?.let { Icon(statusIconKey(it.status), it.status.label, Modifier.size(STATUS_ICON.dp)) }
+                Text(loadError ?: summary(job), color = JewelTheme.globalColors.text.info)
+            }
+        }
+    }
+
+    /** "#123 · Running · 3m 20s · build (run #45)", as much of it as is known. */
+    private fun summary(job: JobDetail?): String {
+        val parts = mutableListOf<String>()
+        ref.number?.let { parts.add("#$it") }
+        if (job == null) {
+            parts.add("Loading...")
+        } else {
+            parts.add(job.status.label)
+            elapsedSince(job.startedAt, job.endedAt)?.let { parts.add(it) }
+        }
+        ref.workflowName?.let { workflow -> parts.add(ref.runNumber?.let { "$workflow (run #$it)" } ?: workflow) }
+        return parts.joinToString(" · ")
     }
 
     override fun dispose() {
         scope.cancel()
     }
 
-    private data class ExecutionNode(val execution: JobExecution) {
-        /** The worst of the steps' statuses: failing beats running beats done. */
-        val status: RunStatus
-            get() {
-                val statuses = execution.steps.map { it.status }
-                return statuses.firstOrNull { it.isFailure }
-                    ?: statuses.firstOrNull { it.isActive }
-                    ?: statuses.lastOrNull()
-                    ?: RunStatus.UNKNOWN
-            }
-    }
-
-    private data class StepNode(val execution: Int, val step: Step)
-
-    private class StepTreeCellRenderer : ColoredTreeCellRenderer() {
-        override fun customizeCellRenderer(
-            tree: JTree,
-            value: Any?,
-            selected: Boolean,
-            expanded: Boolean,
-            leaf: Boolean,
-            row: Int,
-            hasFocus: Boolean,
-        ) {
-            when (val node = (value as? DefaultMutableTreeNode)?.userObject) {
-                is ExecutionNode -> {
-                    icon = CircleCIIcons.getStatusIcon(node.status)
-                    append("Execution ${node.execution.index}", SimpleTextAttributes.REGULAR_ATTRIBUTES)
-                }
-                is StepNode -> {
-                    val step = node.step
-                    icon = CircleCIIcons.getStatusIcon(step.status)
-                    append(step.name, SimpleTextAttributes.REGULAR_ATTRIBUTES)
-                    elapsedSince(step.startedAt, step.endedAt)?.let {
-                        append("  $it", SimpleTextAttributes.GRAYED_SMALL_ATTRIBUTES)
-                    }
-                    step.exitCode?.takeIf { it != 0 }?.let {
-                        append("  exit $it", SimpleTextAttributes.ERROR_ATTRIBUTES)
-                    }
-                }
-                else -> {}
-            }
-        }
-    }
-
     private companion object {
         /** How often a running job is re-read for new steps and statuses. */
         const val JOB_POLL_INTERVAL_MS = 5_000L
-        const val STEPS_PROPORTION = 0.3f
+        const val STATUS_ICON = 16
     }
+}
+
+/** The job page's tabs, in order. */
+enum class JobTab(val title: String) {
+    STEPS("Steps"),
+    TESTS("Tests"),
+    ARTIFACTS("Artifacts"),
+    RESOURCE_USAGE("Resource Usage"),
 }

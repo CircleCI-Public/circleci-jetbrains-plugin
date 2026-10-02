@@ -44,7 +44,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.jetbrains.jewel.bridge.JewelComposePanel
 import org.jetbrains.jewel.bridge.icon.fromPlatformIcon
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.lazy.tree.TreeGeneratorScope
@@ -65,7 +64,6 @@ import java.awt.datatransfer.StringSelection
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.nio.file.Path
-import javax.swing.JComponent
 
 /**
  * A job's artifacts as a file tree: open one in the IDE, download a file or
@@ -87,9 +85,6 @@ class ArtifactsTab(
 
     /** Which directories are open, and what's selected, kept while the view is off screen. */
     private var openIds: Set<Any> = emptySet()
-
-    /** The tab as a Swing component, for the job page's tabs. */
-    val component: JComponent by lazy { JewelComposePanel { View() } }
 
     /** List the job's artifacts. Call on the EDT. */
     fun load() {
