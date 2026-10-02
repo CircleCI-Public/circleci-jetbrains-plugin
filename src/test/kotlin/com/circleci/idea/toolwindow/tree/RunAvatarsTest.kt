@@ -30,7 +30,7 @@ class RunAvatarsTest {
     fun testGitHubAvatarForWhoeverTriggeredTheRun() {
         assertEquals(
             "GitHub avatar, at twice the drawn size",
-            "https://github.com/pete-woods.png?size=30",
+            "https://github.com/pete-woods.png?size=48",
             RunAvatars.avatarUrl(run("gh/org/repo", "pete-woods")),
         )
     }

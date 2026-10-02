@@ -183,6 +183,17 @@ class RunTreeRenderingTest : BasePlatformTestCase() {
         val (avatar, avatarX) = first.single { it.first.icon != null && it.first.text.isNullOrEmpty() }
         assertTrue("the avatar shows", avatar.isVisible)
         assertTrue("the avatar is right of the branch", avatarX > branchX)
+        // As tall as the title and details together: filling the row, but not growing it.
+        val textHeight = title.height + first.first { it.first.text.contains("7d3b7bc") }.first.height
+        val avatarHeight = avatar.preferredSize.height
+        assertTrue(
+            "the avatar fills the two lines ($avatarHeight of $textHeight px)",
+            avatarHeight * 10 >= textHeight * 9,
+        )
+        assertTrue(
+            "the avatar doesn't make the row taller ($avatarHeight of $textHeight px)",
+            avatarHeight <= textHeight,
+        )
         val padding = component.width - (avatarX + avatar.width - avatar.insets.right)
         assertTrue("the avatar has room around it ($padding px to the edge)", avatar.insets.left > 0 && padding > 0)
     }

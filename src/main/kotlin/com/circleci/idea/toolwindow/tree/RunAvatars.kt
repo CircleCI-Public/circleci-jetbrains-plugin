@@ -2,7 +2,6 @@ package com.circleci.idea.toolwindow.tree
 
 import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.state.Run
-import com.intellij.collaboration.ui.codereview.avatar.Avatar
 import com.intellij.collaboration.ui.codereview.avatar.CodeReviewAvatarUtils
 import com.intellij.collaboration.ui.icon.AsyncImageIconsProvider
 import com.intellij.collaboration.ui.icon.CachingIconsProvider
@@ -38,7 +37,7 @@ class RunAvatars(scope: CoroutineScope) {
     /** The run's avatar in a ring of its status's colour, or null when there's no avatar to show. */
     fun iconFor(run: Run): Icon? {
         val url = avatarUrl(run) ?: return null
-        return CodeReviewAvatarUtils.createIconWithOutline(icons.getIcon(url, Avatar.Sizes.SMALL), RING_COLOR)
+        return CodeReviewAvatarUtils.createIconWithOutline(icons.getIcon(url, SIZE), RING_COLOR)
     }
 
     private class AvatarLoader : AsyncImageIconsProvider.AsyncImageLoader<String> {
@@ -64,8 +63,11 @@ class RunAvatars(scope: CoroutineScope) {
         private const val MAX_CACHED = 200
         private const val EXPIRES_AFTER_MINUTES = 60
 
+        // With its ring, as tall as a run's two lines of text, so it fills the row without growing it.
+        private const val SIZE = 24
+
         // Twice the drawn size, for HiDPI screens.
-        private const val REQUEST_SIZE = Avatar.Sizes.SMALL * 2
+        private const val REQUEST_SIZE = SIZE * 2
 
         fun getInstance(): RunAvatars = ApplicationManager.getApplication().getService(RunAvatars::class.java)
 

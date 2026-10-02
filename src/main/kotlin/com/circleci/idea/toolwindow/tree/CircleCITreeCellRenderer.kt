@@ -123,7 +123,7 @@ class CircleCITreeCellRenderer : TreeCellRenderer {
         private val title = JBLabel()
         private val details = JBLabel().apply { font = JBUI.Fonts.smallFont() }
         private val branch = JBLabel().apply { font = JBUI.Fonts.smallFont() }
-        private val avatar = JBLabel().apply { border = JBUI.Borders.empty(AVATAR_PADDING_V, AVATAR_PADDING_H) }
+        private val avatar = JBLabel().apply { border = JBUI.Borders.empty(0, AVATAR_PADDING) }
         private val lines =
             JBPanel<JBPanel<*>>().apply {
                 layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -252,8 +252,7 @@ class CircleCITreeCellRenderer : TreeCellRenderer {
         const val ICON_GAP = 4
         const val VERTICAL_PADDING = 3
         const val RIGHT_MARGIN = 8
-        const val AVATAR_PADDING_V = 2
-        const val AVATAR_PADDING_H = 6
+        const val AVATAR_PADDING = 6
         const val BRANCH_COLUMN_SHARE = 0.3
 
         /**
