@@ -5,6 +5,20 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-10-02
+
+### What's Changed
+* Name the CircleCI-Public teams in CODEOWNERS by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/4
+* Show project and org settings in a tree below the runs by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/3
+* Move to faster resource-class by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/5
+* Link to the plugin on the JetBrains Marketplace from the README by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/6
+* Remove circleci-people from codeowners by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/8
+* Fix the compiler warnings and most deprecated API uses by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/9
+* Release by merging a release PR kept up to date by cmd/ci/release by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/12
+
+
+**Full Changelog**: https://github.com/CircleCI-Public/circleci-jetbrains-plugin/compare/v1.3.1...v1.4.0
+
 ## [Unreleased]
 
 ### Added
