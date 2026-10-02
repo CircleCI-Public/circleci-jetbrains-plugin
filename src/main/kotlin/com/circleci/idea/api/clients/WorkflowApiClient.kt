@@ -8,13 +8,18 @@ import com.circleci.idea.api.CircleCIApiClient
  */
 class WorkflowApiClient : CircleCIApiClientBase() {
     /**
-     * Rerun a workflow.
+     * Rerun a workflow, via POST /api/v3/workflows/{id}/rerun. This creates
+     * a new workflow; the old one is unchanged.
+     *
+     * The fields are V3's `is_from_failed` and `is_ssh_enabled`, not V2's
+     * `from_failed` and `enable_ssh`: V3 ignores fields it doesn't know, so
+     * the V2 names silently rerun everything with SSH off.
      *
      * @param client The initialized API client
      * @param workflowId Workflow ID
-     * @param fromFailed Whether to rerun only failed jobs
+     * @param fromFailed Whether to rerun only failed jobs (and their dependents)
      * @param enableSsh Whether to enable SSH for debugging
-     * @param jobs Optional list of specific jobs to rerun
+     * @param jobs Optional IDs of specific jobs to rerun
      * @return Success or error
      */
     fun rerunWorkflow(
@@ -26,18 +31,19 @@ class WorkflowApiClient : CircleCIApiClientBase() {
     ): Result<Unit> {
         val body =
             buildMap {
-                put("from_failed", fromFailed)
-                put("enable_ssh", enableSsh)
+                put("is_from_failed", fromFailed)
+                put("is_ssh_enabled", enableSsh)
                 if (jobs != null) {
                     put("jobs", jobs)
                 }
             }
 
-        return executeRequest(client, "/api/v2/workflow/$workflowId/rerun", emptyMap(), body) { Unit }
+        return executeRequest(client, "/api/v3/workflows/$workflowId/rerun", body = body) { Unit }
     }
 
     /**
-     * Cancel a workflow.
+     * Cancel a workflow, via POST /api/v3/workflows/{id}/cancel. Cancellation
+     * happens asynchronously.
      *
      * @param client The initialized API client
      * @param workflowId Workflow ID
@@ -47,11 +53,11 @@ class WorkflowApiClient : CircleCIApiClientBase() {
         client: CircleCIApiClient,
         workflowId: String,
     ): Result<Unit> {
-        return executePostRequest(client, "/api/v2/workflow/$workflowId/cancel")
+        return executePostRequest(client, "/api/v3/workflows/$workflowId/cancel")
     }
 
     /**
-     * Approve a workflow.
+     * Approve a workflow's on-hold job. V3 has no approval endpoint yet, so this stays on V2.
      *
      * @param client The initialized API client
      * @param workflowId Workflow ID
@@ -64,22 +70,5 @@ class WorkflowApiClient : CircleCIApiClientBase() {
         approvalRequestId: String,
     ): Result<Unit> {
         return executePostRequest(client, "/api/v2/workflow/$workflowId/approve/$approvalRequestId")
-    }
-
-    /**
-     * Rerun a job with SSH enabled.
-     * This reruns the entire workflow with SSH enabled for debugging.
-     *
-     * @param client The initialized API client
-     * @param workflowId Workflow ID
-     * @param jobId Job ID (currently unused by API, but kept for signature compatibility)
-     * @return Success or error
-     */
-    fun rerunJobWithSsh(
-        client: CircleCIApiClient,
-        workflowId: String,
-        @Suppress("UNUSED_PARAMETER") jobId: String,
-    ): Result<Unit> {
-        return executePostRequest(client, "/api/v2/workflow/$workflowId/rerun")
     }
 }

@@ -5,7 +5,7 @@ package com.circleci.idea.run
  * phase / outcome / current_outcome triple.
  *
  * [token] matches the V2-style status words the rest of the plugin (icons,
- * notifications, websocket events) already speaks.
+ * filters) already speaks.
  */
 enum class RunStatus(val token: String, val label: String) {
     CREATED("created", "created"),

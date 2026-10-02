@@ -109,12 +109,18 @@ class JobDataService(private val project: Project) {
 
 **Usage Pattern:**
 ```kotlin
-fun getJobs(workflowId: String): Result<PaginatedResponse<JobInfo>> {
-    return executeRequest("/api/v2/workflow/$workflowId/job") { data ->
-        gson.fromJson(data.toString(), object : TypeToken<PaginatedResponse<JobInfo>>() {}.type)
+fun getJob(client: CircleCIApiClient, jobId: String): Result<JobDetailWire> {
+    return executeRequest(client, "/api/v3/jobs/$jobId") { data ->
+        gson.fromJson<V3Entity<JobDetailWire>>(data, object : TypeToken<V3Entity<JobDetailWire>>() {}.type).data
+            ?: error("No job $jobId")
     }
 }
 ```
+
+Everything uses the V3 API (`/api/v3/...`) except approving a hold and
+canceling a job, which have no V3 endpoint yet and stay on V2. V3 ignores
+request fields it doesn't know, so check field names against the V3 handler
+(`public-api-service/v3`) or the CircleCI CLI's `internal/apiclient`, not V2's.
 
 ### 5. UI Component Patterns
 
@@ -267,7 +273,7 @@ src/main/kotlin/com/circleci/idea/
 ### Naming Conventions
 - Services: `*Service` (e.g., `RunListService`)
 - State: `*State` (e.g., `AuthState`)
-- API Models: `*Info` for V1.1/V2 (e.g., `JobDetailsInfo`), `*Wire` for V3 (e.g., `RunWire`)
+- API Models: `*Wire` for V3 wire types (e.g., `RunWire`); `*Info`/`*Result` for what clients return (e.g., `UserInfo`)
 - Domain Models: Plain names (e.g., `Run`, `Workflow`, `Job`)
 - UI Components: `*Content`, `*Panel`, `*Dialog`
 
@@ -293,24 +299,24 @@ src/main/kotlin/com/circleci/idea/
 
 ### Adding a New API Endpoint
 
-1. Add method to `CircleCIApiService`:
+1. Add a method to the domain's client in `api/clients/`, and expose it through `CircleCIApiService`:
 ```kotlin
-fun getJobDetails(projectSlug: String, jobNumber: Long): Result<JobDetailsInfo> {
-    return executeRequest("/api/v2/project/$projectSlug/job/$jobNumber") { data ->
-        gson.fromJson(data.toString(), JobDetailsInfo::class.java)
+fun getJobArtifacts(client: CircleCIApiClient, jobId: String): Result<List<ArtifactWire>> {
+    return executeRequest(client, "/api/v3/jobs/$jobId/artifacts") { data ->
+        gson.fromJson<V3List<ArtifactWire>>(data, object : TypeToken<V3List<ArtifactWire>>() {}.type).data.orEmpty()
     }
 }
 ```
 
-2. Create API model in `api/models/ApiModels.kt`:
+2. Create the wire model in `api/models/`, every field nullable (the V3 API omits what doesn't apply):
 ```kotlin
-data class JobDetailsInfo(
-    val id: String,
-    val name: String,
-    val status: String,
-    // ... other fields
+data class ArtifactWire(
+    @SerializedName("attributes")
+    val attributes: ArtifactAttributesWire? = null,
 )
 ```
+
+3. Test it against a local HTTP server, as `CircleCIApiServiceTest` does, rather than a mock
 
 ### Adding a New UI Panel
 
@@ -371,7 +377,7 @@ fun updateMyFeature(data: String) {
 
 - Services are project-scoped, use mock projects for testing
 - State management uses StateFlow, easy to test reactively
-- API client supports mocking via dependency injection
+- API clients are tested against a local HTTP server (`CircleCIApiServiceTest`), not mocks
 - UI components implement Disposable for proper cleanup
 
 ## Performance Considerations

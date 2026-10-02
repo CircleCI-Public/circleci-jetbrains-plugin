@@ -8,10 +8,9 @@ import com.circleci.idea.api.clients.StepOutputChunk
 import com.circleci.idea.api.clients.V3Page
 import com.circleci.idea.api.clients.WorkflowApiClient
 import com.circleci.idea.api.models.ArtifactWire
-import com.circleci.idea.api.models.ConfigValidationResponse
+import com.circleci.idea.api.models.ConfigValidationResult
 import com.circleci.idea.api.models.JobDetailWire
 import com.circleci.idea.api.models.JobWire
-import com.circleci.idea.api.models.ProjectInfo
 import com.circleci.idea.api.models.ResourceUsageWire
 import com.circleci.idea.api.models.RunWire
 import com.circleci.idea.api.models.TestResultWire
@@ -210,16 +209,6 @@ class CircleCIApiService {
         return withClient { workflowClient.approveWorkflow(it, workflowId, approvalRequestId) }
     }
 
-    /**
-     * Rerun a job with SSH enabled.
-     */
-    fun rerunJobWithSsh(
-        workflowId: String,
-        jobId: String,
-    ): Result<Unit> {
-        return withClient { workflowClient.rerunJobWithSsh(it, workflowId, jobId) }
-    }
-
     // ========== Job Operations ==========
 
     /**
@@ -276,24 +265,21 @@ class CircleCIApiService {
         return withClient { projectClient.getCurrentUser(it) }
     }
 
-    /**
-     * Get followed projects.
-     */
-    fun getFollowedProjects(): Result<List<ProjectInfo>> {
-        return withClient { projectClient.getFollowedProjects(it) }
-    }
-
     // ========== Config Operations ==========
 
     /**
-     * Validate configuration.
+     * Validate configuration, resolving private orbs in [projectSlug]'s org.
+     * If the project can't be looked up, only public orbs resolve.
      */
     fun validateConfig(
         configYaml: String,
         projectSlug: String,
         branch: String,
-    ): Result<ConfigValidationResponse> {
-        return withClient { configClient.validateConfig(it, configYaml, projectSlug, branch) }
+    ): Result<ConfigValidationResult> {
+        return withClient { client ->
+            val orgId = runClient.getProjectBySlug(client, projectSlug).getOrNull()?.references?.org?.id
+            configClient.validateConfig(client, configYaml, branch, orgId)
+        }
     }
 
     // ========== Helper Methods ==========

@@ -2,78 +2,108 @@ package com.circleci.idea.api.models
 
 import com.google.gson.annotations.SerializedName
 
-/**
- * User information response from /api/v2/me
- */
+/** The signed-in user. */
 data class UserInfo(
-    @SerializedName("id")
     val id: String,
-    @SerializedName("login")
     val login: String,
-    @SerializedName("name")
     val name: String?,
+    val avatarUrl: String? = null,
 )
 
-/**
- * Project information from CircleCI API.
- */
-data class ProjectInfo(
-    @SerializedName("slug")
-    val slug: String? = null,
+/** A user from GET /api/v3/users. */
+data class UserWire(
+    @SerializedName("id")
+    val id: String? = null,
+    @SerializedName("attributes")
+    val attributes: UserAttributesWire? = null,
+)
+
+data class UserAttributesWire(
     @SerializedName("name")
     val name: String? = null,
-    @SerializedName("organization_name")
-    val organizationName: String? = null,
-    @SerializedName("vcs_info")
-    val vcsInfo: ProjectVcsInfo? = null,
-    @SerializedName("vcs_url")
-    val vcsUrl: String? = null,
-    @SerializedName("vcs_type")
-    val vcsType: String? = null,
-    @SerializedName("reponame")
-    val reponame: String? = null,
-    @SerializedName("username")
-    val username: String? = null,
-    @SerializedName("default_branch")
-    val defaultBranch: String? = null,
-    @SerializedName("followed")
-    val followed: Boolean = false,
-)
-
-data class ProjectVcsInfo(
-    @SerializedName("vcs_url")
-    val vcsUrl: String?,
-    @SerializedName("provider")
-    val provider: String?,
-    @SerializedName("default_branch")
-    val defaultBranch: String?,
+    @SerializedName("login")
+    val login: String? = null,
+    @SerializedName("avatar_url")
+    val avatarUrl: String? = null,
 )
 
 /**
- * Request body for config validation.
+ * Body for POST /api/v3/configs/compile. The endpoint rejects unknown
+ * members, so nothing outside this shape may be sent.
  */
-data class ConfigValidationRequest(
+data class ConfigCompileRequest(
+    @SerializedName("data")
+    val data: ConfigCompileData,
+)
+
+data class ConfigCompileData(
+    @SerializedName("attributes")
+    val attributes: ConfigCompileAttributes,
+    @SerializedName("references")
+    val references: ConfigCompileReferences? = null,
+)
+
+data class ConfigCompileAttributes(
     @SerializedName("config")
     val config: String,
+    @SerializedName("pipeline_values")
+    val pipelineValues: Map<String, Any>? = null,
+)
+
+/** The org to resolve private orbs in. */
+data class ConfigCompileReferences(
+    @SerializedName("org")
+    val org: V3Ref,
 )
 
 /**
- * Config validation response.
+ * POST /api/v3/configs/compile. A config that fails to compile is still
+ * HTTP 200: [ConfigCompileResultAttributes.outcome] is "failed" and the
+ * reasons are in [ConfigCompileMeta.messages].
  */
-data class ConfigValidationResponse(
-    @SerializedName("valid")
-    val valid: Boolean,
-    @SerializedName("errors")
-    val errors: List<ConfigError> = emptyList(),
-    @SerializedName("source_yaml")
-    val sourceYaml: String? = null,
-    @SerializedName("output_yaml")
-    val outputYaml: String? = null,
+data class ConfigCompileResponse(
+    @SerializedName("data")
+    val data: ConfigCompileResultWire? = null,
+    @SerializedName("meta")
+    val meta: ConfigCompileMeta? = null,
 )
 
-data class ConfigError(
-    @SerializedName("type")
-    val type: String,
-    @SerializedName("message")
-    val message: String,
+data class ConfigCompileResultWire(
+    @SerializedName("attributes")
+    val attributes: ConfigCompileResultAttributes? = null,
 )
+
+data class ConfigCompileResultAttributes(
+    @SerializedName("outcome")
+    val outcome: String? = null,
+    @SerializedName("compiled_config")
+    val compiledConfig: String? = null,
+)
+
+data class ConfigCompileMeta(
+    @SerializedName("messages")
+    val messages: List<ConfigCompileMessage>? = null,
+)
+
+data class ConfigCompileMessage(
+    @SerializedName("title")
+    val title: String? = null,
+)
+
+/** Whether a config compiled, why not, and what it expanded to. */
+data class ConfigValidationResult(
+    val valid: Boolean,
+    val errors: List<String> = emptyList(),
+    val compiledConfig: String? = null,
+) {
+    companion object {
+        fun from(response: ConfigCompileResponse): ConfigValidationResult {
+            val valid = response.data?.attributes?.outcome == "succeeded"
+            return ConfigValidationResult(
+                valid = valid,
+                errors = response.meta?.messages.orEmpty().mapNotNull { it.title?.takeIf(String::isNotBlank) },
+                compiledConfig = response.data?.attributes?.compiledConfig.takeIf { valid },
+            )
+        }
+    }
+}

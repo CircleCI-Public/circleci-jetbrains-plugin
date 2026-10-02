@@ -14,13 +14,11 @@
       <li>CircleCI YAML configuration validation and IntelliSense</li>
       <li>Local configuration testing (unversioned config runs)</li>
       <li>Test results and artifact viewing</li>
-      <li>Desktop notifications for run status changes</li>
     </ul>
 
     <p>Features include:</p>
     <ul>
       <li><strong>Run Monitoring:</strong> View runs, workflows, and jobs in a hierarchical tree view, filtered by branch, status, and age, or across all your projects</li>
-      <li><strong>Real-time Updates:</strong> Get instant notifications when run status changes</li>
       <li><strong>Workflow Actions:</strong> Rerun workflows from start or from failed jobs, cancel running workflows, approve on-hold jobs</li>
       <li><strong>SSH Debugging:</strong> Rerun failed jobs with SSH enabled and connect directly from the IDE</li>
       <li><strong>Config Validation:</strong> Validate CircleCI YAML configuration files before committing</li>
@@ -84,8 +82,6 @@
             serviceImplementation="com.circleci.idea.settings.CircleCISettings"/>
         <applicationService
             serviceImplementation="com.circleci.idea.api.CircleCIApiService"/>
-        <applicationService
-            serviceImplementation="com.circleci.idea.websocket.CircleCIWebSocketService"/>
 
         <!-- Project Services -->
         <projectService
@@ -104,8 +100,6 @@
             serviceImplementation="com.circleci.idea.auth.CircleCIAuthService"/>
         <projectService
             serviceImplementation="com.circleci.idea.toolwindow.CircleCIToolWindowService"/>
-        <projectService
-            serviceImplementation="com.circleci.idea.notifications.CircleCINotificationService"/>
 
         <!-- Job pages, one editor tab per job -->
         <fileEditorProvider implementation="com.circleci.idea.job.JobEditorProvider"/>

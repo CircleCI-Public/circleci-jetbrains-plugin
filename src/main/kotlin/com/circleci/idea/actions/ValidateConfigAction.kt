@@ -185,17 +185,14 @@ class ValidateConfigAction : AnAction("Validate CircleCI Config") {
 
     private fun showValidationErrors(
         project: Project,
-        errors: List<com.circleci.idea.api.models.ConfigError>,
+        errors: List<String>,
     ) {
         val errorMessage =
             buildString {
                 appendLine("Configuration validation failed with ${errors.size} error(s):")
                 appendLine()
                 errors.forEachIndexed { index, error ->
-                    appendLine("${index + 1}. ${error.message}")
-                    if (error.type != null) {
-                        appendLine("   Type: ${error.type}")
-                    }
+                    appendLine("${index + 1}. $error")
                 }
             }
 

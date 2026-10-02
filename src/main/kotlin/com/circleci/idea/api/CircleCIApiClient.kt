@@ -21,7 +21,7 @@ import kotlin.math.min
 import kotlin.math.pow
 
 /**
- * HTTP client for the CircleCI API (v1.1, v2 and v3).
+ * HTTP client for the CircleCI API (v3, and v2 where v3 has no equivalent yet).
  *
  * Features:
  * - Configurable base URL for cloud/server

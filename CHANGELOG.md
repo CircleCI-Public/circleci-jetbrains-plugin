@@ -21,7 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Projects weren't detected (so no runs showed) until a manual refresh when the tool window opened before the IDE had found the Git repositories; projects are now re-detected once the repositories are mapped
 - The current-branch filter follows branch checkouts (in the IDE or a terminal), and uses each project's own repository rather than the first one in the IDE project
 
+### Removed
+- Run status desktop notifications, which never appeared: the websocket they listened to was never connected. The unused followed-projects lookup (API v1.1) is gone too
+
 ### Changed
+- Logging in, validating config, and rerunning and canceling workflows use the V3 API. Config validation resolves private orbs in the project's organization. Only approving a hold and canceling a job still use V2, which have no V3 equivalent yet
 - The CircleCI tool window lists one project's runs at a time (from those found in the workspace, or another by slug), with the runs at the top of the tree rather than under a row for their project
 - The run filters are a row of drop-downs like the Pull Requests list's (Branch, Status, Created, and a funnel to reset them). Branch always has a value ("Branch: Current [main]"); Status and Created read just their name until set, and can be cleared. The project, and Refresh and Auto-Refresh, are in the tool window's title bar
 - The run tree marks statuses with small coloured dots, as the Pull Requests list does: blue running, green passed, red failed, purple on hold, grey otherwise

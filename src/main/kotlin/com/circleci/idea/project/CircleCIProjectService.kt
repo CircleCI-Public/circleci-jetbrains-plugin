@@ -38,9 +38,6 @@ class CircleCIProjectService(
     private val _selectedProject = MutableStateFlow<String?>(null)
     val selectedProject: StateFlow<String?> = _selectedProject.asStateFlow()
 
-    private val _followedProjects = MutableStateFlow<List<CircleCIProject>>(emptyList())
-    val followedProjects: StateFlow<List<CircleCIProject>> = _followedProjects.asStateFlow()
-
     // The projects added by slug, rather than found in the workspace.
     private val manualSlugs = mutableSetOf<String>()
 
@@ -107,62 +104,6 @@ class CircleCIProjectService(
      */
     fun detectProjectsInBackground() {
         coroutineScope.launch { detectProjects() }
-    }
-
-    /**
-     * Fetch followed projects from CircleCI API.
-     * Note: This is currently disabled due to API format issues.
-     * Projects are auto-detected from git remotes instead.
-     */
-    suspend fun fetchFollowedProjects() {
-        logger.info("Fetching followed projects from CircleCI")
-        _isLoading.value = true
-
-        try {
-            // Check if we have a valid token before making API calls
-            val authService = com.circleci.idea.auth.CircleCIAuthService.getInstance(project)
-            if (!authService.isAuthenticated()) {
-                logger.debug("Cannot fetch followed projects: not authenticated")
-                _isLoading.value = false
-                return
-            }
-
-            // TODO: Fix API response parsing for followed projects
-            // The v1.1 /projects endpoint returns a different format than expected
-            // For now, rely on git-based auto-detection which is more reliable
-            logger.debug("Followed projects API disabled - using git-based detection only")
-
-            /*
-            // Ensure API service is initialized
-            val token = authService.getToken()
-            if (token == null) {
-                logger.warn("Cannot fetch followed projects: no token available")
-                _isLoading.value = false
-                return
-            }
-
-            val settings = com.circleci.idea.settings.CircleCISettings.getInstance()
-            val apiService = CircleCIApiService.getInstance()
-            apiService.initialize(token, settings.hostUrl)
-
-            val result = apiService.getFollowedProjects()
-
-            result.onSuccess { projectInfos ->
-                val projects = ProjectConverter.fromApiModels(projectInfos)
-                _followedProjects.value = projects
-                logger.info("Fetched ${projects.size} followed projects")
-
-                // Merge with detected projects
-                mergeWithDetectedProjects(projects)
-            }.onFailure { error ->
-                logger.error("Failed to fetch followed projects: ${error.message}", error)
-            }
-             */
-        } catch (e: Exception) {
-            logger.debug("Failed to fetch followed projects: ${e.message}")
-        } finally {
-            _isLoading.value = false
-        }
     }
 
     /**
@@ -247,7 +188,7 @@ class CircleCIProjectService(
     }
 
     /**
-     * Get all available projects (detected + followed).
+     * Get all available projects (detected + added by slug).
      */
     fun getAllProjects(): List<CircleCIProject> {
         return _projects.value
@@ -262,12 +203,11 @@ class CircleCIProjectService(
     }
 
     /**
-     * Refresh projects (re-scan and re-fetch).
+     * Refresh projects (re-scan).
      */
     suspend fun refresh() {
         logger.info("Refreshing projects")
         detectProjects()
-        fetchFollowedProjects()
     }
 
     /**

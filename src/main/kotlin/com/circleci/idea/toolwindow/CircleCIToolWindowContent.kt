@@ -72,9 +72,6 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
             // Auto-detect projects from git repositories (doesn't require auth)
             projectService.detectProjects()
 
-            // Fetch followed projects from CircleCI (requires auth - checked inside)
-            projectService.fetchFollowedProjects()
-
             // Explicitly reload tree after detection
             treeModel.reloadRoot()
 

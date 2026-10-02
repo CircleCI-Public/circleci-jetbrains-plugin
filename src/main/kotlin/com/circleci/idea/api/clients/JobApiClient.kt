@@ -20,7 +20,7 @@ class StepOutputChunk(val data: ByteArray, val terminal: Boolean)
  */
 class JobApiClient : CircleCIApiClientBase() {
     /**
-     * Cancel a job.
+     * Cancel a job. V3 has no job cancel endpoint yet, so this stays on V2.
      *
      * @param client The initialized API client
      * @param projectSlug Project slug
