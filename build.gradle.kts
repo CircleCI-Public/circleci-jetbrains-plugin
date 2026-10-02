@@ -1,4 +1,5 @@
 import org.gradle.process.CommandLineArgumentProvider
+import org.jetbrains.changelog.Changelog
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -13,6 +14,9 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.20"
     id("org.jetbrains.intellij.platform") version "2.19.0"
     id("org.jetbrains.kotlinx.kover") version "0.9.11"
+    // Reads CHANGELOG.md for the Marketplace change notes and the release notes, and dates
+    // [Unreleased] in the release PR (`task ci:release:pr`).
+    id("org.jetbrains.changelog") version "2.5.0"
 
     // Static Analysis Tools
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
@@ -21,6 +25,8 @@ plugins {
 }
 
 group = "com.circleci"
+
+// The released version. Only the release PR changes it (`task ci:release:pr`).
 version = "1.3.1"
 
 repositories {
@@ -157,7 +163,19 @@ intellijPlatform {
 
     pluginConfiguration {
         name = "CircleCI"
-        version = "1.3.1"
+        version = project.version.toString()
+        // This version's section of CHANGELOG.md, or [Unreleased] between releases.
+        changeNotes =
+            providers.provider {
+                with(changelog) {
+                    renderItem(
+                        (getOrNull(project.version.toString()) ?: getUnreleased())
+                            .withHeader(false)
+                            .withEmptySections(false),
+                        Changelog.OutputType.HTML,
+                    )
+                }
+            }
 
         ideaVersion {
             sinceBuild = "261"
@@ -186,6 +204,12 @@ intellijPlatform {
             recommended()
         }
     }
+}
+
+changelog {
+    // A new [Unreleased] starts empty: sections are added as they're needed, and some
+    // (Infrastructure) aren't Keep a Changelog's.
+    groups = emptyList()
 }
 
 // UI Testing Configuration (replaces runIdeForUiTests task)

@@ -1,150 +1,92 @@
 # Release Process
 
-This document explains how to release a new version of the CircleCI IntelliJ plugin to your organization.
+Releases are made by merging the release PR. As with
+[release-please](https://github.com/googleapis/release-please), CI keeps one PR open that
+releases everything merged since the last release, but it's driven by `CHANGELOG.md` rather than
+commit messages, so they needn't be conventional commits.
 
-## Prerequisites
+The plugin is published to the
+[JetBrains Marketplace](https://plugins.jetbrains.com/plugin/34719-circleci), and to
+[GitHub releases](https://github.com/CircleCI-Public/circleci-jetbrains-plugin/releases).
 
-### One-time Setup
+## Making changes
 
-1. **Install Task** (for local releases):
-   ```bash
-   sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d
-   ```
+Describe each user-facing change in `CHANGELOG.md`'s `## [Unreleased]` section, under the
+[Keep a Changelog](https://keepachangelog.com/en/1.0.0/) section it belongs in (`### Added`,
+`### Changed`, `### Deprecated`, `### Removed`, `### Fixed`, `### Security`), in the PR that
+makes it. Infrastructure changes go under `### Infrastructure`.
 
-2. **Install GitHub CLI** (for local releases):
-   ```bash
-   # macOS
-   brew install gh
+Only what's in `[Unreleased]` is released: a PR that doesn't add to it doesn't prompt a release.
+The section is also the release's notes, on GitHub and in the Marketplace's "What's New".
 
-   # Linux
-   # See https://github.com/cli/cli/blob/trunk/docs/install_linux.md
-   ```
+## The release PR
 
-3. **Configure GitHub Pages**:
-   - Run `task setup-pages` to create the docs folder with index.html
-   - Go to your GitHub repository Settings → Pages
-   - Set Source to "main branch /docs folder"
-   - Save and wait for GitHub Pages to deploy
-   - Your repository will be available at: `https://YOUR_ORG.github.io/circleci-idea-plugin/updatePlugins.xml`
+On every push to main, the `release-pr` job opens, or updates, the "Release vX.Y.Z" PR from the
+`release/next` branch. It:
 
-4. **Set up CircleCI Context**:
-   - In CircleCI, create a context named `github-release`
-   - Add environment variable `GITHUB_TOKEN` with a GitHub personal access token
-   - Token needs `repo` scope for creating releases and pushing to the repository
+- Bumps `version` in `build.gradle.kts`
+- Dates `[Unreleased]` as the release (`## [X.Y.Z] - YYYY-MM-DD`), leaving an empty
+  `[Unreleased]` above it
+- Shows the release notes in its description
 
-5. **Update Taskfile variables**:
-   - Edit `Taskfile.yml` and set:
-     - `GITHUB_ORG`: Your GitHub organization name
-     - `GITHUB_REPO`: Your repository name (default: circleci-idea-plugin)
+The version goes up by:
 
-## Release Workflow
+- **Minor** (1.3.1 → 1.4.0) if `[Unreleased]` has an Added, Changed, Deprecated or Removed
+  section
+- **Patch** (1.3.1 → 1.3.2) otherwise
 
-### Automated Release (Recommended)
+To release as another version (a major, say), put `Release-As: 2.0.0` on its own line in the
+message of a commit merged to main. The newest one since the last release wins.
 
-1. **Update the version** in `build.gradle.kts`:
-   ```kotlin
-   version = "1.0.1"  // Increment as needed
-   ```
+Don't edit the release PR's branch: CI rewrites it on every push to main. Edit `CHANGELOG.md` on
+main instead. When nothing is left in `[Unreleased]`, the PR is closed.
 
-2. **Update CHANGELOG.md** with release notes
+## Publishing
 
-3. **Commit and push**:
-   ```bash
-   git add build.gradle.kts CHANGELOG.md
-   git commit -m "Prepare release v1.0.1"
-   git push origin main
-   ```
+Merge the release PR. On that commit to main, the `release` job:
 
-4. **Create and push a version tag**:
-   ```bash
-   git tag v1.0.1
-   git push origin v1.0.1
-   ```
+1. Builds and signs the plugin, and publishes it to the JetBrains Marketplace
+2. Creates the GitHub release `vX.Y.Z` (and its tag) with the release notes and the signed zip
 
-5. **Approve the release in CircleCI**:
-   - CircleCI will automatically build and test
-   - A manual approval step will pause before releasing
-   - Approve to create the GitHub release and update the plugin repository
+It does nothing if `vX.Y.Z` is tagged already, so it only publishes once per version.
 
-### Manual Release (Local)
+JetBrains reviews each Marketplace update before it's public, usually within a couple of
+working days.
 
-If you need to release locally:
+## Credentials
+
+The CI jobs use two contexts:
+
+| Context | Variable | For |
+|---|---|---|
+| `intellij-plugin-publication` | `CERTIFICATE_CHAIN`, `PRIVATE_KEY`, `PRIVATE_KEY_PASSWORD` | Signing the plugin (base64-encoded PEM) |
+| `intellij-plugin-publication` | `PUBLISH_TOKEN` | Uploading to the Marketplace: a token from [My Tokens](https://plugins.jetbrains.com/author/me/tokens), for an account that's a developer of the plugin |
+| `devex-release` | `GITHUB_TOKEN` | Pushing `release/next`, opening the PR and creating the GitHub release |
+
+## Tasks
 
 ```bash
-# Ensure you're authenticated with GitHub CLI
-gh auth login
-
-# Run the full release process
-task release
+task release-notes            # The unreleased changes, as the release PR shows them
+task release-notes -- 1.3.1   # A released version's notes
+task ci:release:pr            # What the release-pr job runs (needs GITHUB_TOKEN)
+task ci:release:publish       # What the release job runs (needs every credential above)
 ```
-
-This will:
-- Clean previous builds
-- Run tests and verification
-- Validate version matches git tag (if tagged)
-- Build the plugin ZIP
-- Generate updatePlugins.xml
-- Create GitHub release with plugin attached
-- Commit and push the updatePlugins.xml to GitHub Pages
-
-## Available Tasks
-
-View all available tasks:
-```bash
-task --list
-```
-
-Common tasks:
-- `task build` - Build the plugin ZIP
-- `task test` - Run tests
-- `task verify` - Verify plugin compatibility
-- `task generate-update-xml` - Generate updatePlugins.xml
-- `task create-release` - Create GitHub release
-- `task release` - Full release process
-
-## User Installation
-
-Once released, users in your organization can install the plugin:
-
-1. Open IntelliJ IDEA
-2. Go to **Settings → Plugins → ⚙️ (gear icon) → Manage Plugin Repositories**
-3. Add the repository URL:
-   ```
-   https://YOUR_ORG.github.io/circleci-idea-plugin/updatePlugins.xml
-   ```
-4. Search for "CircleCI" in the Marketplace tab
-5. Click Install
-6. Restart IDE
-
-## Version Updates
-
-When you release a new version:
-1. Users will automatically see an update notification in IntelliJ
-2. They can update through the plugin manager
-3. The updatePlugins.xml is automatically updated on GitHub Pages
 
 ## Troubleshooting
 
-### "Release already exists"
-If you need to re-release the same version:
+### The release job failed after publishing to the Marketplace
+
+If the Marketplace upload succeeded but the GitHub release didn't, rerunning the job fails, as
+the Marketplace won't take the same version twice. Create the GitHub release by hand instead:
+
 ```bash
-gh release delete v1.0.0 -y
-task release
+task sign
+task release-notes -- X.Y.Z > /tmp/notes.md
+gh release create vX.Y.Z --target <merge commit> --title vX.Y.Z --notes-file /tmp/notes.md \
+  build/distributions/circleci-idea-plugin-X.Y.Z-signed.zip
 ```
 
-### CircleCI build fails on tag
-Ensure:
-- Version in `build.gradle.kts` matches the git tag (without the 'v' prefix)
-- GITHUB_TOKEN is set in the `github-release` context
-- Token has `repo` scope
+### No release PR
 
-### Plugin repository not updating
-Check:
-- GitHub Pages is enabled and pointing to `/docs` folder
-- The `docs/updatePlugins.xml` file was committed and pushed
-- GitHub Pages deployment completed (check Settings → Pages)
-
-### Users can't see updates
-- Ensure updatePlugins.xml has the correct GitHub release URL
-- Check that the release exists and the ZIP is attached
-- Have users refresh their plugin repository list
+Check that `[Unreleased]` has entries (`task release-notes`), and the `release-pr` job's output
+on the latest main build.

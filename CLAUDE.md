@@ -12,10 +12,13 @@ task test       # Run tests + verify
 task run        # Launch IDE
 task lint       # Static analysis
 task format     # Auto-fix style
-task release    # Full release
+task release-notes  # Unreleased CHANGELOG.md entries
 ```
 
 View all: `task --list`
+
+Releases happen by merging the release PR that CI keeps open (see `RELEASE.md`), so add
+user-facing changes to `CHANGELOG.md`'s `[Unreleased]` section.
 
 ## Before Committing
 

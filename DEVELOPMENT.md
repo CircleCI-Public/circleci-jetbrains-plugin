@@ -67,9 +67,8 @@ task clean          # Clean build artifacts
 task lint           # Run all static analysis (detekt, ktlint, security)
 task format         # Auto-format code with ktlint
 
-# Release
-task release        # Full release (clean, test, build, publish to GitHub)
-task release-quick  # Quick release (skip tests, useful for docs/minor fixes)
+# Release (see RELEASE.md: releases are made by merging the release PR)
+task release-notes  # The unreleased changes in CHANGELOG.md
 ```
 
 ### Running the Plugin
