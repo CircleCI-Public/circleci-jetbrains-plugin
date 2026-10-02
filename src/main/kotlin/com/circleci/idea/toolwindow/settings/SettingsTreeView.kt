@@ -1,3 +1,6 @@
+// Jewel's speed search, which the whole view is built around, is experimental.
+@file:OptIn(ExperimentalJewelApi::class)
+
 package com.circleci.idea.toolwindow.settings
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -106,7 +109,6 @@ class SettingsTreeView(
             actions.forEach { it.registerCustomShortcutSet(it.shortcutSet, panel) }
         }
 
-    @OptIn(ExperimentalJewelApi::class)
     @Composable
     private fun View() {
         val state by model.state.collectAsState()
