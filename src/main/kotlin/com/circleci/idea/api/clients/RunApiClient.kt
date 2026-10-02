@@ -137,22 +137,5 @@ class RunApiClient : CircleCIApiClientBase() {
         }
     }
 
-    private fun <T> fetchAllPages(fetch: (String?) -> Result<V3Page<T>>): Result<List<T>> {
-        val items = mutableListOf<T>()
-        var cursor: String? = null
-        repeat(MAX_PAGES) {
-            val page = fetch(cursor).getOrElse { return Result.failure(it) }
-            items.addAll(page.items)
-            cursor = page.nextCursor ?: return Result.success(items)
-        }
-        logger.warn("Stopped after $MAX_PAGES pages")
-        return Result.success(items)
-    }
-
     private fun rfc3339(instant: Instant): String = instant.truncatedTo(ChronoUnit.SECONDS).toString()
-
-    private companion object {
-        // A guard against a server that never stops handing out cursors.
-        const val MAX_PAGES = 20
-    }
 }
