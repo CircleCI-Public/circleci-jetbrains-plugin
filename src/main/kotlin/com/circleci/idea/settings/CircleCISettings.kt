@@ -5,6 +5,7 @@ import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.util.xmlb.XmlSerializerUtil
+import java.util.UUID
 
 /**
  * Application-level settings for CircleCI.
@@ -24,9 +25,22 @@ class CircleCISettings : PersistentStateComponent<CircleCISettings> {
     var fastPollIntervalSeconds: Int = 30 // For runs < 1 day old
     var slowPollIntervalSeconds: Int = 120 // For runs > 1 day old
 
+    // How the stored token was got: "oauth" (in the browser), "token" (pasted), or "" when logged out.
+    var authMethod: String = ""
+
+    // This install's ID for browser logins, made on the first. CircleCI replaces the token it last
+    // issued a device rather than adding another, as for the CLI's and VS Code's device IDs.
+    var deviceId: String = ""
+
     // Language Server settings
     var lspEnabled: Boolean = true
     var lspAutoUpdate: String = "automatic" // "automatic" or "never"
+
+    /** This install's [deviceId], making one if there isn't one yet. */
+    fun oauthDeviceId(): String {
+        if (deviceId.isBlank()) deviceId = UUID.randomUUID().toString()
+        return deviceId
+    }
 
     override fun getState(): CircleCISettings {
         return this

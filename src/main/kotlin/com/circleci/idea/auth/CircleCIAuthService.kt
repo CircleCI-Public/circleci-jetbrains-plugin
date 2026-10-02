@@ -8,6 +8,7 @@ import com.circleci.idea.state.User
 import com.intellij.credentialStore.CredentialAttributes
 import com.intellij.credentialStore.Credentials
 import com.intellij.ide.passwordSafe.PasswordSafe
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
@@ -66,6 +67,16 @@ class CircleCIAuthService(private val project: Project) {
         return credentials?.getPasswordAsString()
     }
 
+    /** How the stored token was got, or null if there's none. */
+    fun authMethod(): AuthMethod? =
+        if (isAuthenticated()) {
+            AuthMethod.from(
+                CircleCISettings.getInstance().authMethod,
+            )
+        } else {
+            null
+        }
+
     /**
      * Check if user is authenticated.
      */
@@ -75,12 +86,13 @@ class CircleCIAuthService(private val project: Project) {
     }
 
     /**
-     * Authenticate with a token.
+     * Authenticate with a token, got by [method].
      * Validates the token and stores it securely if valid.
      */
     fun login(
         token: String,
         hostUrl: String? = null,
+        method: AuthMethod = AuthMethod.TOKEN,
     ): Result<User> {
         val settings = CircleCISettings.getInstance()
         val effectiveHostUrl = hostUrl ?: settings.hostUrl
@@ -92,6 +104,7 @@ class CircleCIAuthService(private val project: Project) {
             onSuccess = { userInfo ->
                 // Token is valid, store it securely
                 storeToken(token)
+                settings.authMethod = method.id
 
                 // Update settings if host URL changed
                 if (hostUrl != null && hostUrl != settings.hostUrl) {
@@ -118,6 +131,8 @@ class CircleCIAuthService(private val project: Project) {
                 }
 
                 log.info("Successfully authenticated as ${user.login}")
+                // The token is shared: have the other open projects' tool windows pick it up.
+                ApplicationManager.getApplication().executeOnPooledThread { restoreEverywhere(except = project) }
                 Result.success(user)
             },
             onFailure = { error ->
@@ -145,6 +160,7 @@ class CircleCIAuthService(private val project: Project) {
     fun logout() {
         // Clear token from secure storage
         passwordSafe.set(createCredentialAttributes(), null)
+        CircleCISettings.getInstance().authMethod = ""
 
         // Update state
         updateAuthState {

@@ -81,6 +81,9 @@ dependencies {
         bundledModule("intellij.platform.vcs.dvcs.impl")
         // The review-list building blocks the Pull Requests tool is made of: filter drop-downs, avatars.
         bundledModule("intellij.platform.collaborationTools")
+        // The OAuth login flow (the service base, callback handler and PKCE) the GitHub plugin uses.
+        bundledModule("intellij.platform.collaborationTools.auth")
+        bundledModule("intellij.platform.collaborationTools.auth.base")
         // ProgressStripe, the thin loading bar along the top of a list.
         bundledModule("intellij.platform.vcs.impl")
         // FilterComponent, the drop-down the filters are drawn with.

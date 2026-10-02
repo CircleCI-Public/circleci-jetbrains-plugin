@@ -47,6 +47,9 @@
         <module name="intellij.platform.vcs.dvcs.impl"/>
         <!-- The run list's filter drop-downs and avatars, as the Pull Requests list has -->
         <module name="intellij.platform.collaborationTools"/>
+        <!-- The OAuth login flow the GitHub plugin logs in with -->
+        <module name="intellij.platform.collaborationTools.auth"/>
+        <module name="intellij.platform.collaborationTools.auth.base"/>
         <!-- ProgressStripe, the run list's loading bar -->
         <module name="intellij.platform.vcs.impl"/>
         <!-- FilterComponent, for the filters that always have a value -->
@@ -100,6 +103,9 @@
             serviceImplementation="com.circleci.idea.auth.CircleCIAuthService"/>
         <projectService
             serviceImplementation="com.circleci.idea.toolwindow.CircleCIToolWindowService"/>
+
+        <!-- Where the browser comes back to after logging in, on the IDE's built-in server -->
+        <httpRequestHandler implementation="com.circleci.idea.auth.oauth.CircleCIOAuthCallbackHandler"/>
 
         <!-- Job pages, one editor tab per job -->
         <fileEditorProvider implementation="com.circleci.idea.job.JobEditorProvider"/>
