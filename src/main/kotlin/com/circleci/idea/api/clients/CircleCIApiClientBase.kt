@@ -50,18 +50,7 @@ abstract class CircleCIApiClientBase {
                     Result.failure(Exception("Failed to parse response: ${e.message}"))
                 }
             }
-            is ApiResponse.Error -> {
-                logger.error("API error: ${response.message}")
-                Result.failure(Exception(response.message))
-            }
-            is ApiResponse.Unauthorized -> {
-                logger.error("API unauthorized: ${response.message}")
-                Result.failure(Exception("Unauthorized: ${response.message}"))
-            }
-            is ApiResponse.RateLimited -> {
-                logger.warn("API rate limited. Retry after ${response.retryAfter}s")
-                Result.failure(Exception("Rate limited. Retry after ${response.retryAfter}s"))
-            }
+            else -> failure(response)
         }
     }
 
@@ -70,16 +59,30 @@ abstract class CircleCIApiClientBase {
      *
      * @param client The initialized API client
      * @param path API endpoint path
+     * @param body Request body, or none for an empty JSON object
      * @return Result with Unit or error
      */
     protected fun executePostRequest(
         client: CircleCIApiClient,
         path: String,
-    ): Result<Unit> {
-        val response = client.post(path)
+        body: Any? = null,
+    ): Result<Unit> = unitResult(client.post(path, body))
 
+    /**
+     * Execute a DELETE request with no response body expected.
+     */
+    protected fun executeDeleteRequest(
+        client: CircleCIApiClient,
+        path: String,
+        params: Map<String, String> = emptyMap(),
+    ): Result<Unit> = unitResult(client.delete(path, params))
+
+    private fun unitResult(response: ApiResponse): Result<Unit> =
+        if (response is ApiResponse.Success) Result.success(Unit) else failure(response)
+
+    private fun <T> failure(response: ApiResponse): Result<T> {
         return when (response) {
-            is ApiResponse.Success -> Result.success(Unit)
+            is ApiResponse.Success -> error("Not a failure")
             is ApiResponse.Error -> {
                 logger.error("API error: ${response.message}")
                 Result.failure(Exception(response.message))
@@ -96,9 +99,30 @@ abstract class CircleCIApiClientBase {
     }
 
     /**
+     * Every item of a paged list: [fetch] gets each page from the previous
+     * page's cursor (null for the first).
+     */
+    protected fun <T> fetchAllPages(fetch: (String?) -> Result<V3Page<T>>): Result<List<T>> {
+        val items = mutableListOf<T>()
+        var cursor: String? = null
+        repeat(MAX_PAGES) {
+            val page = fetch(cursor).getOrElse { return Result.failure(it) }
+            items.addAll(page.items)
+            cursor = page.nextCursor ?: return Result.success(items)
+        }
+        logger.warn("Stopped after $MAX_PAGES pages")
+        return Result.success(items)
+    }
+
+    /**
      * Ensure client is initialized before making API calls.
      */
     protected fun requireClient(client: CircleCIApiClient?): CircleCIApiClient {
         return checkNotNull(client) { "API client not initialized" }
+    }
+
+    private companion object {
+        // A guard against a server that never stops handing out cursors.
+        const val MAX_PAGES = 20
     }
 }

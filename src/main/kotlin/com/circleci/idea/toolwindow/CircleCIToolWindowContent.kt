@@ -4,12 +4,15 @@ import com.circleci.idea.auth.CircleCIAuthService
 import com.circleci.idea.polling.RunPollingService
 import com.circleci.idea.project.CircleCIProjectService
 import com.circleci.idea.state.CircleCIStateStore
+import com.circleci.idea.toolwindow.settings.SettingsTreeModel
+import com.circleci.idea.toolwindow.settings.SettingsTreeView
 import com.circleci.idea.toolwindow.tree.CircleCITreeModel
 import com.circleci.idea.toolwindow.tree.RunTreeView
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
+import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.components.JBPanel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,10 +27,14 @@ import javax.swing.JComponent
 
 /**
  * Content for the CircleCI tool window: the run filters above a tree of
- * runs, workflows and jobs, or the signed-out view in their place.
+ * runs, workflows and jobs, with the project's and organization's settings
+ * in a tree below them; or the signed-out view in their place.
  */
 class CircleCIToolWindowContent(private val project: Project) : Disposable {
     private val panel = JBPanel<JBPanel<*>>(BorderLayout())
+
+    // The runs above the settings.
+    private val splitter = OnePixelSplitter(true, SPLITTER_PROPORTION_KEY, HALF)
 
     // The runs, or the signed-out view in their place until you log in.
     private val cards = CardLayout()
@@ -37,6 +44,8 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val treeModel = CircleCITreeModel(project, scope)
     private val treeView = RunTreeView(project, treeModel)
+    private val settingsModel = SettingsTreeModel(project, scope)
+    private val settingsView = SettingsTreeView(project, settingsModel, scope)
     private val projectService = project.getService(CircleCIProjectService::class.java)
     private val authService = CircleCIAuthService.getInstance(project)
     private val pollingService = project.getService(RunPollingService::class.java)
@@ -49,7 +58,9 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         // Register the tree model with the service, for actions to read the selection
         project.getService(CircleCIToolWindowService::class.java).setTreeModel(treeModel)
 
-        root.add(panel, RUNS_CARD)
+        splitter.firstComponent = panel
+        splitter.secondComponent = settingsView.component()
+        root.add(splitter, RUNS_CARD)
         root.add(signedOutView.component, SIGNED_OUT_CARD)
 
         // Restore authentication and initialize API client
@@ -82,7 +93,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
 
     /**
      * Show the runs when there's a token that hasn't been rejected, and the
-     * signed-out view otherwise; reload the runs on logging in.
+     * signed-out view otherwise; reload the runs and settings on logging in.
      */
     private fun observeAuth() {
         scope.launch {
@@ -96,7 +107,10 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
                 val wasSignedOut = signedIn == false
                 signedIn = nowSignedIn
                 cards.show(root, if (nowSignedIn) RUNS_CARD else SIGNED_OUT_CARD)
-                if (nowSignedIn && wasSignedOut) autoDetectProjects()
+                if (nowSignedIn && wasSignedOut) {
+                    autoDetectProjects()
+                    settingsModel.refresh()
+                }
             }
         }
     }
@@ -138,5 +152,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
     private companion object {
         const val RUNS_CARD = "runs"
         const val SIGNED_OUT_CARD = "signed-out"
+        const val SPLITTER_PROPORTION_KEY = "CircleCI.ToolWindow.SettingsSplitter"
+        const val HALF = 0.5f
     }
 }

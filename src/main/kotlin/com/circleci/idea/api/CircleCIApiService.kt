@@ -4,11 +4,14 @@ import com.circleci.idea.api.clients.ConfigApiClient
 import com.circleci.idea.api.clients.JobApiClient
 import com.circleci.idea.api.clients.ProjectApiClient
 import com.circleci.idea.api.clients.RunApiClient
+import com.circleci.idea.api.clients.SettingsApiClient
 import com.circleci.idea.api.clients.StepOutputChunk
 import com.circleci.idea.api.clients.V3Page
 import com.circleci.idea.api.clients.WorkflowApiClient
 import com.circleci.idea.api.models.ArtifactWire
 import com.circleci.idea.api.models.ConfigValidationResult
+import com.circleci.idea.api.models.Context
+import com.circleci.idea.api.models.EnvVar
 import com.circleci.idea.api.models.JobDetailWire
 import com.circleci.idea.api.models.JobWire
 import com.circleci.idea.api.models.ResourceUsageWire
@@ -41,6 +44,7 @@ class CircleCIApiService {
     private val jobClient = JobApiClient()
     private val projectClient = ProjectApiClient()
     private val configClient = ConfigApiClient()
+    private val settingsClient = SettingsApiClient()
 
     /**
      * Initialize the API client with token.
@@ -263,6 +267,55 @@ class CircleCIApiService {
      */
     fun getCurrentUser(): Result<UserInfo> {
         return withClient { projectClient.getCurrentUser(it) }
+    }
+
+    // ========== Settings Operations ==========
+
+    /** A project's environment variables, with their values masked. */
+    fun listProjectEnvVars(projectSlug: String): Result<List<EnvVar>> {
+        return withClient { settingsClient.listProjectEnvVars(it, projectSlug) }
+    }
+
+    /** Add a project environment variable, or replace its value. */
+    fun setProjectEnvVar(
+        projectSlug: String,
+        name: String,
+        value: String,
+    ): Result<Unit> {
+        return withClient { settingsClient.setProjectEnvVar(it, projectSlug, name, value) }
+    }
+
+    fun deleteProjectEnvVar(
+        projectSlug: String,
+        name: String,
+    ): Result<Unit> {
+        return withClient { settingsClient.deleteProjectEnvVar(it, projectSlug, name) }
+    }
+
+    /** An organization's contexts. */
+    fun listContexts(orgId: String): Result<List<Context>> {
+        return withClient { settingsClient.listContexts(it, orgId) }
+    }
+
+    /** A context's environment variables, with their values masked. */
+    fun listContextEnvVars(contextId: String): Result<List<EnvVar>> {
+        return withClient { settingsClient.listContextEnvVars(it, contextId) }
+    }
+
+    /** Add a context environment variable, or replace its value. */
+    fun setContextEnvVar(
+        contextId: String,
+        name: String,
+        value: String,
+    ): Result<Unit> {
+        return withClient { settingsClient.setContextEnvVar(it, contextId, name, value) }
+    }
+
+    fun deleteContextEnvVar(
+        contextId: String,
+        name: String,
+    ): Result<Unit> {
+        return withClient { settingsClient.deleteContextEnvVar(it, contextId, name) }
     }
 
     // ========== Config Operations ==========

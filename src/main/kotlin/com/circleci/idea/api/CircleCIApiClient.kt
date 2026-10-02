@@ -199,8 +199,11 @@ class CircleCIApiClient(
     /**
      * Execute a DELETE request.
      */
-    fun delete(path: String): ApiResponse {
-        val url = buildUrl(path)
+    fun delete(
+        path: String,
+        queryParams: Map<String, String> = emptyMap(),
+    ): ApiResponse {
+        val url = buildUrl(path, queryParams)
         val request =
             Request.Builder()
                 .url(url)
