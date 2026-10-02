@@ -1,237 +1,247 @@
 version: 2.1
 
-orbs:
-  gradle: circleci/gradle@3.0
+executors:
+  jdk:
+    docker:
+      - image: cimg/openjdk:21.0
+    resource_class: large
+
+commands:
+  with-gradle-cache:
+    description: |
+      Run steps with this job's own Gradle caches: dependencies, wrapper and toolchains, and the
+      build cache (compiled classes, test, detekt and ktlint results). Keyed as the Go orb keys
+      its caches: on the job and the build files, with no fallback, and the build cache is
+      refreshed every 3 days. Saved even if the steps fail.
+    parameters:
+      checksum:
+        description: Checksum template for the files that decide the build's dependencies
+        type: string
+        default: '{{ checksum "build.gradle.kts" }}-{{ checksum "settings.gradle.kts" }}-{{ checksum "gradle.properties" }}-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}-{{ checksum "gradle/gradle-daemon-jvm.properties" }}'
+      steps:
+        type: steps
+    steps:
+      - restore_cache:
+          keys:
+            - gradle-deps-v4-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-<< parameters.checksum >>
+      - restore_cache:
+          keys:
+            - gradle-build-cache-v4-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-<< parameters.checksum >>-{{ epoch | round "72h" }}
+      - steps: << parameters.steps >>
+      # The IntelliJ IDEs (the compile target and the verifier's IDEs, ~17 GB zipped and
+      # extracted) are left out: restoring them is slower than downloading them again. Gradle
+      # downloads an artifact again when its cached file is missing.
+      - run:
+          name: Prune Gradle cache
+          when: always
+          command: |
+            ./gradlew --stop || true
+            rm -rf ~/.gradle/caches/modules-2/files-2.1/idea \
+              ~/.gradle/caches/modules-2/files-2.1/com.jetbrains.intellij.idea
+            find ~/.gradle/caches -name '*.lock' -delete
+            rm -f ~/.gradle/caches/modules-2/gc.properties
+      - save_cache:
+          when: always
+          key: gradle-deps-v4-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-<< parameters.checksum >>
+          paths:
+            - ~/.gradle/caches/modules-2
+            - ~/.gradle/wrapper
+            - ~/.gradle/jdks
+      - save_cache:
+          when: always
+          key: gradle-build-cache-v4-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-<< parameters.checksum >>-{{ epoch | round "72h" }}
+          paths:
+            - ~/.gradle/caches/build-cache-1
 
 jobs:
   build-and-test:
-    docker:
-      - image: cimg/openjdk:21.0
-
-    resource_class: large
+    executor: jdk
 
     steps:
       - checkout
+      - with-gradle-cache:
+          steps:
+            # Build and test plugin (includes detekt and ktlint)
+            - run:
+                name: Build plugin
+                command: ./gradlew build
 
-      # Restore Gradle cache
-      - restore_cache:
-          keys:
-            - gradle-cache-v1-{{ checksum "build.gradle.kts" }}-{{ checksum
-              "gradle/wrapper/gradle-wrapper.properties" }}
-            - gradle-cache-v1-
+            # Verify plugin
+            - run:
+                name: Verify plugin
+                command: ./gradlew verifyPlugin
 
-      # Generate weekly cache key for OWASP NVD data
-      - run:
-          name: Generate OWASP cache key
-          command: date +%Y-%V > /tmp/owasp-week.txt
-
-      # Restore OWASP NVD database cache (keyed weekly so data stays reasonably fresh)
-      - restore_cache:
-          keys:
-            - owasp-nvd-v1-{{ checksum "/tmp/owasp-week.txt" }}
-            - owasp-nvd-v1-
-
-      # Make gradlew executable
-      - run:
-          name: Make gradlew executable
-          command: chmod +x gradlew
-
-      # Build plugin
-      - run:
-          name: Build plugin
-          command: ./gradlew build
-
-      # Run tests
-      - run:
-          name: Run tests
-          command: ./gradlew test
-
-      # Verify plugin
-      - run:
-          name: Verify plugin
-          command: ./gradlew verifyPlugin
-
-      # Run static analysis (hard gate; NVD_API_KEY sourced from intellij-plugin-publication context)
-      - run:
-          name: Static analysis
-          no_output_timeout: 45m
-          command: ./gradlew staticAnalysis
-
-      # Save Gradle cache
-      - save_cache:
-          key: gradle-cache-v1-{{ checksum "build.gradle.kts" }}-{{ checksum
-            "gradle/wrapper/gradle-wrapper.properties" }}
-          paths:
-            - ~/.gradle/caches
-            - ~/.gradle/wrapper
-
-      # Save OWASP NVD database cache
-      - save_cache:
-          key: owasp-nvd-v1-{{ checksum "/tmp/owasp-week.txt" }}
-          paths:
-            - ~/.gradle/dependency-check-data
+            # Sign plugin (requires signing credentials from context; skipped if unavailable)
+            - run:
+                name: Sign plugin
+                command: |
+                  if [ -n "${CERTIFICATE_CHAIN:-}" ]; then
+                    ./gradlew signPlugin
+                  else
+                    echo "Signing credentials not available, skipping."
+                  fi
 
       # Store test results
       - store_test_results:
           path: build/test-results
 
-      # Store all analysis reports (tests, detekt, ktlint, OWASP, jacoco)
+      # Store all analysis reports (tests, detekt, ktlint, kover)
       - store_artifacts:
           path: build/reports
           destination: analysis-reports
-
-      # Sign plugin (requires signing credentials from context; skipped if unavailable)
-      - run:
-          name: Sign plugin
-          command: |
-            if [ -n "${CERTIFICATE_CHAIN:-}" ]; then
-              ./gradlew signPlugin
-            else
-              echo "Signing credentials not available, skipping."
-            fi
 
       # Store plugin distribution (includes signed zip when credentials are available)
       - store_artifacts:
           path: build/distributions
           destination: plugin-distribution
 
-  publish-github:
-    docker:
-      - image: cimg/openjdk:21.0
-
-    resource_class: large
+  # OWASP dependency check, in parallel with the build (hard gate; NVD_API_KEY sourced from
+  # intellij-plugin-publication context)
+  dependency-check:
+    executor: jdk
 
     steps:
       - checkout
+      - with-gradle-cache:
+          steps:
+            # Refreshed daily. Unlike the Gradle caches it falls back to the latest, because without
+            # one the NVD download starts from nothing
+            - restore_cache:
+                keys:
+                  - owasp-nvd-v3-{{ epoch | round "24h" }}
+                  - owasp-nvd-v3-
 
-      # Restore Gradle cache
-      - restore_cache:
-          keys:
-            - gradle-cache-v1-{{ checksum "build.gradle.kts" }}-{{ checksum
-              "gradle/wrapper/gradle-wrapper.properties" }}
-            - gradle-cache-v1-
+            - run:
+                name: Update NVD database
+                no_output_timeout: 45m
+                command: ./gradlew dependencyCheckUpdate
 
-      # Make gradlew executable
-      - run:
-          name: Make gradlew executable
-          command: chmod +x gradlew
+            # Saved once the update succeeds, so a failed analysis doesn't throw the download away
+            - save_cache:
+                key: owasp-nvd-v3-{{ epoch | round "24h" }}
+                paths:
+                  - ~/.gradle/dependency-check-data
 
-      # Install GitHub CLI
-      - run:
-          name: Install GitHub CLI
-          command: |
-            type -p curl >/dev/null || sudo apt install curl -y
-            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-              | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-            sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-            echo "deb [arch=$(dpkg --print-architecture) \
-              signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
-              https://cli.github.com/packages stable main" \
-              | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-            sudo apt update && sudo apt install gh -y
+            - run:
+                name: Dependency check
+                command: ./gradlew dependencyCheckAnalyze
 
-      # Build and sign plugin
-      - run:
-          name: Build plugin
-          command: ./gradlew buildPlugin
+      - store_artifacts:
+          path: build/reports
+          destination: analysis-reports
 
-      - run:
-          name: Sign plugin
-          command: ./gradlew signPlugin
+  publish-github:
+    executor: jdk
 
-      # Create GitHub Release
-      # RC tags (v*-rc.*) create a pre-release and skip updatePlugins.xml.
-      # Release tags (v*.*.*) create a full release and update updatePlugins.xml.
-      - run:
-          name: Create GitHub Release
-          command: |
-            TAG="${CIRCLE_TAG}"
-            VERSION=$(grep '^version = ' build.gradle.kts | sed 's/version = "\(.*\)"/\1/')
-            SIGNED_ZIP="build/distributions/circleci-idea-plugin-${VERSION}-signed.zip"
+    steps:
+      - checkout
+      - with-gradle-cache:
+          steps:
+            # Install GitHub CLI
+            - run:
+                name: Install GitHub CLI
+                command: |
+                  type -p curl >/dev/null || sudo apt install curl -y
+                  curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+                    | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+                  sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+                  echo "deb [arch=$(dpkg --print-architecture) \
+                    signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
+                    https://cli.github.com/packages stable main" \
+                    | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+                  sudo apt update && sudo apt install gh -y
 
-            if [[ "$TAG" == *-rc.* ]]; then
-              PRERELEASE_FLAG="--prerelease"
-            else
-              PRERELEASE_FLAG=""
-            fi
+            # Build and sign plugin
+            - run:
+                name: Build plugin
+                command: ./gradlew buildPlugin
 
-            gh release create "${TAG}" \
-              --title "CircleCI ${TAG}" \
-              --notes-file CHANGELOG.md \
-              ${PRERELEASE_FLAG} \
-              "${SIGNED_ZIP}"
+            - run:
+                name: Sign plugin
+                command: ./gradlew signPlugin
 
-            # Only update the plugin repository XML for full releases
-            if [[ "$TAG" != *-rc.* ]]; then
-              mkdir -p docs
-              cat > docs/updatePlugins.xml \<< EOF
-              <?xml version="1.0" encoding="UTF-8"?>
-              <plugins>
-                <plugin id="com.circleci.idea" url="https://github.com/circleci-petri/circleci-idea-plugin/releases/download/${TAG}/circleci-idea-plugin-${VERSION}-signed.zip" version="${VERSION}">
-                  <name>CircleCI</name>
-                  <description><![CDATA[
-                    CircleCI integration for JetBrains IDEs.
-                    Monitor, manage, and debug CircleCI pipelines directly within your IDE.
-                  ]]></description>
-                  <vendor email="support@circleci.com" url="https://circleci.com">CircleCI</vendor>
-                  <idea-version since-build="243" until-build="253.*"/>
-                  <change-notes><![CDATA[
-                    See https://github.com/circleci-petri/circleci-idea-plugin/releases/tag/${TAG} for release notes.
-                  ]]></change-notes>
-                </plugin>
-              </plugins>
-              EOF
+            # Create GitHub Release
+            # RC tags (v*-rc.*) create a pre-release and skip updatePlugins.xml.
+            # Release tags (v*.*.*) create a full release and update updatePlugins.xml.
+            - run:
+                name: Create GitHub Release
+                command: |
+                  TAG="${CIRCLE_TAG}"
+                  VERSION=$(grep '^version = ' build.gradle.kts | sed 's/version = "\(.*\)"/\1/')
+                  SIGNED_ZIP="build/distributions/circleci-idea-plugin-${VERSION}-signed.zip"
 
-              git config user.email "ci@circleci.com"
-              git config user.name "CircleCI"
-              git add docs/updatePlugins.xml
-              if ! git diff --cached --quiet; then
-                git commit -m "Update plugin repository for ${TAG}"
-                git push origin main
-              fi
-            fi
+                  if [[ "$TAG" == *-rc.* ]]; then
+                    PRERELEASE_FLAG="--prerelease"
+                  else
+                    PRERELEASE_FLAG=""
+                  fi
+
+                  gh release create "${TAG}" \
+                    --title "CircleCI ${TAG}" \
+                    --notes-file CHANGELOG.md \
+                    ${PRERELEASE_FLAG} \
+                    "${SIGNED_ZIP}"
+
+                  # Only update the plugin repository XML for full releases
+                  if [[ "$TAG" != *-rc.* ]]; then
+                    mkdir -p docs
+                    cat > docs/updatePlugins.xml \<< EOF
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <plugins>
+                      <plugin id="com.circleci.idea" url="https://github.com/circleci-petri/circleci-idea-plugin/releases/download/${TAG}/circleci-idea-plugin-${VERSION}-signed.zip" version="${VERSION}">
+                        <name>CircleCI</name>
+                        <description><![CDATA[
+                          CircleCI integration for JetBrains IDEs.
+                          Monitor, manage, and debug CircleCI pipelines directly within your IDE.
+                        ]]></description>
+                        <vendor email="support@circleci.com" url="https://circleci.com">CircleCI</vendor>
+                        <idea-version since-build="243" until-build="253.*"/>
+                        <change-notes><![CDATA[
+                          See https://github.com/circleci-petri/circleci-idea-plugin/releases/tag/${TAG} for release notes.
+                        ]]></change-notes>
+                      </plugin>
+                    </plugins>
+                    EOF
+
+                    git config user.email "ci@circleci.com"
+                    git config user.name "CircleCI"
+                    git add docs/updatePlugins.xml
+                    if ! git diff --cached --quiet; then
+                      git commit -m "Update plugin repository for ${TAG}"
+                      git push origin main
+                    fi
+                  fi
 
   publish-marketplace:
-    docker:
-      - image: cimg/openjdk:21.0
-
-    resource_class: large
+    executor: jdk
 
     steps:
       - checkout
+      - with-gradle-cache:
+          steps:
+            # Build, sign, and publish to JetBrains Marketplace
+            - run:
+                name: Build plugin
+                command: ./gradlew buildPlugin
 
-      # Restore Gradle cache
-      - restore_cache:
-          keys:
-            - gradle-cache-v1-{{ checksum "build.gradle.kts" }}-{{ checksum
-              "gradle/wrapper/gradle-wrapper.properties" }}
-            - gradle-cache-v1-
+            - run:
+                name: Sign plugin
+                command: ./gradlew signPlugin
 
-      # Make gradlew executable
-      - run:
-          name: Make gradlew executable
-          command: chmod +x gradlew
-
-      # Build, sign, and publish to JetBrains Marketplace
-      - run:
-          name: Build plugin
-          command: ./gradlew buildPlugin
-
-      - run:
-          name: Sign plugin
-          command: ./gradlew signPlugin
-
-      - run:
-          name: Publish to JetBrains Marketplace
-          command: ./gradlew publishPlugin
+            - run:
+                name: Publish to JetBrains Marketplace
+                command: ./gradlew publishPlugin
 
 workflows:
-  version: 2
-
   # Branch builds: run tests on every push, no publish steps
   ci:
     jobs:
       - build-and-test:
+          context: intellij-plugin-publication
+          filters:
+            branches:
+              only: /.*/
+      - dependency-check:
           context: intellij-plugin-publication
           filters:
             branches:
@@ -248,10 +258,18 @@ workflows:
               only: /^v.*-rc\..*/
             branches:
               ignore: /.*/
+      - dependency-check:
+          context: intellij-plugin-publication
+          filters:
+            tags:
+              only: /^v.*-rc\..*/
+            branches:
+              ignore: /.*/
       - hold-github:
           type: approval
           requires:
             - build-and-test
+            - dependency-check
           filters:
             tags:
               only: /^v.*-rc\..*/
@@ -278,10 +296,18 @@ workflows:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
             branches:
               ignore: /.*/
+      - dependency-check:
+          context: intellij-plugin-publication
+          filters:
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+            branches:
+              ignore: /.*/
       - hold-github:
           type: approval
           requires:
             - build-and-test
+            - dependency-check
           filters:
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+$/

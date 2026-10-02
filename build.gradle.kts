@@ -235,6 +235,9 @@ ktlint {
 
 // OWASP Dependency-Check - Security Vulnerability Scanning
 dependencyCheck {
+    // Only what ships in the plugin zip. The other configurations hold the IDE distributions
+    // (compile target and verifier IDEs, many GB) and build tooling, which aren't ours to patch.
+    scanConfigurations = listOf("runtimeClasspath")
     failBuildOnCVSS = 7.0f
     nvd.apiKey = providers.environmentVariable("NVD_API_KEY").orNull
     formats = listOf("HTML", "JSON")
