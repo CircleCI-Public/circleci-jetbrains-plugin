@@ -26,16 +26,6 @@
     </ul>
     ]]></description>
 
-    <change-notes><![CDATA[
-    <h3>1.0.0</h3>
-    <ul>
-      <li>Initial release</li>
-      <li>Pipeline, workflow, and job monitoring</li>
-      <li>Basic workflow and job actions</li>
-      <li>CircleCI configuration file support</li>
-    </ul>
-    ]]></change-notes>
-
     <!-- Product and plugin compatibility requirements -->
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.lsp</depends>
