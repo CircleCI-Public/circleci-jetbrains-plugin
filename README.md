@@ -1,5 +1,7 @@
 # CircleCI Plugin for JetBrains IDEs
 
+[![JetBrains Marketplace](https://img.shields.io/badge/JetBrains_Marketplace-Install-000000?logo=jetbrains)](https://plugins.jetbrains.com/plugin/34719-circleci)
+
 A JetBrains IDE plugin for monitoring, managing, and debugging CircleCI runs directly from your IDE.
 
 ## Features
