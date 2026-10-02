@@ -5,6 +5,8 @@ import com.circleci.idea.project.models.CircleCIProject
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import java.io.File
+import java.io.IOException
+import java.nio.file.Path
 
 /**
  * Scans workspace for git repositories and detects CircleCI projects.
@@ -47,7 +49,13 @@ class GitRepositoryScanner(private val project: Project) {
             logger.error("Failed to scan for projects", e)
         }
 
-        return projects
+        // A linked project directory needn't be a git repository, or one the IDE knows of
+        project.basePath?.takeIf { base -> projects.none { it.localPath == base } }?.let { base ->
+            linkedProject(base)?.let { projects.add(0, it) }
+        }
+
+        // Linked projects first, so they're the ones picked when there's no choice yet
+        return projects.sortedByDescending { it.linked }.distinctBy { it.slug }
     }
 
     /**
@@ -62,6 +70,9 @@ class GitRepositoryScanner(private val project: Project) {
             val root = getRoot.invoke(repository) as VirtualFile
 
             logger.debug("Scanning repository: ${root.path}")
+
+            // A link from `circleci project link` says which project this is; its remotes' projects follow
+            linkedProject(root.path)?.let { projects.add(it) }
 
             // Get remote URLs
             val getRemotes = repositoryClass.getMethod("getRemotes")
@@ -106,6 +117,23 @@ class GitRepositoryScanner(private val project: Project) {
     }
 
     /**
+     * The project [root]'s `.circleci/info.yml` links it to, or null if it has no
+     * (usable) link.
+     */
+    private fun linkedProject(root: String): CircleCIProject? {
+        val info =
+            try {
+                ProjectLinkFile.read(Path.of(root)) ?: return null
+            } catch (e: IOException) {
+                logger.warn("Ignoring $root/${ProjectLinkFile.PATH}: ${e.message}")
+                return null
+            }
+        return linkedProject(info, root).also {
+            if (it == null) logger.warn("Ignoring $root/${ProjectLinkFile.PATH}: \"${info.slug}\" isn't a project slug")
+        }
+    }
+
+    /**
      * Check if a directory contains a CircleCI config file.
      */
     fun hasCircleCIConfig(directory: VirtualFile): Boolean {
@@ -135,4 +163,18 @@ class GitRepositoryScanner(private val project: Project) {
 
         return null
     }
+}
+
+/** The project [info] links the checkout at [root] to, or null if its slug isn't one. */
+internal fun linkedProject(
+    info: ProjectLinkFile.Info,
+    root: String?,
+): CircleCIProject? {
+    val label =
+        if (!info.orgName.isNullOrEmpty() && !info.projectName.isNullOrEmpty()) {
+            "${info.orgName}/${info.projectName}"
+        } else {
+            null
+        }
+    return CircleCIProject.fromSlug(info.effectiveSlug)?.copy(localPath = root, label = label, linked = true)
 }

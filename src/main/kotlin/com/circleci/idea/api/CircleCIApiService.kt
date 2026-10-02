@@ -18,6 +18,7 @@ import com.circleci.idea.api.models.TestResultWire
 import com.circleci.idea.api.models.UserInfo
 import com.circleci.idea.api.models.WorkflowWire
 import com.circleci.idea.logging.CircleCILogger
+import com.circleci.idea.project.ProjectLinkFile
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import java.nio.file.Path
@@ -146,6 +147,24 @@ class CircleCIApiService {
     fun getProjectId(slug: String): Result<String> {
         return withClient { client ->
             runClient.getProjectBySlug(client, slug).mapCatching { it.id ?: error("Project $slug has no ID") }
+        }
+    }
+
+    /**
+     * What `.circleci/info.yml` records to link a checkout to the project
+     * [slug] names; fails if there's no such project.
+     */
+    fun getProjectLink(slug: String): Result<ProjectLinkFile.Info> {
+        return withClient { client ->
+            runClient.getProjectBySlug(client, slug).map {
+                ProjectLinkFile.Info(
+                    slug = slug,
+                    projectId = it.id,
+                    projectName = it.attributes?.name,
+                    orgId = it.references?.org?.id,
+                    orgName = it.references?.org?.attributes?.name,
+                )
+            }
         }
     }
 

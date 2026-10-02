@@ -178,13 +178,28 @@ data class JobAttributesWire(
 data class ProjectWire(
     @SerializedName("id")
     val id: String? = null,
+    @SerializedName("attributes")
+    val attributes: NamedAttributesWire? = null,
     @SerializedName("references")
     val references: ProjectReferencesWire? = null,
 )
 
 data class ProjectReferencesWire(
     @SerializedName("org")
-    val org: V3Ref? = null,
+    val org: NamedRefWire? = null,
+)
+
+/** A reference that carries the name of what it refers to. */
+data class NamedRefWire(
+    @SerializedName("id")
+    val id: String? = null,
+    @SerializedName("attributes")
+    val attributes: NamedAttributesWire? = null,
+)
+
+data class NamedAttributesWire(
+    @SerializedName("name")
+    val name: String? = null,
 )
 
 /** Body for POST /api/v3/runs/search. */

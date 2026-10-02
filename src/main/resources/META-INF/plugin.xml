@@ -130,6 +130,8 @@
     <projectListeners>
         <listener class="com.circleci.idea.project.CircleCIRepositoryMappingListener"
                   topic="com.intellij.dvcs.repo.VcsRepositoryMappingListener"/>
+        <listener class="com.circleci.idea.project.ProjectLinkFileListener"
+                  topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
     </projectListeners>
 
     <actions>

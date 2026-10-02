@@ -18,8 +18,9 @@ import javax.swing.JComponent
 
 /**
  * The project whose runs the tool window lists, in its title bar: one of
- * those found in the workspace, or another entered by slug. "My runs" spans
- * every project, so the choice doesn't apply to it.
+ * those found in the workspace, or another entered by slug. Choosing one links
+ * the workspace to it in `.circleci/info.yml`, as `circleci project link` does.
+ * "My runs" spans every project, so the choice doesn't apply to it.
  */
 class ProjectChooserAction : ComboBoxAction(), DumbAware {
     override fun createPopupActionGroup(
@@ -68,7 +69,9 @@ private class SelectProjectAction(private val circleCIProject: CircleCIProject) 
         state: Boolean,
     ) {
         val project = e.project ?: return
-        project.getService(CircleCIProjectService::class.java).selectProject(circleCIProject.slug)
+        val service = project.getService(CircleCIProjectService::class.java)
+        service.selectProject(circleCIProject.slug)
+        service.linkProjectInBackground(circleCIProject.slug)
     }
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
@@ -81,12 +84,16 @@ private class OtherProjectAction : AnAction("Other Project..."), DumbAware {
         val slug =
             Messages.showInputDialog(
                 project,
-                "The CircleCI project's slug, as vcs/org/repo (e.g., gh/myorg/myrepo):",
+                "The CircleCI project's slug, as vcs/org/repo (e.g., gh/myorg/myrepo), " +
+                    "or circleci/<org-id>/<project-id> for a standalone project:",
                 "Other CircleCI Project",
                 null,
             )?.trim()
         if (slug.isNullOrEmpty()) return
-        if (!project.getService(CircleCIProjectService::class.java).addProjectBySlug(slug)) {
+        val service = project.getService(CircleCIProjectService::class.java)
+        if (service.addProjectBySlug(slug)) {
+            service.linkProjectInBackground(slug)
+        } else {
             Messages.showErrorDialog(
                 project,
                 "\"$slug\" isn't a project slug: use vcs/org/repo, e.g. gh/myorg/myrepo",

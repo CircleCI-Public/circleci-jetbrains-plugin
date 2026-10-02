@@ -14,6 +14,11 @@ data class CircleCIProject(
     val vcsUrl: String? = null,
     // Local workspace path if detected
     val localPath: String? = null,
+    // What to call it, when its slug alone doesn't say, e.g. a standalone project's
+    // circleci/<org-id>/<project-id>
+    val label: String? = null,
+    // Whether a .circleci/info.yml links the checkout at localPath to it
+    val linked: Boolean = false,
 ) {
     companion object {
         /**
@@ -52,7 +57,7 @@ data class CircleCIProject(
      * Get display name for the project.
      */
     fun getDisplayName(): String {
-        return "$organization/$repository"
+        return label ?: "$organization/$repository"
     }
 
     /**

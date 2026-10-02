@@ -1,15 +1,22 @@
 package com.circleci.idea.project
 
+import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.project.models.CircleCIProject
 import com.circleci.idea.state.CircleCIStateStore
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.LocalFileSystem
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.nio.file.Path
 
 /**
  * Service for managing CircleCI projects in the workspace.
@@ -34,6 +41,13 @@ class CircleCIProjectService(
     private val _followedProjects = MutableStateFlow<List<CircleCIProject>>(emptyList())
     val followedProjects: StateFlow<List<CircleCIProject>> = _followedProjects.asStateFlow()
 
+    // The projects added by slug, rather than found in the workspace.
+    private val manualSlugs = mutableSetOf<String>()
+
+    // The projects .circleci/info.yml files linked to at the last scan, and whether there's been one.
+    private var linkedSlugs = emptySet<String>()
+    private var hasScanned = false
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -55,7 +69,7 @@ class CircleCIProjectService(
             // Preserve manually added projects that aren't in git scan
             val existingManualProjects =
                 _projects.value.filter { existing ->
-                    detectedProjects.none { detected -> detected.slug == existing.slug }
+                    existing.slug in manualSlugs && detectedProjects.none { detected -> detected.slug == existing.slug }
                 }
 
             // Merge detected and manual projects
@@ -66,13 +80,21 @@ class CircleCIProjectService(
                     "(${existingManualProjects.size} manual projects preserved)",
             )
 
-            // Select the first detected project if none is, or the selected one is gone
-            if (getSelectedProject() == null) {
+            // Select the first detected project if none is, or the selected one is gone. A
+            // link that's new since the last scan, e.g. from `circleci project link`, wins.
+            val linked = detectedProjects.filter { it.linked }.map { it.slug }
+            val newLink = linked.firstOrNull { it !in linkedSlugs }
+            linkedSlugs = linked.toSet()
+            if (newLink != null && hasScanned) {
+                selectProject(newLink)
+                logger.info("Selected newly linked project $newLink")
+            } else if (getSelectedProject() == null) {
                 detectedProjects.firstOrNull()?.let {
                     selectProject(it.slug)
                     logger.info("Auto-selected detected project ${it.slug}")
                 }
             }
+            if (detectedProjects.isNotEmpty()) hasScanned = true
         } catch (e: Exception) {
             logger.error("Failed to detect projects", e)
         } finally {
@@ -165,12 +187,63 @@ class CircleCIProjectService(
             return false
         }
 
+        manualSlugs += slug
         if (_projects.value.none { it.slug == slug }) {
             _projects.value = _projects.value + project
             logger.info("Added project: $slug")
         }
         selectProject(slug)
         return true
+    }
+
+    /**
+     * Link the workspace to the project [slug] names, as `circleci project link`
+     * does: record it in `.circleci/info.yml`, where the CLI and detection here
+     * look first. The file goes in the checkout the project was found in, else
+     * the project's directory. Gives the file written, or null if it already
+     * linked to the project. Fails if there's no such project, or nowhere to write.
+     */
+    suspend fun linkProject(slug: String): Result<Path?> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val root =
+                    (_projects.value.firstOrNull { it.slug == slug }?.localPath ?: project.basePath)
+                        ?.let { Path.of(it) }
+                        ?: error("there's no project directory to link")
+                val existing = runCatching { ProjectLinkFile.read(root) }.getOrNull()
+                if (existing?.effectiveSlug == slug && existing.projectId != null) return@runCatching null
+
+                val info = CircleCIApiService.getInstance().getProjectLink(slug).getOrThrow()
+                ProjectLinkFile.write(root, info)
+                LocalFileSystem.getInstance().refreshAndFindFileByNioFile(ProjectLinkFile.path(root))
+                logger.info("Linked ${ProjectLinkFile.path(root)} to $slug")
+                detectProjects()
+                ProjectLinkFile.path(root)
+            }
+        }
+
+    /** [linkProject] without waiting for it, saying where it linked or why it couldn't. */
+    fun linkProjectInBackground(slug: String) {
+        coroutineScope.launch {
+            linkProject(slug).fold(
+                onSuccess = { file ->
+                    file?.let { notify("Linked $it → $slug", NotificationType.INFORMATION) }
+                },
+                onFailure = {
+                    logger.warn("Failed to link $slug: ${it.message}")
+                    notify("Couldn't link ${ProjectLinkFile.PATH} to $slug: ${it.message}", NotificationType.WARNING)
+                },
+            )
+        }
+    }
+
+    private fun notify(
+        message: String,
+        type: NotificationType,
+    ) {
+        NotificationGroupManager.getInstance().getNotificationGroup("CircleCI Notifications")
+            .createNotification(message, type)
+            .notify(project)
     }
 
     /**
