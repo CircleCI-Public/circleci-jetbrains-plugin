@@ -5,6 +5,7 @@ import com.circleci.idea.run.RunStatus
 import com.circleci.idea.run.RunWebUrls
 import com.circleci.idea.state.Job
 import com.circleci.idea.toolwindow.CircleCIToolWindowService
+import com.circleci.idea.toolwindow.tree.JobNode
 import com.circleci.idea.toolwindow.tree.RunNode
 import com.circleci.idea.toolwindow.tree.WorkflowNode
 import com.intellij.icons.AllIcons
@@ -12,7 +13,10 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.DumbAware
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -48,6 +52,19 @@ abstract class WorkflowAction(
     ) {
         val project = e.project ?: return
         val workflowNode = getWorkflowNode(e) ?: return
+        executeAction(project, workflowNode, confirmMessage, action)
+    }
+
+    /**
+     * Execute an API action on [workflowNode], for when it's known without
+     * the action event, such as after a popup closes.
+     */
+    protected fun executeAction(
+        project: Project,
+        workflowNode: WorkflowNode,
+        confirmMessage: String?,
+        action: suspend (String) -> Result<Unit>,
+    ) {
         val workflowId = workflowNode.workflow.id
 
         // Show confirmation dialog if needed
@@ -157,83 +174,45 @@ class RerunWorkflowWithSshAction : WorkflowAction(
     AllIcons.Actions.RestartDebugger,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
-        val context = prepareRerunContext(e) ?: return
-
-        val confirmMessage =
-            "Rerun workflow '${context.workflowNode.workflow.name}' " +
-                "with SSH enabled for job '${context.selectedJob.name}'?\n\n" +
-                "This will rerun the entire workflow with SSH access enabled for this specific job."
-
-        executeAction(
-            e,
-            confirmMessage,
-            { workflowId ->
-                CircleCIApiService.getInstance().rerunWorkflow(
-                    workflowId,
-                    fromFailed = false,
-                    enableSsh = true,
-                    jobs = listOf(context.selectedJob.id),
-                )
-            },
-        )
-    }
-
-    private data class RerunContext(
-        val workflowNode: WorkflowNode,
-        val selectedJob: Job,
-    )
-
-    private fun prepareRerunContext(e: AnActionEvent): RerunContext? {
-        val project = e.project
-        val workflowNode = getWorkflowNode(e)
-        if (project == null || workflowNode == null) {
-            return null
-        }
-
-        return validateAndSelectJob(project, workflowNode)
-    }
-
-    private fun validateAndSelectJob(
-        project: com.intellij.openapi.project.Project,
-        workflowNode: WorkflowNode,
-    ): RerunContext? {
-        // Get jobs from workflow node's children
-        val jobNodes =
-            workflowNode.children().asSequence()
-                .filterIsInstance<com.circleci.idea.toolwindow.tree.JobNode>()
-                .toList()
-
-        if (jobNodes.isEmpty()) {
+        val project = e.project ?: return
+        val workflowNode = getWorkflowNode(e) ?: return
+        val jobs = workflowNode.children().asSequence().filterIsInstance<JobNode>().map { it.job }.toList()
+        if (jobs.isEmpty()) {
             Messages.showErrorDialog(
                 project,
                 "No jobs found in this workflow. Load the workflow details first.",
                 "No Jobs Available",
             )
-            return null
+            return
         }
 
-        // Get selected job from user
-        val selectedJob = selectJobForSsh(project, jobNodes) ?: return null
-
-        return RerunContext(workflowNode, selectedJob)
+        JBPopupFactory.getInstance()
+            .createPopupChooserBuilder(jobs)
+            .setTitle("Enable SSH for Job")
+            .setRenderer(textListCellRenderer { it?.name })
+            .setItemChosenCallback { job -> rerunWithSsh(project, workflowNode, job) }
+            .createPopup()
+            .showInBestPositionFor(e.dataContext)
     }
 
-    private fun selectJobForSsh(
-        project: com.intellij.openapi.project.Project,
-        jobNodes: List<com.circleci.idea.toolwindow.tree.JobNode>,
-    ): Job? {
-        val jobNames = jobNodes.map { it.job.name }.toTypedArray()
-        val selectedIndex =
-            Messages.showChooseDialog(
-                project,
-                "Select which job to enable SSH access for:",
-                "Select Job for SSH",
-                Messages.getQuestionIcon(),
-                jobNames,
-                jobNames[0],
-            )
+    private fun rerunWithSsh(
+        project: Project,
+        workflowNode: WorkflowNode,
+        job: Job,
+    ) {
+        val confirmMessage =
+            "Rerun workflow '${workflowNode.workflow.name}' " +
+                "with SSH enabled for job '${job.name}'?\n\n" +
+                "This will rerun the entire workflow with SSH access enabled for this specific job."
 
-        return if (selectedIndex == -1) null else jobNodes[selectedIndex].job
+        executeAction(project, workflowNode, confirmMessage) { workflowId ->
+            CircleCIApiService.getInstance().rerunWorkflow(
+                workflowId,
+                fromFailed = false,
+                enableSsh = true,
+                jobs = listOf(job.id),
+            )
+        }
     }
 
     override fun isEnabledForWorkflow(workflow: WorkflowNode): Boolean {
