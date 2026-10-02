@@ -50,7 +50,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
     // The runs, or the signed-out view in their place until you log in.
     private val cards = CardLayout()
     private val root = JBPanel<JBPanel<*>>(cards)
-    private val signedOutPanel = SignedOutPanel(project)
+    private val signedOutView = SignedOutView(project)
     private var signedIn: Boolean? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val treeModel = CircleCITreeModel(project, scope)
@@ -74,7 +74,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         toolWindowService.setTree(tree)
 
         root.add(panel, RUNS_CARD)
-        root.add(signedOutPanel, SIGNED_OUT_CARD)
+        root.add(signedOutView.component, SIGNED_OUT_CARD)
 
         // Restore authentication and initialize API client
         authService.restoreAuthentication()
@@ -117,7 +117,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
                 // Reading the stored token goes to the credential store: keep it off the EDT.
                 val hasToken = withContext(Dispatchers.IO) { authService.getToken() != null }
                 val nowSignedIn = auth.isAuthenticated || (hasToken && auth.error == null)
-                signedOutPanel.refresh(auth.error.takeIf { !nowSignedIn })
+                signedOutView.showError(auth.error.takeIf { !nowSignedIn })
                 if (nowSignedIn == signedIn) return@collect
 
                 val wasSignedOut = signedIn == false
@@ -126,8 +126,6 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
                 if (nowSignedIn && wasSignedOut) autoDetectProjects()
             }
         }
-        // The project choice follows what's detected.
-        scope.launch { projectService.projects.collect { signedOutPanel.refresh(stateStore.auth.value.error) } }
     }
 
     /**
