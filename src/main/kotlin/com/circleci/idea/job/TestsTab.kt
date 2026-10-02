@@ -209,7 +209,8 @@ class TestsTab(
             }
             val listState = rememberSingleSelectionLazyListState(initialSelectedKey = selected)
             LaunchedEffect(selected) { listState.selectedKeys = setOfNotNull(selected) }
-            VerticallyScrollableContainer(listState, Modifier.fillMaxSize()) {
+            // The scrollbar knows LazyListState, not the selection state wrapping it.
+            VerticallyScrollableContainer(listState.lazyListState, Modifier.fillMaxSize()) {
                 SingleSelectionLazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     state = listState,

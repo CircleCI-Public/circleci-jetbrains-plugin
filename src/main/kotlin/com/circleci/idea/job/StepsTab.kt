@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,6 +47,7 @@ import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.LazyTree
 import org.jetbrains.jewel.ui.component.SplitLayoutState
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.VerticallyScrollableContainer
 import org.jetbrains.jewel.ui.typography
 
 /** A step, by the execution it ran in and its number. */
@@ -149,29 +151,33 @@ class StepsTab(
         val all = current.orEmpty()
         val tree = remember(all) { stepsTree(all) }
         val executionIds = remember(all) { if (all.size > 1) all.map { executionId(it.index) }.toSet() else emptySet() }
-        val treeState = rememberTreeState()
+        // Shared with the scrollbar, which Jewel's tree doesn't draw itself.
+        val scroll = rememberLazyListState()
+        val treeState = rememberTreeState(scroll)
         LaunchedEffect(tree) { treeState.openNodes = executionIds - closed }
         LaunchedEffect(treeState, executionIds) {
             snapshotFlow { treeState.openNodes }.collect { closed = executionIds - it }
         }
         LaunchedEffect(tree, selected) { treeState.selectedKeys = setOfNotNull(selected) }
-        LazyTree(
-            tree = tree,
-            modifier = Modifier.fillMaxSize().focusable(),
-            treeState = treeState,
-            onSelectionChange = { elements ->
-                (elements.firstOrNull()?.data as? StepsItem.StepItem)?.let {
-                    if (it.key != _selected.value) {
-                        select(
-                            it.key,
-                        )
+        VerticallyScrollableContainer(scroll, Modifier.fillMaxSize()) {
+            LazyTree(
+                tree = tree,
+                modifier = Modifier.fillMaxSize().focusable(),
+                treeState = treeState,
+                onSelectionChange = { elements ->
+                    (elements.firstOrNull()?.data as? StepsItem.StepItem)?.let {
+                        if (it.key != _selected.value) {
+                            select(
+                                it.key,
+                            )
+                        }
                     }
+                },
+            ) { element ->
+                when (val item = element.data) {
+                    is StepsItem.Execution -> ExecutionRow(item)
+                    is StepsItem.StepItem -> StepRow(item.step)
                 }
-            },
-        ) { element ->
-            when (val item = element.data) {
-                is StepsItem.Execution -> ExecutionRow(item)
-                is StepsItem.StepItem -> StepRow(item.step)
             }
         }
     }

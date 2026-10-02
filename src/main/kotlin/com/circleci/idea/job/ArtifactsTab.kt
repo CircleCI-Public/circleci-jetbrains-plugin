@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -56,6 +57,7 @@ import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.SpeedSearchArea
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.VerticallyScrollableContainer
 import org.jetbrains.jewel.ui.component.search.SpeedSearchableTree
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icon.IntelliJIconKey
@@ -164,7 +166,9 @@ class ArtifactsTab(
     @Composable
     private fun ArtifactTreeView(loaded: ArtifactsContent.Loaded) {
         val tree = remember(loaded) { buildTree<ArtifactEntry> { addEntries(loaded.entries) } }
-        val treeState = rememberTreeState()
+        // Shared with the scrollbar, which Jewel's tree doesn't draw itself.
+        val scroll = rememberLazyListState()
+        val treeState = rememberTreeState(scroll)
         LaunchedEffect(treeState, loaded) {
             treeState.openNodes = openIds
             treeState.selectedKeys = setOfNotNull(_selected.value?.id)
@@ -173,17 +177,20 @@ class ArtifactsTab(
             snapshotFlow { treeState.openNodes }.collect { openIds = it }
         }
         SpeedSearchArea(Modifier.fillMaxSize()) {
-            SpeedSearchableTree(
-                tree = tree,
-                nodeText = { it.data.node.name },
-                modifier = Modifier.fillMaxSize().focusable(),
-                treeState = treeState,
-                onElementDoubleClick = { element ->
-                    (element.data.node as? ArtifactNode.File)?.let { open(it.artifact) }
-                },
-                onSelectionChange = { elements -> _selected.value = elements.firstOrNull()?.data },
-            ) { element ->
-                EntryRow(element.data, loaded.parallel)
+            val search = this
+            VerticallyScrollableContainer(scroll, Modifier.fillMaxSize()) {
+                search.SpeedSearchableTree(
+                    tree = tree,
+                    nodeText = { it.data.node.name },
+                    modifier = Modifier.fillMaxSize().focusable(),
+                    treeState = treeState,
+                    onElementDoubleClick = { element ->
+                        (element.data.node as? ArtifactNode.File)?.let { open(it.artifact) }
+                    },
+                    onSelectionChange = { elements -> _selected.value = elements.firstOrNull()?.data },
+                ) { element ->
+                    EntryRow(element.data, loaded.parallel)
+                }
             }
         }
     }
