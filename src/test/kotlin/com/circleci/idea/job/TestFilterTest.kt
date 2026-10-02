@@ -66,4 +66,26 @@ class TestFilterTest {
         assertEquals("run time", 1.5, tests[1].runTime!!, 0.0)
         assertEquals("unknown result", TestOutcome.OTHER, TestOutcome.of("error"))
     }
+
+    @Test
+    fun testSortByColumn() {
+        val b = test("b", outcome = TestOutcome.FAILURE).copy(runTime = 2.0)
+        val a = test("A").copy(runTime = null)
+        val c = test("c", outcome = TestOutcome.SKIPPED).copy(runTime = 1.0)
+        val tests = listOf(b, a, c)
+        assertEquals("unsorted keeps the job's order", tests, TestSort().apply(tests))
+        assertEquals("name, ignoring case", listOf(a, b, c), TestSort(TestColumn.NAME).apply(tests))
+        assertEquals("descending", listOf(c, b, a), TestSort(TestColumn.NAME, ascending = false).apply(tests))
+        assertEquals("no time first", listOf(a, c, b), TestSort(TestColumn.TIME).apply(tests))
+        assertEquals("failures first", listOf(b, c, a), TestSort(TestColumn.OUTCOME).apply(tests))
+    }
+
+    @Test
+    fun testSortToggles() {
+        val byName = TestSort().toggle(TestColumn.NAME)
+        assertEquals("first click ascends", TestSort(TestColumn.NAME, ascending = true), byName)
+        assertEquals("second descends", TestSort(TestColumn.NAME, ascending = false), byName.toggle(TestColumn.NAME))
+        assertEquals("third unsorts", TestSort(), byName.toggle(TestColumn.NAME).toggle(TestColumn.NAME))
+        assertEquals("another column ascends", TestSort(TestColumn.TIME), byName.toggle(TestColumn.TIME))
+    }
 }

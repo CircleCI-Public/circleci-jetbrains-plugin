@@ -83,7 +83,7 @@ class JobPanel(
     private val console: ConsoleView =
         TextConsoleBuilderFactory.getInstance().createBuilder(project).apply { setViewer(true) }.console
 
-    private val testsPanel = TestsPanel(project, this)
+    private val testsTab = TestsTab(project, this)
     private val artifactsPanel = ArtifactsPanel(project, ref, scope)
     private val resourceUsagePanel = ResourceUsagePanel(ref, scope, service)
 
@@ -173,7 +173,7 @@ class JobPanel(
 
         return JBTabbedPane().apply {
             addTab("Steps", steps)
-            addTab("Tests", testsPanel)
+            addTab("Tests", testsTab.component)
             addTab("Artifacts", artifactsPanel)
             addTab("Resource Usage", resourceUsagePanel)
         }
@@ -292,8 +292,8 @@ class JobPanel(
     private fun loadEndOfJobTabs() {
         scope.launch {
             service.fetchTests(ref.jobId).fold(
-                onSuccess = { testsPanel.setTests(it) },
-                onFailure = { testsPanel.showError(it.message ?: "Unknown error") },
+                onSuccess = { testsTab.setTests(it) },
+                onFailure = { testsTab.showError(it.message ?: "Unknown error") },
             )
         }
         artifactsPanel.load()
