@@ -2,6 +2,7 @@ package com.circleci.idea.lsp
 
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.util.system.CpuArch
+import com.intellij.util.system.LowLevelLocalMachineAccess
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
@@ -40,8 +41,10 @@ data class ReleaseTarget(
         const val ARCHIVE_BINARY = "circleci-yaml-lsp"
 
         /**
-         * The target for the running IDE, or null if the server isn't built for it.
+         * The target for the running IDE, or null if the server isn't built for it. The
+         * server runs beside the IDE, so it's this machine's architecture that matters.
          */
+        @OptIn(LowLevelLocalMachineAccess::class)
         fun current(): ReleaseTarget? {
             val arch =
                 when (CpuArch.CURRENT) {

@@ -38,7 +38,7 @@ class WorkflowApiClient : CircleCIApiClientBase() {
                 }
             }
 
-        return executeRequest(client, "/api/v3/workflows/$workflowId/rerun", body = body) { Unit }
+        return executeRequest(client, "/api/v3/workflows/$workflowId/rerun", body = body) { }
     }
 
     /**

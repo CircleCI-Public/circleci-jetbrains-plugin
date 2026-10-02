@@ -1,5 +1,6 @@
 import org.gradle.process.CommandLineArgumentProvider
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 import org.jetbrains.kotlin.gradle.plugin.getKotlinPluginVersion
@@ -124,6 +125,9 @@ tasks {
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_21)
+            // Inherit the platform interfaces' default methods rather than generate overrides calling them,
+            // which the verifier reports as uses of the deprecated ones (ToolWindowFactory.isApplicable, say).
+            jvmDefault.set(JvmDefaultMode.NO_COMPATIBILITY)
             // Don't use JDK APIs newer than Java 21, which 2026.1 runs on.
             freeCompilerArgs.add("-Xjdk-release=21")
             // Don't use stdlib APIs newer than the Kotlin bundled with the oldest supported IDE (2026.1).
