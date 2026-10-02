@@ -1,0 +1,7 @@
+organization:
+    id: ec6887ec-7d44-4b31-b468-7e552408ee32
+    name: CircleCI-Public
+project:
+    id: 65daad7d-b2ba-44d6-88a5-a5c346b3ecac
+    slug: gh/CircleCI-Public/circleci-jetbrains-plugin
+    name: circleci-jetbrains-plugin
