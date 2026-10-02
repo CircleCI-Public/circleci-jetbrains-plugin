@@ -2,7 +2,6 @@ package com.circleci.idea.job
 
 import com.circleci.idea.state.Artifact
 import java.nio.file.Path
-import javax.swing.tree.DefaultMutableTreeNode
 
 /** What a node in the artifacts tree stands for. */
 sealed class ArtifactNode {
@@ -21,31 +20,34 @@ sealed class ArtifactNode {
     }
 }
 
+/** A node in the artifacts tree, with what's under it. [id] is unique in the tree. */
+data class ArtifactEntry(
+    val node: ArtifactNode,
+    val id: String,
+    val children: List<ArtifactEntry> = emptyList(),
+) {
+    /** The artifacts at and below this entry. */
+    val files: List<Artifact>
+        get() = ArtifactTree.files(listOf(this))
+}
+
 /**
  * Lays a job's artifacts out as a file tree, as the CLI's artifact browser does.
  */
 object ArtifactTree {
-    /** The tree's root, whose children are executions (when parallel) or the top-level entries. */
-    fun build(artifacts: List<Artifact>): DefaultMutableTreeNode {
-        val root = DefaultMutableTreeNode()
+    /** The tree's top level: executions (when parallel), or the top-level entries. */
+    fun build(artifacts: List<Artifact>): List<ArtifactEntry> {
         val byExecution = artifacts.groupBy { it.execution }.toSortedMap()
-        if (byExecution.size > 1) {
-            byExecution.forEach { (index, executionArtifacts) ->
-                root.add(
-                    DefaultMutableTreeNode(ArtifactNode.Execution(index)).also { addEntries(it, executionArtifacts) },
-                )
-            }
-        } else {
-            addEntries(root, artifacts)
+        if (byExecution.size <= 1) return entries("", artifacts)
+        return byExecution.map { (index, executionArtifacts) ->
+            val id = "$index:"
+            ArtifactEntry(ArtifactNode.Execution(index), id, entries(id, executionArtifacts))
         }
-        return root
     }
 
-    /** The artifacts at and below a node. */
-    fun files(node: DefaultMutableTreeNode): List<Artifact> {
-        return node.depthFirstEnumeration().toList()
-            .mapNotNull { ((it as DefaultMutableTreeNode).userObject as? ArtifactNode.File)?.artifact }
-    }
+    /** The artifacts at and below [entries]. */
+    fun files(entries: List<ArtifactEntry>): List<Artifact> =
+        entries.flatMap { entry -> listOfNotNull((entry.node as? ArtifactNode.File)?.artifact) + files(entry.children) }
 
     /**
      * Where to download [artifact] under [dir]: at its path, inside a
@@ -63,10 +65,10 @@ object ArtifactTree {
         return target.takeIf { it.startsWith(root) && it != root }
     }
 
-    private fun addEntries(
-        parent: DefaultMutableTreeNode,
+    private fun entries(
+        prefix: String,
         artifacts: List<Artifact>,
-    ) {
+    ): List<ArtifactEntry> {
         val root = Folder()
         for (artifact in artifacts) {
             val segments = artifact.path.split('/').filter { it.isNotEmpty() }
@@ -75,26 +77,30 @@ object ArtifactTree {
             val folder = directories.fold(root) { folder, segment -> folder.folders.getOrPut(segment) { Folder() } }
             folder.files.add(artifact)
         }
-        addFolder(parent, root)
+        return entries(prefix, root)
     }
 
-    private fun addFolder(
-        parent: DefaultMutableTreeNode,
+    private fun entries(
+        prefix: String,
         folder: Folder,
-    ) {
-        for ((name, child) in folder.folders.toSortedMap(String.CASE_INSENSITIVE_ORDER)) {
-            // Fold a chain of directories that each hold only the next into one node.
-            var label = name
-            var current = child
-            while (current.files.isEmpty() && current.folders.size == 1) {
-                val (nextName, next) = current.folders.entries.single()
-                label += "/$nextName"
-                current = next
+    ): List<ArtifactEntry> {
+        val directories =
+            folder.folders.toSortedMap(String.CASE_INSENSITIVE_ORDER).map { (name, child) ->
+                // Fold a chain of directories that each hold only the next into one entry.
+                var label = name
+                var current = child
+                while (current.files.isEmpty() && current.folders.size == 1) {
+                    val (nextName, next) = current.folders.entries.single()
+                    label += "/$nextName"
+                    current = next
+                }
+                val id = "$prefix$label/"
+                ArtifactEntry(ArtifactNode.Directory(label), id, entries(id, current))
             }
-            parent.add(DefaultMutableTreeNode(ArtifactNode.Directory(label)).also { addFolder(it, current) })
-        }
-        folder.files.sortedBy { it.path.substringAfterLast('/').lowercase() }
-            .forEach { parent.add(DefaultMutableTreeNode(ArtifactNode.File(it))) }
+        val files =
+            folder.files.sortedBy { it.path.substringAfterLast('/').lowercase() }
+                .map { ArtifactEntry(ArtifactNode.File(it), prefix + it.path.substringAfterLast('/')) }
+        return directories + files
     }
 
     private class Folder {

@@ -5,7 +5,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.nio.file.Paths
-import javax.swing.tree.DefaultMutableTreeNode
 
 class ArtifactTreeTest {
     private fun artifact(
@@ -15,12 +14,9 @@ class ArtifactTreeTest {
 
     /** The tree as indented "name" lines, to compare whole. */
     private fun render(
-        node: DefaultMutableTreeNode,
+        entries: List<ArtifactEntry>,
         depth: Int = 0,
-    ): List<String> {
-        val self = (node.userObject as? ArtifactNode)?.let { listOf("  ".repeat(depth - 1) + it.name) }.orEmpty()
-        return self + node.children().toList().flatMap { render(it as DefaultMutableTreeNode, depth + 1) }
-    }
+    ): List<String> = entries.flatMap { listOf("  ".repeat(depth) + it.node.name) + render(it.children, depth + 1) }
 
     @Test
     fun testNestsByPathFoldingSingleChildDirectories() {
@@ -57,7 +53,9 @@ class ArtifactTreeTest {
             listOf("Execution 0", "  out.log", "Execution 1", "  out.log"),
             render(root),
         )
-        assertEquals("files under a node", 2, ArtifactTree.files(root).size)
+        assertEquals("files under the tree", 2, ArtifactTree.files(root).size)
+        assertEquals("files under an entry", 1, root.first().files.size)
+        assertEquals("ids apart by execution", 4, (root + root.flatMap { it.children }).map { it.id }.distinct().size)
     }
 
     @Test
