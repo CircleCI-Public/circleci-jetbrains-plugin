@@ -1,5 +1,6 @@
 package com.circleci.idea.toolwindow.actions
 
+import com.circleci.idea.api.ChangeService
 import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.run.RunStatus
 import com.circleci.idea.run.RunWebUrls
@@ -17,11 +18,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Base class for workflow actions.
@@ -31,8 +27,6 @@ abstract class WorkflowAction(
     description: String,
     icon: javax.swing.Icon? = null,
 ) : AnAction(text, description, icon), DumbAware {
-    protected val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
     /**
      * Get the workflow node from the action event.
      */
@@ -43,16 +37,18 @@ abstract class WorkflowAction(
     }
 
     /**
-     * Execute an API action with error handling and tree refresh.
+     * Execute an API action with error handling and tree refresh, under
+     * the IDE's progress indicator titled [progressTitle].
      */
     protected fun executeAction(
         e: AnActionEvent,
         confirmMessage: String?,
-        action: suspend (String) -> Result<Unit>,
+        progressTitle: String,
+        action: (String) -> Result<Unit>,
     ) {
         val project = e.project ?: return
         val workflowNode = getWorkflowNode(e) ?: return
-        executeAction(project, workflowNode, confirmMessage, action)
+        executeAction(project, workflowNode, confirmMessage, progressTitle, action)
     }
 
     /**
@@ -63,7 +59,8 @@ abstract class WorkflowAction(
         project: Project,
         workflowNode: WorkflowNode,
         confirmMessage: String?,
-        action: suspend (String) -> Result<Unit>,
+        progressTitle: String,
+        action: (String) -> Result<Unit>,
     ) {
         val workflowId = workflowNode.workflow.id
 
@@ -81,26 +78,17 @@ abstract class WorkflowAction(
             }
         }
 
-        scope.launch {
-            // Execute action
-            val result =
-                withContext(Dispatchers.IO) {
-                    action(workflowId)
-                }
-
-            // Handle result
-            withContext(Dispatchers.Main) {
-                if (result.isSuccess) {
-                    // Refresh the tree in place to show the updated state
-                    project.getService(CircleCIToolWindowService::class.java).refreshRuns()
-                } else {
-                    val error = result.exceptionOrNull()?.message ?: "Unknown error"
-                    Messages.showErrorDialog(
-                        project,
-                        "Failed to perform action: $error",
-                        "Action Failed",
-                    )
-                }
+        ChangeService.getInstance(project).launch(progressTitle, { action(workflowId) }) { result ->
+            if (result.isSuccess) {
+                // Refresh the tree in place to show the updated state
+                project.getService(CircleCIToolWindowService::class.java).refreshRuns()
+            } else {
+                val error = result.exceptionOrNull()?.message ?: "Unknown error"
+                Messages.showErrorDialog(
+                    project,
+                    "Failed to perform action: $error",
+                    "Action Failed",
+                )
             }
         }
     }
@@ -129,6 +117,7 @@ class RerunWorkflowAction : WorkflowAction(
         executeAction(
             e,
             "Rerun workflow '${workflowNode.workflow.name}' from start?",
+            "Rerunning workflow '${workflowNode.workflow.name}'",
             { workflowId ->
                 CircleCIApiService.getInstance().rerunWorkflow(workflowId, fromFailed = false)
             },
@@ -153,6 +142,7 @@ class RerunWorkflowFromFailedAction : WorkflowAction(
         executeAction(
             e,
             "Rerun workflow '${workflowNode.workflow.name}' from failed jobs?",
+            "Rerunning workflow '${workflowNode.workflow.name}' from failed jobs",
             { workflowId ->
                 CircleCIApiService.getInstance().rerunWorkflow(workflowId, fromFailed = true)
             },
@@ -205,7 +195,12 @@ class RerunWorkflowWithSshAction : WorkflowAction(
                 "with SSH enabled for job '${job.name}'?\n\n" +
                 "This will rerun the entire workflow with SSH access enabled for this specific job."
 
-        executeAction(project, workflowNode, confirmMessage) { workflowId ->
+        executeAction(
+            project,
+            workflowNode,
+            confirmMessage,
+            "Rerunning workflow '${workflowNode.workflow.name}' with SSH",
+        ) { workflowId ->
             CircleCIApiService.getInstance().rerunWorkflow(
                 workflowId,
                 fromFailed = false,
@@ -233,6 +228,7 @@ class CancelWorkflowAction : WorkflowAction(
         executeAction(
             e,
             "Cancel workflow '${workflowNode.workflow.name}'?\n\nThis will stop all running jobs.",
+            "Canceling workflow '${workflowNode.workflow.name}'",
             { workflowId ->
                 CircleCIApiService.getInstance().cancelWorkflow(workflowId)
             },
@@ -272,6 +268,7 @@ class ApproveWorkflowAction : WorkflowAction(
         executeAction(
             e,
             "Approve workflow '${workflowNode.workflow.name}'?",
+            "Approving workflow '${workflowNode.workflow.name}'",
             { workflowId ->
                 CircleCIApiService.getInstance().approveWorkflow(workflowId, approvalRequestId)
             },

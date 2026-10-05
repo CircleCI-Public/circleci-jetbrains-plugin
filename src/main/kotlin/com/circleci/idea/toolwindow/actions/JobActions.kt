@@ -1,5 +1,6 @@
 package com.circleci.idea.toolwindow.actions
 
+import com.circleci.idea.api.ChangeService
 import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.job.JobDetailsService
 import com.circleci.idea.job.JobRef
@@ -14,11 +15,6 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.ui.Messages
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.awt.datatransfer.StringSelection
 
 /**
@@ -29,8 +25,6 @@ abstract class JobAction(
     description: String,
     icon: javax.swing.Icon? = null,
 ) : AnAction(text, description, icon), DumbAware {
-    protected val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
     /**
      * Get the job node from the action event.
      */
@@ -48,12 +42,14 @@ abstract class JobAction(
     }
 
     /**
-     * Execute an API action with error handling and tree refresh.
+     * Execute an API action with error handling and tree refresh, under
+     * the IDE's progress indicator titled [progressTitle].
      */
     protected fun executeAction(
         e: AnActionEvent,
         confirmMessage: String?,
-        action: suspend () -> Result<Unit>,
+        progressTitle: String,
+        action: () -> Result<Unit>,
     ) {
         val project = e.project ?: return
 
@@ -71,26 +67,17 @@ abstract class JobAction(
             }
         }
 
-        scope.launch {
-            // Execute action
-            val result =
-                withContext(Dispatchers.IO) {
-                    action()
-                }
-
-            // Handle result
-            withContext(Dispatchers.Main) {
-                if (result.isSuccess) {
-                    // Refresh the tree in place to show the updated state
-                    project.getService(CircleCIToolWindowService::class.java).refreshRuns()
-                } else {
-                    val error = result.exceptionOrNull()?.message ?: "Unknown error"
-                    Messages.showErrorDialog(
-                        project,
-                        "Failed to perform action: $error",
-                        "Action Failed",
-                    )
-                }
+        ChangeService.getInstance(project).launch(progressTitle, action) { result ->
+            if (result.isSuccess) {
+                // Refresh the tree in place to show the updated state
+                project.getService(CircleCIToolWindowService::class.java).refreshRuns()
+            } else {
+                val error = result.exceptionOrNull()?.message ?: "Unknown error"
+                Messages.showErrorDialog(
+                    project,
+                    "Failed to perform action: $error",
+                    "Action Failed",
+                )
             }
         }
     }
@@ -140,6 +127,7 @@ class RerunJobWithSshAction : JobAction(
             e,
             "Rerun job '${job.name}' with SSH enabled?\n\n" +
                 "This will rerun the entire workflow with SSH access enabled for this specific job.",
+            "Rerunning job '${job.name}' with SSH",
             {
                 CircleCIApiService.getInstance().rerunWorkflow(
                     workflowId = workflow.id,
@@ -172,6 +160,7 @@ class CancelJobAction : JobAction(
         executeAction(
             e,
             "Cancel job '${job.name}'?",
+            "Canceling job '${job.name}'",
             {
                 val jobNumber = job.number
                 val projectSlug = job.projectSlug
@@ -274,6 +263,7 @@ class RerunWorkflowFromJobAction : JobAction(
         executeAction(
             e,
             "Rerun workflow '${workflow.name}' from start?",
+            "Rerunning workflow '${workflow.name}'",
             {
                 CircleCIApiService.getInstance().rerunWorkflow(
                     workflowId = workflow.id,

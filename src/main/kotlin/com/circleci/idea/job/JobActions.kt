@@ -1,5 +1,6 @@
 package com.circleci.idea.job
 
+import com.circleci.idea.api.ChangeService
 import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.icons.CircleCIIcons
 import com.circleci.idea.run.RunWebUrls
@@ -14,7 +15,6 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.ui.Messages
 import javax.swing.Icon
@@ -53,12 +53,14 @@ private abstract class JobPageAction(
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
     /**
-     * Confirm, then run an API call off the EDT; report the outcome and
-     * refresh the job page and run list.
+     * Confirm, then run an API call off the EDT under the IDE's progress
+     * indicator titled [progressTitle]; report the outcome and refresh the
+     * job page and run list.
      */
     protected fun confirmAndRun(
         e: AnActionEvent,
         confirmMessage: String,
+        progressTitle: String,
         successMessage: String,
         call: () -> Result<Unit>,
     ) {
@@ -66,21 +68,18 @@ private abstract class JobPageAction(
         if (Messages.showYesNoDialog(project, confirmMessage, "Confirm", Messages.getQuestionIcon()) != Messages.YES) {
             return
         }
-        ApplicationManager.getApplication().executeOnPooledThread {
-            val result = call()
-            ApplicationManager.getApplication().invokeLater {
-                result.fold(
-                    onSuccess = {
-                        NotificationGroupManager.getInstance()
-                            .getNotificationGroup("CircleCI Notifications")
-                            .createNotification(successMessage, NotificationType.INFORMATION)
-                            .notify(project)
-                        panel.refresh()
-                        project.getService(CircleCIToolWindowService::class.java).refreshRuns()
-                    },
-                    onFailure = { Messages.showErrorDialog(project, it.message ?: "Unknown error", "Action Failed") },
-                )
-            }
+        ChangeService.getInstance(project).launch(progressTitle, call) { result ->
+            result.fold(
+                onSuccess = {
+                    NotificationGroupManager.getInstance()
+                        .getNotificationGroup("CircleCI Notifications")
+                        .createNotification(successMessage, NotificationType.INFORMATION)
+                        .notify(project)
+                    panel.refresh()
+                    project.getService(CircleCIToolWindowService::class.java).refreshRuns()
+                },
+                onFailure = { Messages.showErrorDialog(project, it.message ?: "Unknown error", "Action Failed") },
+            )
         }
     }
 }
@@ -110,6 +109,7 @@ private class RerunWorkflowAction(panel: JobPanel, private val fromFailed: Boole
             e,
             "Rerun $workflow${if (fromFailed) " from its failed jobs" else " from the start"}?",
             "Rerunning $workflow",
+            "Rerunning $workflow",
         ) { CircleCIApiService.getInstance().rerunWorkflow(panel.ref.workflowId, fromFailed = fromFailed) }
     }
 }
@@ -127,6 +127,7 @@ private class RerunWithSshAction(panel: JobPanel) :
         confirmAndRun(
             e,
             "Rerun '${panel.ref.name}' with SSH enabled?\n\nThis reruns the whole workflow.",
+            "Rerunning '${panel.ref.name}' with SSH",
             "Rerunning '${panel.ref.name}' with SSH. Once it starts, use SSH into Job on its new job page.",
         ) {
             CircleCIApiService.getInstance().rerunWorkflow(
@@ -148,7 +149,12 @@ private class CancelJobAction(panel: JobPanel) :
     override fun actionPerformed(e: AnActionEvent) {
         val number = panel.ref.number ?: return
         val projectSlug = panel.ref.projectSlug ?: return
-        confirmAndRun(e, "Cancel job '${panel.ref.name}'?", "Canceling '${panel.ref.name}'") {
+        confirmAndRun(
+            e,
+            "Cancel job '${panel.ref.name}'?",
+            "Canceling '${panel.ref.name}'",
+            "Canceled '${panel.ref.name}'",
+        ) {
             CircleCIApiService.getInstance().cancelJob(projectSlug, number)
         }
     }
