@@ -7,6 +7,7 @@ import com.circleci.idea.api.models.ContextRestriction
 import com.circleci.idea.api.models.EnvVar
 import com.circleci.idea.api.models.NamedEntity
 import com.circleci.idea.api.models.RestrictionType
+import com.circleci.idea.api.withChangeProgress
 import com.circleci.idea.project.ProjectInfoService
 import com.circleci.idea.toolwindow.settings.Loadable
 import com.circleci.idea.toolwindow.settings.SettingsApi
@@ -41,7 +42,7 @@ data class ContextPageState(
  * changes; the API calls switch to IO.
  */
 class ContextPageModel(
-    project: Project,
+    private val project: Project,
     private val ref: ContextRef,
     private val scope: CoroutineScope,
 ) {
@@ -77,23 +78,35 @@ class ContextPageModel(
     suspend fun setEnvVar(
         name: String,
         value: String,
-    ): Result<Unit> = changeEnvVars { setContextEnvVar(ref.id, name, value) }
+    ): Result<Unit> = changeEnvVars("Saving environment variable $name") { setContextEnvVar(ref.id, name, value) }
 
-    suspend fun deleteEnvVar(name: String): Result<Unit> = changeEnvVars { deleteContextEnvVar(ref.id, name) }
+    suspend fun deleteEnvVar(name: String): Result<Unit> =
+        changeEnvVars("Deleting environment variable $name") { deleteContextEnvVar(ref.id, name) }
 
     /** Delete the context; its page closes once it's gone. */
     suspend fun deleteContext(): Result<Unit> =
-        requests.counted { api.call { deleteContext(ref.id) } }
+        withChangeProgress(project, "Deleting context ${ref.name}") { api.call { deleteContext(ref.id) } }
             .onSuccess { pages.contextDeleted(ContextDeleted(ref.id, this)) }
 
     /** Restrict the context, by a group's or project's ID or an expression; then list its restrictions again. */
     suspend fun addRestriction(
         type: RestrictionType,
         value: String,
-    ): Result<Unit> = requests.change(api, { createContextRestriction(ref.id, type, value) }, ::loadRestrictions)
+    ): Result<Unit> =
+        api.change(
+            project,
+            "Adding restriction",
+            { createContextRestriction(ref.id, type, value) },
+            ::loadRestrictions,
+        )
 
     suspend fun deleteRestriction(restriction: ContextRestriction): Result<Unit> =
-        requests.change(api, { deleteContextRestriction(ref.id, restriction.id) }, ::loadRestrictions)
+        api.change(
+            project,
+            "Removing restriction",
+            { deleteContextRestriction(ref.id, restriction.id) },
+            ::loadRestrictions,
+        )
 
     /** The ID of the context's organization, which is also the group of all its members. */
     suspend fun orgId(): Result<String> = requests.counted { projects.bySlug(ref.projectSlug) }.map { it.org.id }
@@ -113,8 +126,11 @@ class ContextPageModel(
         return api.call { searchProjects(orgId, name, cursor) }
     }
 
-    private suspend fun changeEnvVars(change: CircleCIApiService.() -> Result<Unit>): Result<Unit> =
-        requests.change(api, change) {
+    private suspend fun changeEnvVars(
+        title: String,
+        request: CircleCIApiService.() -> Result<Unit>,
+    ): Result<Unit> =
+        api.change(project, title, request) {
             loadEnvVars()
             pages.envVarsChanged(EnvVarsChanged(ref.id, this))
         }
@@ -168,14 +184,16 @@ private class Requests {
 }
 
 /**
- * [request], counted among the requests, then [reload] what it changed,
- * whether or not it worked: a failure may still have changed something.
+ * [request], under the IDE's progress indicator titled [title], then
+ * [reload] what it changed, whether or not it worked: a failure may still
+ * have changed something.
  */
-private suspend fun Requests.change(
-    api: SettingsApi,
+private suspend fun SettingsApi.change(
+    project: Project,
+    title: String,
     request: CircleCIApiService.() -> Result<Unit>,
     reload: () -> Unit,
-): Result<Unit> = counted { api.call(request) }.also { reload() }
+): Result<Unit> = withChangeProgress(project, title) { call(request) }.also { reload() }
 
 /** [next], except that while it's still loading, what's shown stays. */
 private fun <T> keep(

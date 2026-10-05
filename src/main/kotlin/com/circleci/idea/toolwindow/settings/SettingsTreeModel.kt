@@ -5,6 +5,7 @@ import androidx.compose.runtime.snapshotFlow
 import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.api.models.Context
 import com.circleci.idea.api.models.EnvVar
+import com.circleci.idea.api.withChangeProgress
 import com.circleci.idea.context.ContextDeleted
 import com.circleci.idea.context.ContextPages
 import com.circleci.idea.context.EnvVarsChanged
@@ -35,7 +36,7 @@ import org.jetbrains.jewel.foundation.lazy.tree.TreeState
  * switch to IO.
  */
 class SettingsTreeModel(
-    project: Project,
+    private val project: Project,
     private val scope: CoroutineScope,
 ) {
     private val projectService = project.getService(CircleCIProjectService::class.java)
@@ -134,14 +135,16 @@ class SettingsTreeModel(
     /** Create a context in the selected project's organization, then list the contexts again. */
     suspend fun createContext(name: String): Result<Context> {
         val slug = _state.value.projectSlug ?: return Result.failure(IllegalStateException("No project selected"))
-        val result = orgTree.loading { api.inOrg(slug) { createContext(it, name) } }
+        val result =
+            withChangeProgress(project, "Creating context $name") { api.inOrg(slug) { createContext(it, name) } }
         refreshContexts()
         return result
     }
 
     /** Delete one of the organization's contexts, closing its page; then list the contexts again. */
     suspend fun deleteContext(context: Context): Result<Unit> {
-        val result = orgTree.loading { api.call { deleteContext(context.id) } }
+        val result =
+            withChangeProgress(project, "Deleting context ${context.name}") { api.call { deleteContext(context.id) } }
         result.onSuccess { pages.contextDeleted(ContextDeleted(context.id, this)) }
         // Listed again whether or not it worked: a failure may still have changed something.
         refreshContexts()
@@ -154,7 +157,7 @@ class SettingsTreeModel(
         name: String,
         value: String,
     ): Result<Unit> =
-        changeEnvVars(owner) {
+        changeEnvVars(owner, "Saving environment variable $name") {
             when (owner) {
                 is EnvVarOwner.Project -> setProjectEnvVar(owner.slug, name, value)
                 is EnvVarOwner.OrgContext -> setContextEnvVar(owner.context.id, name, value)
@@ -166,7 +169,7 @@ class SettingsTreeModel(
         owner: EnvVarOwner,
         name: String,
     ): Result<Unit> =
-        changeEnvVars(owner) {
+        changeEnvVars(owner, "Deleting environment variable $name") {
             when (owner) {
                 is EnvVarOwner.Project -> deleteProjectEnvVar(owner.slug, name)
                 is EnvVarOwner.OrgContext -> deleteContextEnvVar(owner.context.id, name)
@@ -175,10 +178,10 @@ class SettingsTreeModel(
 
     private suspend fun changeEnvVars(
         owner: EnvVarOwner,
+        title: String,
         change: CircleCIApiService.() -> Result<Unit>,
     ): Result<Unit> {
-        val tree = if (owner is EnvVarOwner.Project) projectTree else orgTree
-        val result = tree.loading { api.call(change) }
+        val result = withChangeProgress(project, title) { api.call(change) }
         // Listed again whether or not it worked: a failure may still have changed something.
         refreshEnvVars(owner)
         if (owner is EnvVarOwner.OrgContext) pages.envVarsChanged(EnvVarsChanged(owner.context.id, this))
