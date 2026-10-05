@@ -3,6 +3,7 @@ package com.circleci.idea.run
 import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.api.clients.V3Page
 import com.circleci.idea.git.GitBranchService
+import com.circleci.idea.project.ProjectInfoService
 import com.circleci.idea.project.models.CircleCIProject
 import com.circleci.idea.state.CircleCIStateStore
 import com.circleci.idea.state.FiltersState
@@ -14,7 +15,6 @@ import com.intellij.openapi.project.Project
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Lists runs, workflows and jobs for the CircleCI tool window, applying the current
@@ -27,9 +27,7 @@ class RunListService(private val project: Project) {
     private val apiService = CircleCIApiService.getInstance()
     private val stateStore = CircleCIStateStore.getInstance(project)
     private val gitService = GitBranchService.getInstance(project)
-
-    private val projectIds = ConcurrentHashMap<String, String>()
-    private val projectSlugs = ConcurrentHashMap<String, String>()
+    private val projects = ProjectInfoService.getInstance(project)
 
     /** What a project's run list is scoped to, under the current filters. */
     sealed class BranchScope {
@@ -70,17 +68,17 @@ class RunListService(private val project: Project) {
         val filters = filters()
         val window = RunQueries.window(filters.created, Instant.now())
 
+        val projectId = projects.bySlug(circleCIProject.slug).getOrElse { return Result.failure(it) }.id
         return withContext(Dispatchers.IO) {
-            projectId(circleCIProject.slug).mapCatching { projectId ->
-                val page =
-                    apiService.searchRuns(
-                        projectId = projectId,
-                        from = window.from,
-                        to = window.to,
-                        filter = RunQueries.filterExpression(branch, filters.status),
-                        limit = RunQueries.MAX_PAGE_SIZE,
-                        cursor = cursor,
-                    ).getOrThrow()
+            apiService.searchRuns(
+                projectId = projectId,
+                from = window.from,
+                to = window.to,
+                filter = RunQueries.filterExpression(branch, filters.status),
+                limit = RunQueries.MAX_PAGE_SIZE,
+                cursor = cursor,
+            ).mapCatching {
+                    page ->
                 V3Page(page.items.mapNotNull { RunMapper.toRun(it, circleCIProject.slug) }, page.nextCursor)
             }
         }
@@ -112,13 +110,10 @@ class RunListService(private val project: Project) {
      * resolved if the listing couldn't tell it.
      */
     suspend fun fetchWorkflows(run: Run): Result<Pair<Run, List<Workflow>>> {
+        val resolvedRun = if (run.projectSlug == null) run.copy(projectSlug = projectSlug(run)) else run
         return withContext(Dispatchers.IO) {
-            runCatching {
-                val resolvedRun = if (run.projectSlug == null) run.copy(projectSlug = projectSlug(run)) else run
-                val workflows =
-                    apiService.getRunWorkflows(run.id).getOrThrow()
-                        .mapNotNull { RunMapper.toWorkflow(it, resolvedRun) }
-                resolvedRun to workflows
+            apiService.getRunWorkflows(run.id).mapCatching { workflows ->
+                resolvedRun to workflows.mapNotNull { RunMapper.toWorkflow(it, resolvedRun) }
             }
         }
     }
@@ -134,22 +129,8 @@ class RunListService(private val project: Project) {
 
     private fun filters(): FiltersState = stateStore.filters.value
 
-    private fun projectId(slug: String): Result<String> {
-        projectIds[slug]?.let { return Result.success(it) }
-        return apiService.getProjectId(slug).onSuccess { projectIds[slug] = it }
-    }
-
-    /**
-     * The slug of a project whose runs don't spell it out: those are keyed on
-     * the organization and project IDs, "circleci/<org-id>/<project-id>".
-     */
-    private fun projectSlug(run: Run): String? {
-        val projectId = run.projectId ?: return null
-        return projectSlugs[projectId]
-            ?: apiService.getProjectOrgId(projectId).getOrNull()
-                ?.let { orgId -> "circleci/$orgId/$projectId" }
-                ?.also { projectSlugs[projectId] = it }
-    }
+    /** The slug of a project whose runs don't spell it out, which can be told from its ID. */
+    private suspend fun projectSlug(run: Run): String? = run.projectId?.let { projects.byId(it).getOrNull()?.slug }
 
     companion object {
         fun getInstance(project: Project): RunListService {

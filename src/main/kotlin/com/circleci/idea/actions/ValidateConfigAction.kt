@@ -5,6 +5,7 @@ import com.circleci.idea.auth.CircleCIAuthService
 import com.circleci.idea.git.GitBranchService
 import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.project.CircleCIProjectService
+import com.circleci.idea.project.ProjectInfoService
 import com.circleci.idea.settings.CircleCISettings
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
@@ -17,6 +18,7 @@ import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
+import com.intellij.openapi.progress.runBlockingCancellable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 
@@ -86,12 +88,11 @@ class ValidateConfigAction : AnAction("Validate CircleCI Config") {
 
                     indicator.text = "Sending to CircleCI for validation..."
 
-                    val result =
-                        apiService.validateConfig(
-                            configYaml = configContent,
-                            projectSlug = validationData.circleCIProject.slug,
-                            branch = branch,
-                        )
+                    val slug = validationData.circleCIProject.slug
+                    val orgId =
+                        runBlockingCancellable { ProjectInfoService.getInstance(project).bySlug(slug) }
+                            .getOrNull()?.org?.id
+                    val result = apiService.validateConfig(configYaml = configContent, orgId = orgId, branch = branch)
 
                     ApplicationManager.getApplication().invokeLater {
                         result.fold(

@@ -1,6 +1,5 @@
 package com.circleci.idea.project
 
-import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.project.models.CircleCIProject
 import com.circleci.idea.state.CircleCIStateStore
@@ -154,8 +153,17 @@ class CircleCIProjectService(
                 val existing = runCatching { ProjectLinkFile.read(root) }.getOrNull()
                 if (existing?.effectiveSlug == slug && existing.projectId != null) return@runCatching null
 
-                val info = CircleCIApiService.getInstance().getProjectLink(slug).getOrThrow()
-                ProjectLinkFile.write(root, info)
+                val info = ProjectInfoService.getInstance(project).bySlug(slug).getOrThrow()
+                ProjectLinkFile.write(
+                    root,
+                    ProjectLinkFile.Info(
+                        slug = slug,
+                        projectId = info.id,
+                        projectName = info.name,
+                        orgId = info.org.id,
+                        orgName = info.org.name,
+                    ),
+                )
                 LocalFileSystem.getInstance().refreshAndFindFileByNioFile(ProjectLinkFile.path(root))
                 logger.info("Linked ${ProjectLinkFile.path(root)} to $slug")
                 detectProjects()

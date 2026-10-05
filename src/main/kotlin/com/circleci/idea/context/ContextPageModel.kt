@@ -7,6 +7,7 @@ import com.circleci.idea.api.models.ContextRestriction
 import com.circleci.idea.api.models.EnvVar
 import com.circleci.idea.api.models.NamedEntity
 import com.circleci.idea.api.models.RestrictionType
+import com.circleci.idea.project.ProjectInfoService
 import com.circleci.idea.toolwindow.settings.Loadable
 import com.circleci.idea.toolwindow.settings.SettingsApi
 import com.intellij.openapi.project.Project
@@ -46,6 +47,7 @@ class ContextPageModel(
 ) {
     private val api = SettingsApi(project)
     private val pages = ContextPages.getInstance(project)
+    private val projects = ProjectInfoService.getInstance(project)
 
     private val _state = MutableStateFlow(ContextPageState())
     val state: StateFlow<ContextPageState> = _state.asStateFlow()
@@ -94,11 +96,7 @@ class ContextPageModel(
         requests.change(api, { deleteContextRestriction(ref.id, restriction.id) }, ::loadRestrictions)
 
     /** The ID of the context's organization, which is also the group of all its members. */
-    suspend fun orgId(): Result<String> {
-        (_state.value.context as? Loadable.Loaded)?.value?.orgId?.let { return Result.success(it) }
-        return requests.counted { api.call { getContext(ref.id) } }
-            .mapCatching { it.orgId ?: error("The context ${ref.name} has no organization") }
-    }
+    suspend fun orgId(): Result<String> = requests.counted { projects.bySlug(ref.projectSlug) }.map { it.org.id }
 
     /** The organization's groups, to restrict the context to. */
     suspend fun groups(): Result<List<NamedEntity>> {
