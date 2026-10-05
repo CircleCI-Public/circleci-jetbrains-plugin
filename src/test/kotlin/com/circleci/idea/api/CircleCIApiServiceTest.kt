@@ -42,6 +42,7 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
 
     // Written on the server's thread, read on the test's.
     private val requests = CopyOnWriteArrayList<Recorded>()
+    private val tokens = CopyOnWriteArrayList<String>()
     private var responseBody = "{}"
     private var responseStatus = 200
 
@@ -56,6 +57,7 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
         server.createContext("/") { exchange ->
             val uri = URLDecoder.decode(exchange.requestURI.toString(), Charsets.UTF_8)
             requests += Recorded(exchange.requestMethod, uri, exchange.requestBody.readBytes().decodeToString())
+            tokens += exchange.requestHeaders.getFirst("Circle-Token").orEmpty()
             val bytes = (responseQueue.poll() ?: responseBody).toByteArray()
             exchange.responseHeaders.add("Content-Type", "application/json")
             exchange.sendResponseHeaders(responseStatus, bytes.size.toLong())
@@ -92,6 +94,21 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
         assertEquals("login", "ada", user.login)
         assertEquals("name", "Ada", user.name)
         assertEquals("avatar", "https://a/b.png", user.avatarUrl)
+    }
+
+    fun testInitializeWithANewTokenSendsIt() {
+        responseBody = """{"data": [{"id": "u-1", "attributes": {"name": "Ada", "login": "ada"}}]}"""
+        val url = "http://127.0.0.1:${server.address.port}"
+        val service = CircleCIApiService()
+
+        service.initialize("one", url)
+        service.getCurrentUser().getOrThrow()
+        service.initialize("one", url)
+        service.getCurrentUser().getOrThrow()
+        service.initialize("two", url)
+        service.getCurrentUser().getOrThrow()
+
+        assertEquals("tokens sent", listOf("one", "one", "two"), tokens.toList())
     }
 
     fun testCurrentUserFailsWhenNoneReturned() {
