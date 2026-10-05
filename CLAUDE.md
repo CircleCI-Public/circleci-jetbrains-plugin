@@ -52,18 +52,14 @@ docs/                 # Plugin repository
 
 ## UI
 
-Use Jewel (Compose for the IntelliJ Platform, bundled with the IDE) where
-possible: for new views, and for views you rework. Host it in Swing with
-`JewelComposePanel`, as the run tree (`RunTreeView`), the signed-out view
-(`SignedOutView`) and the job page's tabs do.
+Prefer Compose with Jewel, hosted in Swing with `JewelComposePanel`. Stay
+with Swing for actions, toolbars and menus, dialogs, consoles and editors.
+See `DEVELOPMENT.md` (UI Components).
 
-Stay with Swing where the platform's own component is the better fit:
+## Tests
 
-- Actions, toolbars and popup menus (`ActionManager`), so they behave like
-  the rest of the IDE
-- Dialogs (`DialogWrapper`, laid out with the Kotlin UI DSL)
-- Consoles and editors, such as a step's output
-- The run filters, which reuse the Pull Requests tool's drop-downs
+Prefer integration tests against a real local HTTP server to unit tests
+with mocks, and don't use Mockito. See `DEVELOPMENT.md` (Testing Strategy).
 
 ## State Management
 

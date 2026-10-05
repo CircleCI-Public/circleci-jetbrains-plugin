@@ -320,25 +320,29 @@ data class ArtifactWire(
 
 ### Adding a New UI Panel
 
-1. Create panel class extending `JBPanel`:
+Prefer Compose with Jewel; `DEVELOPMENT.md` (UI Components) says where Swing fits better.
+
+1. Write the view as a `@Composable`, from Jewel's components and
+   `JewelTheme`, collecting its state from `StateFlow`s, and host it with
+   `JewelComposePanel`:
 ```kotlin
-class MyPanel(private val project: Project) : JBPanel<MyPanel>(BorderLayout()), Disposable {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+class MyView(private val project: Project) {
+    private val state = MutableStateFlow(MyState())
 
-    init {
-        setupUI()
-    }
+    val component: JComponent = JewelComposePanel { View() }
 
-    override fun dispose() {
-        scope.cancel()
+    @Composable
+    private fun View() {
+        val current by state.collectAsState()
+        Text(current.title)
     }
 }
 ```
 
-2. Register as tool window content:
+2. Register its component as tool window content:
 ```kotlin
 val content = ContentFactory.getInstance().createContent(
-    MyPanel(project),
+    MyView(project).component,
     "Tab Name",
     false
 )
@@ -375,15 +379,15 @@ fun updateMyFeature(data: String) {
 
 ## Testing Considerations
 
-- Services are project-scoped, use mock projects for testing
+- Tests run the real code against a local HTTP server rather than mocks: see `DEVELOPMENT.md` (Testing Strategy)
+- Code needing the IDE (services, logging) runs in a platform test (`BasePlatformTestCase`)
 - State management uses StateFlow, easy to test reactively
-- API clients are tested against a local HTTP server (`CircleCIApiServiceTest`), not mocks
 - UI components implement Disposable for proper cleanup
 
 ## Performance Considerations
 
-- Use pagination for large data sets (`PaginationHelper`)
+- Load long lists a page at a time as they're scrolled (`PagedList`)
 - Cache responses with TTL (`ResponseCache`)
 - Rate limit API calls (token bucket in `CircleCIApiClient`)
 - Deduplicate in-flight requests
-- Lazy load tree nodes on expansion
+- Load a run's workflows, and a workflow's jobs, as it's opened
