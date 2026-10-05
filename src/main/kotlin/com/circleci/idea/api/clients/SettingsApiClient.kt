@@ -52,21 +52,36 @@ class SettingsApiClient : CircleCIApiClientBase() {
         return executeDeleteRequest(client, "/api/v2/project/$projectSlug/envvar/$name")
     }
 
-    /** All of an organization's contexts. */
+    /** A page of an organization's contexts, from [cursor] (the first page at null). */
     fun listContexts(
         client: CircleCIApiClient,
         orgId: String,
-    ): Result<List<Context>> {
-        return fetchAllPages { cursor ->
-            executeRequest(client, "/api/v3/contexts", pageParams("filter[org_id]" to orgId, cursor)) { data ->
-                val list: V3List<ContextWire> = gson.fromJson(data, object : TypeToken<V3List<ContextWire>>() {}.type)
-                val contexts =
-                    list.data.orEmpty().mapNotNull { c ->
-                        val id = c.id ?: return@mapNotNull null
-                        Context(id, c.attributes?.name ?: id)
-                    }
-                V3Page(contexts, list.page?.next?.takeIf { it.isNotEmpty() })
-            }
+        cursor: String?,
+    ): Result<V3Page<Context>> {
+        val params = pageParams("filter[org_id]" to orgId, cursor, CONTEXT_PAGE_LIMIT)
+        return executeRequest(client, "/api/v3/contexts", params) { data ->
+            val list: V3List<ContextWire> = gson.fromJson(data, object : TypeToken<V3List<ContextWire>>() {}.type)
+            V3Page(list.data.orEmpty().mapNotNull(::context), list.page?.next?.takeIf { it.isNotEmpty() })
+        }
+    }
+
+    /** Create a context in an organization. */
+    fun createContext(
+        client: CircleCIApiClient,
+        orgId: String,
+        name: String,
+    ): Result<Context> {
+        val body =
+            mapOf(
+                "data" to
+                    mapOf(
+                        "attributes" to mapOf("name" to name),
+                        "references" to mapOf("org" to mapOf("id" to orgId)),
+                    ),
+            )
+        return executeRequest(client, "/api/v3/contexts", body = body) { data ->
+            val created = gson.fromJson(data.getAsJsonObject("data"), ContextWire::class.java)
+            context(created) ?: error("The created context has no ID")
         }
     }
 
@@ -76,7 +91,11 @@ class SettingsApiClient : CircleCIApiClientBase() {
         contextId: String,
     ): Result<List<EnvVar>> {
         return fetchAllPages { cursor ->
-            executeRequest(client, "/api/v3/contexts/$contextId/env-vars", pageParams(null, cursor)) { data ->
+            executeRequest(
+                client,
+                "/api/v3/contexts/$contextId/env-vars",
+                pageParams(null, cursor, PAGE_LIMIT),
+            ) { data ->
                 val list: V3List<ContextEnvVarWire> =
                     gson.fromJson(data, object : TypeToken<V3List<ContextEnvVarWire>>() {}.type)
                 val vars =
@@ -107,13 +126,16 @@ class SettingsApiClient : CircleCIApiClientBase() {
         return executeDeleteRequest(client, "/api/v3/contexts/$contextId/env-vars", mapOf("filter[name]" to name))
     }
 
+    private fun context(wire: ContextWire): Context? = wire.id?.let { Context(it, wire.attributes?.name ?: it) }
+
     private fun pageParams(
         filter: Pair<String, String>?,
         cursor: String?,
+        limit: Int,
     ): Map<String, String> {
         return buildMap {
             filter?.let { put(it.first, it.second) }
-            put("page[limit]", PAGE_LIMIT.toString())
+            put("page[limit]", limit.toString())
             cursor?.let { put("page[cursor]", it) }
         }
     }
@@ -121,6 +143,8 @@ class SettingsApiClient : CircleCIApiClientBase() {
     private companion object {
         // The most a v3 page holds.
         const val PAGE_LIMIT = 100
+
+        const val CONTEXT_PAGE_LIMIT = 20
 
         // Before a context variable's last few characters, as the CLI shows them.
         const val MASK = "****"

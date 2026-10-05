@@ -292,9 +292,19 @@ class CircleCIApiService {
         return withClient { settingsClient.deleteProjectEnvVar(it, projectSlug, name) }
     }
 
-    /** An organization's contexts. */
-    fun listContexts(orgId: String): Result<List<Context>> {
-        return withClient { settingsClient.listContexts(it, orgId) }
+    /** A page of an organization's contexts, from [cursor] (the first page at null). */
+    fun listContexts(
+        orgId: String,
+        cursor: String?,
+    ): Result<V3Page<Context>> {
+        return withClient { settingsClient.listContexts(it, orgId, cursor) }
+    }
+
+    fun createContext(
+        orgId: String,
+        name: String,
+    ): Result<Context> {
+        return withClient { settingsClient.createContext(it, orgId, name) }
     }
 
     /** A context's environment variables, with their values masked. */
