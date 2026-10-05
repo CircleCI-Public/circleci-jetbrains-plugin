@@ -316,7 +316,7 @@ fun testRunParsing() {
 
 ## Debugging Tips
 
-1. **Plugin Logs**: Check `idea.log` in sandbox directory
+1. **Plugin Logs and the platform's sources**: see "Finding Things" in `CLAUDE.md`
 2. **Breakpoints**: Use IntelliJ debugger with runIde
 3. **Logging**: Add debug logging with proper log levels
 4. **Tool Window Inspector**: Use "Internal Actions" → "UI" → "UI Inspector"
