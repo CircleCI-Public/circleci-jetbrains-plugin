@@ -215,15 +215,27 @@ data class Run(
 
 ## UI Components
 
+Prefer Compose with [Jewel](https://github.com/JetBrains/intellij-community/tree/master/platform/jewel),
+the IntelliJ Platform's Compose UI, bundled with the IDE. Build new views,
+and views you rework, as `@Composable` functions using Jewel's components and
+`JewelTheme`, and host them in Swing with `JewelComposePanel`:
+
+```kotlin
+val component: JComponent = JewelComposePanel { View() }
+```
+
+Stay with Swing where the platform's own component fits better: actions,
+toolbars and popup menus (`ActionManager`), dialogs (`DialogWrapper` with the
+Kotlin UI DSL), consoles and editors, and the run filters (the Pull Requests
+tool's drop-downs).
+
 ### Tree View
 
-The main tree view displays:
-- Runs (at the top level) of the selected project, or "My runs" across all projects
-- Runs
+The run tree, Jewel's `LazyTree` in `RunTreeView`, displays:
+- Runs (at the top level) of the selected project, or "My runs" across all projects,
+  a page at a time, the next loading as the list scrolls near its end (`state/PagedList.kt`)
 - Workflows
 - Jobs
-
-Use `AsyncTreeModel` for efficient data loading.
 
 ### Icons
 
@@ -259,29 +271,31 @@ class CircleCIProjectService(private val project: Project) {
 
 ## Testing Strategy
 
-### Unit Tests
+Prefer integration tests that run the real code against a real local HTTP
+server to unit tests with mocks. Don't use Mockito or similar: the test JVM
+can't mock the plugin's final classes, and a mock only checks what you told
+it to expect.
 
-Test business logic and API client:
+### Against a local HTTP server
+
+Start the JDK's `HttpServer` on `127.0.0.1:0`, point the real
+`CircleCIApiClient(baseUrl = ...)` at it, and check both what it sent and
+what it made of the response. `CircleCIApiServiceTest` shows how.
+
+For a service with several endpoints, a fake of it on a local port (as
+`FakeCircleCI` is for OAuth) keeps the tests readable.
+
+### Logic without I/O
+
+Mappers, paging (`state/PagedList.kt`), tree building and the like can be tested
+directly, passing real functions for what they call:
 
 ```kotlin
 @Test
-fun `test run parsing`() {
+fun testRunParsing() {
     val json = """{"id": "123", "attributes": {"number": 1}}"""
     val run = RunMapper.toRun(gson.fromJson(json, RunWire::class.java))
-    assertEquals("123", run?.id)
-}
-```
-
-### Integration Tests
-
-Test IDE integration:
-
-```kotlin
-@Test
-fun `test tool window creation`() {
-    val toolWindow = ToolWindowManager.getInstance(project)
-        .getToolWindow("CircleCI")
-    assertNotNull(toolWindow)
+    assertEquals("the id", "123", run?.id)
 }
 ```
 
