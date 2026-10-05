@@ -17,7 +17,7 @@ class ProjectApiClient : CircleCIApiClientBase() {
      * @param client The initialized API client
      * @return User information
      */
-    fun getCurrentUser(client: CircleCIApiClient): Result<UserInfo> {
+    suspend fun getCurrentUser(client: CircleCIApiClient): Result<UserInfo> {
         return executeRequest(client, "/api/v3/users", mapOf("filter[user_id]" to "me")) { data ->
             val users: V3List<UserWire> = gson.fromJson(data, object : TypeToken<V3List<UserWire>>() {}.type)
             val user = users.data?.firstOrNull() ?: error("No user in the response")

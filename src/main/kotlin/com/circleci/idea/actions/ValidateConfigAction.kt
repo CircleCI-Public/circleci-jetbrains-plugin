@@ -92,7 +92,10 @@ class ValidateConfigAction : AnAction("Validate CircleCI Config") {
                     val orgId =
                         runBlockingCancellable { ProjectInfoService.getInstance(project).bySlug(slug) }
                             .getOrNull()?.org?.id
-                    val result = apiService.validateConfig(configYaml = configContent, orgId = orgId, branch = branch)
+                    val result =
+                        runBlockingCancellable {
+                            apiService.validateConfig(configYaml = configContent, orgId = orgId, branch = branch)
+                        }
 
                     ApplicationManager.getApplication().invokeLater {
                         result.fold(

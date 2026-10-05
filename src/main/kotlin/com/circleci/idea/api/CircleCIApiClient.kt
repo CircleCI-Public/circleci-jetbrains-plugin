@@ -3,6 +3,13 @@ package com.circleci.idea.api
 import com.circleci.idea.logging.CircleCILogger
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.Headers
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
@@ -14,9 +21,9 @@ import okhttp3.Response
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resumeWithException
 import kotlin.math.min
 import kotlin.math.pow
 
@@ -40,8 +47,8 @@ class CircleCIApiClient(
     private val mediaTypeJson = "application/json; charset=utf-8".toMediaType()
     private val logger = CircleCILogger.getInstance()
 
-    // In-flight request deduplication
-    private val inFlightRequests = ConcurrentHashMap<String, CompletableFuture<ApiResponse>>()
+    // In-flight GETs by URL, each to be shared with identical ones; null if it didn't complete.
+    private val inFlightRequests = ConcurrentHashMap<String, CompletableDeferred<ApiResponse?>>()
 
     // Rate limiter
     private val rateLimiter = RateLimiter(maxRequestsPerSecond = 50)
@@ -56,7 +63,7 @@ class CircleCIApiClient(
     /**
      * Execute a GET request.
      */
-    fun get(
+    suspend fun get(
         path: String,
         queryParams: Map<String, String> = emptyMap(),
     ): ApiResponse {
@@ -78,7 +85,7 @@ class CircleCIApiClient(
      * @param path An API path, or an absolute URL the API handed out (an artifact's, say)
      * @param maxBytes Read at most this much of the body, marking the response truncated if there was more
      */
-    fun getBytes(
+    suspend fun getBytes(
         path: String,
         queryParams: Map<String, String> = emptyMap(),
         headers: Map<String, String> = emptyMap(),
@@ -96,7 +103,7 @@ class CircleCIApiClient(
         rateLimiter.acquire()
 
         return try {
-            client.newCall(request).execute().use { response ->
+            client.newCall(request).await().use { response ->
                 if (response.code == 401) {
                     Result.failure(Exception("Unauthorized: Invalid or expired token"))
                 } else {
@@ -114,7 +121,7 @@ class CircleCIApiClient(
      * Download [url] (an absolute URL the API handed out) to [target],
      * streaming rather than holding it in memory. Returns the bytes written.
      */
-    fun download(
+    suspend fun download(
         url: String,
         target: Path,
     ): Result<Long> {
@@ -123,7 +130,7 @@ class CircleCIApiClient(
         rateLimiter.acquire()
 
         return try {
-            client.newCall(request).execute().use { response ->
+            client.newCall(request).await().use { response ->
                 if (!response.isSuccessful) {
                     return Result.failure(IOException("HTTP ${response.code} downloading $url"))
                 }
@@ -153,7 +160,7 @@ class CircleCIApiClient(
     /**
      * Execute a POST request.
      */
-    fun post(
+    suspend fun post(
         path: String,
         body: Any? = null,
     ): ApiResponse {
@@ -177,7 +184,7 @@ class CircleCIApiClient(
     /**
      * Execute a PUT request.
      */
-    fun put(
+    suspend fun put(
         path: String,
         body: Any,
     ): ApiResponse {
@@ -196,7 +203,7 @@ class CircleCIApiClient(
     /**
      * Execute a DELETE request.
      */
-    fun delete(
+    suspend fun delete(
         path: String,
         queryParams: Map<String, String> = emptyMap(),
     ): ApiResponse {
@@ -215,33 +222,31 @@ class CircleCIApiClient(
      *
      * Concurrent identical GETs share the first one's response: an OkHttp
      * call can only be executed once, so a duplicate waits on its result
-     * rather than executing the call again. Other methods aren't idempotent,
-     * so each one is sent.
+     * rather than executing the call again, and sends its own if the first
+     * was cancelled. Other methods aren't idempotent, so each one is sent.
      */
-    private fun executeRequest(request: Request): ApiResponse {
+    private suspend fun executeRequest(request: Request): ApiResponse {
         if (request.method != "GET") {
             return send(request)
         }
 
         val requestKey = request.url.toString()
-        val pending = CompletableFuture<ApiResponse>()
+        val pending = CompletableDeferred<ApiResponse?>()
         val inFlight = inFlightRequests.putIfAbsent(requestKey, pending)
         if (inFlight != null) {
             logger.debug("Deduplicating in-flight request: GET $requestKey")
-            return inFlight.join()
+            return inFlight.await() ?: send(request)
         }
 
         return try {
-            runCatching { send(request) }
-                .onSuccess { pending.complete(it) }
-                .onFailure { pending.completeExceptionally(it) }
-                .getOrThrow()
+            send(request).also { pending.complete(it) }
         } finally {
+            pending.complete(null)
             inFlightRequests.remove(requestKey, pending)
         }
     }
 
-    private fun send(request: Request): ApiResponse {
+    private suspend fun send(request: Request): ApiResponse {
         val startTime = System.currentTimeMillis()
 
         // Log API request
@@ -251,7 +256,7 @@ class CircleCIApiClient(
         rateLimiter.acquire()
 
         return try {
-            client.newCall(request).execute().use { response -> parseResponse(response, request, startTime) }
+            client.newCall(request).await().use { response -> parseResponse(response, request, startTime) }
         } catch (e: IOException) {
             logger.logApiError(request.method, request.url.toString(), 0, e.message ?: "Network error")
             ApiResponse.Error(e.message ?: "Network error", 0)
@@ -342,6 +347,29 @@ class CircleCIApiClient(
     }
 }
 
+/** Execute the call, cancelling it if the coroutine is cancelled. */
+private suspend fun Call.await(): Response =
+    suspendCancellableCoroutine { continuation ->
+        continuation.invokeOnCancellation { cancel() }
+        enqueue(
+            object : Callback {
+                override fun onResponse(
+                    call: Call,
+                    response: Response,
+                ) {
+                    continuation.resume(response) { _, value, _ -> value.close() }
+                }
+
+                override fun onFailure(
+                    call: Call,
+                    e: IOException,
+                ) {
+                    continuation.resumeWithException(e)
+                }
+            },
+        )
+    }
+
 /**
  * Authentication interceptor that adds Circle-Token header.
  */
@@ -392,14 +420,14 @@ private class RetryInterceptor(private val maxRetries: Int = 3) : Interceptor {
 private class RateLimiter(private val maxRequestsPerSecond: Int) {
     private var tokens = maxRequestsPerSecond
     private var lastRefill = System.currentTimeMillis()
-    private val lock = Any()
+    private val lock = Mutex()
 
-    fun acquire() {
-        synchronized(lock) {
+    suspend fun acquire() {
+        lock.withLock {
             refillTokens()
 
             while (tokens <= 0) {
-                Thread.sleep(10)
+                delay(10)
                 refillTokens()
             }
 

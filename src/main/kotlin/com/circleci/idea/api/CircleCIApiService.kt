@@ -79,7 +79,7 @@ class CircleCIApiService {
      * Search a project's runs, newest first.
      */
     @Suppress("LongParameterList")
-    fun searchRuns(
+    suspend fun searchRuns(
         projectId: String,
         from: Instant,
         to: Instant,
@@ -94,7 +94,7 @@ class CircleCIApiService {
      * List the authenticated user's runs across all projects, newest first.
      */
     @Suppress("LongParameterList")
-    fun listMyRuns(
+    suspend fun listMyRuns(
         phase: String?,
         currentOutcome: String?,
         from: Instant?,
@@ -108,28 +108,28 @@ class CircleCIApiService {
     /**
      * Get the workflows of a run.
      */
-    fun getRunWorkflows(runId: String): Result<List<WorkflowWire>> {
+    suspend fun getRunWorkflows(runId: String): Result<List<WorkflowWire>> {
         return withClient { runClient.getRunWorkflows(it, runId) }
     }
 
     /**
      * Get the jobs of a workflow.
      */
-    fun getWorkflowJobs(workflowId: String): Result<List<JobWire>> {
+    suspend fun getWorkflowJobs(workflowId: String): Result<List<JobWire>> {
         return withClient { runClient.getWorkflowJobs(it, workflowId) }
     }
 
     /**
      * Get a job with its steps.
      */
-    fun getJob(jobId: String): Result<JobDetailWire> {
+    suspend fun getJob(jobId: String): Result<JobDetailWire> {
         return withClient { jobClient.getJob(it, jobId) }
     }
 
     /**
      * Read a step's stdout from a byte offset.
      */
-    fun getStepStdout(
+    suspend fun getStepStdout(
         jobId: String,
         execution: Int,
         stepNum: Int,
@@ -141,7 +141,7 @@ class CircleCIApiService {
     /**
      * Read a step's whole stderr.
      */
-    fun getStepStderr(
+    suspend fun getStepStderr(
         jobId: String,
         execution: Int,
         stepNum: Int,
@@ -152,7 +152,7 @@ class CircleCIApiService {
     /**
      * Get a job's test results.
      */
-    fun getJobTests(jobId: String): Result<List<TestResultWire>> {
+    suspend fun getJobTests(jobId: String): Result<List<TestResultWire>> {
         return withClient { jobClient.getJobTests(it, jobId) }
     }
 
@@ -160,7 +160,7 @@ class CircleCIApiService {
      * Look up a project, with its organization, by slug. Prefer
      * [com.circleci.idea.project.ProjectInfoService].
      */
-    fun getProject(slug: String): Result<ProjectInfo> {
+    suspend fun getProject(slug: String): Result<ProjectInfo> {
         return withClient { runClient.getProjectBySlug(it, slug) }
     }
 
@@ -168,7 +168,7 @@ class CircleCIApiService {
      * Look up a project, with its organization, by ID; its slug is taken as a
      * standalone project's. Prefer [com.circleci.idea.project.ProjectInfoService].
      */
-    fun getProjectById(projectId: String): Result<ProjectInfo> {
+    suspend fun getProjectById(projectId: String): Result<ProjectInfo> {
         return withClient { runClient.getProjectById(it, projectId) }
     }
 
@@ -177,7 +177,7 @@ class CircleCIApiService {
     /**
      * Rerun a workflow.
      */
-    fun rerunWorkflow(
+    suspend fun rerunWorkflow(
         workflowId: String,
         fromFailed: Boolean = false,
         enableSsh: Boolean = false,
@@ -189,14 +189,14 @@ class CircleCIApiService {
     /**
      * Cancel a workflow.
      */
-    fun cancelWorkflow(workflowId: String): Result<Unit> {
+    suspend fun cancelWorkflow(workflowId: String): Result<Unit> {
         return withClient { workflowClient.cancelWorkflow(it, workflowId) }
     }
 
     /**
      * Approve a workflow.
      */
-    fun approveWorkflow(
+    suspend fun approveWorkflow(
         workflowId: String,
         approvalRequestId: String,
     ): Result<Unit> {
@@ -208,7 +208,7 @@ class CircleCIApiService {
     /**
      * Cancel a job.
      */
-    fun cancelJob(
+    suspend fun cancelJob(
         projectSlug: String,
         jobNumber: Long,
     ): Result<Unit> {
@@ -218,21 +218,21 @@ class CircleCIApiService {
     /**
      * Get a job's resource usage, or null if it recorded none.
      */
-    fun getJobResourceUsage(jobId: String): Result<ResourceUsageWire?> {
+    suspend fun getJobResourceUsage(jobId: String): Result<ResourceUsageWire?> {
         return withClient { jobClient.getJobResourceUsage(it, jobId) }
     }
 
     /**
      * Get a job's artifacts.
      */
-    fun getJobArtifacts(jobId: String): Result<List<ArtifactWire>> {
+    suspend fun getJobArtifacts(jobId: String): Result<List<ArtifactWire>> {
         return withClient { jobClient.getJobArtifacts(it, jobId) }
     }
 
     /**
      * Read up to [maxBytes] of an artifact.
      */
-    fun readArtifact(
+    suspend fun readArtifact(
         url: String,
         maxBytes: Long,
     ): Result<RawResponse> {
@@ -242,7 +242,7 @@ class CircleCIApiService {
     /**
      * Download an artifact to a file.
      */
-    fun downloadArtifact(
+    suspend fun downloadArtifact(
         url: String,
         target: Path,
     ): Result<Long> {
@@ -255,19 +255,19 @@ class CircleCIApiService {
      * Get current user information.
      * Used for token validation and getting user ID.
      */
-    fun getCurrentUser(): Result<UserInfo> {
+    suspend fun getCurrentUser(): Result<UserInfo> {
         return withClient { projectClient.getCurrentUser(it) }
     }
 
     // ========== Settings Operations ==========
 
     /** A project's environment variables, with their values masked. */
-    fun listProjectEnvVars(projectSlug: String): Result<List<EnvVar>> {
+    suspend fun listProjectEnvVars(projectSlug: String): Result<List<EnvVar>> {
         return withClient { settingsClient.listProjectEnvVars(it, projectSlug) }
     }
 
     /** Add a project environment variable, or replace its value. */
-    fun setProjectEnvVar(
+    suspend fun setProjectEnvVar(
         projectSlug: String,
         name: String,
         value: String,
@@ -275,7 +275,7 @@ class CircleCIApiService {
         return withClient { settingsClient.setProjectEnvVar(it, projectSlug, name, value) }
     }
 
-    fun deleteProjectEnvVar(
+    suspend fun deleteProjectEnvVar(
         projectSlug: String,
         name: String,
     ): Result<Unit> {
@@ -283,36 +283,36 @@ class CircleCIApiService {
     }
 
     /** A page of an organization's contexts, from [cursor] (the first page at null). */
-    fun listContexts(
+    suspend fun listContexts(
         orgId: String,
         cursor: String?,
     ): Result<V3Page<Context>> {
         return withClient { settingsClient.listContexts(it, orgId, cursor) }
     }
 
-    fun createContext(
+    suspend fun createContext(
         orgId: String,
         name: String,
     ): Result<Context> {
         return withClient { settingsClient.createContext(it, orgId, name) }
     }
 
-    fun deleteContext(contextId: String): Result<Unit> {
+    suspend fun deleteContext(contextId: String): Result<Unit> {
         return withClient { settingsClient.deleteContext(it, contextId) }
     }
 
     /** A context, with the organization it's in. */
-    fun getContext(contextId: String): Result<ContextDetail> {
+    suspend fun getContext(contextId: String): Result<ContextDetail> {
         return withClient { contextClient.getContext(it, contextId) }
     }
 
     /** A context's environment variables, with their values masked. */
-    fun listContextEnvVars(contextId: String): Result<List<EnvVar>> {
+    suspend fun listContextEnvVars(contextId: String): Result<List<EnvVar>> {
         return withClient { settingsClient.listContextEnvVars(it, contextId) }
     }
 
     /** Add a context environment variable, or replace its value. */
-    fun setContextEnvVar(
+    suspend fun setContextEnvVar(
         contextId: String,
         name: String,
         value: String,
@@ -320,18 +320,18 @@ class CircleCIApiService {
         return withClient { settingsClient.setContextEnvVar(it, contextId, name, value) }
     }
 
-    fun deleteContextEnvVar(
+    suspend fun deleteContextEnvVar(
         contextId: String,
         name: String,
     ): Result<Unit> {
         return withClient { settingsClient.deleteContextEnvVar(it, contextId, name) }
     }
 
-    fun listContextRestrictions(contextId: String): Result<List<ContextRestriction>> {
+    suspend fun listContextRestrictions(contextId: String): Result<List<ContextRestriction>> {
         return withClient { contextClient.listContextRestrictions(it, contextId) }
     }
 
-    fun createContextRestriction(
+    suspend fun createContextRestriction(
         contextId: String,
         type: RestrictionType,
         value: String,
@@ -339,7 +339,7 @@ class CircleCIApiService {
         return withClient { contextClient.createContextRestriction(it, contextId, type, value) }
     }
 
-    fun deleteContextRestriction(
+    suspend fun deleteContextRestriction(
         contextId: String,
         restrictionId: String,
     ): Result<Unit> {
@@ -347,12 +347,12 @@ class CircleCIApiService {
     }
 
     /** An organization's groups, to restrict a context to. */
-    fun listGroups(orgId: String): Result<List<NamedEntity>> {
+    suspend fun listGroups(orgId: String): Result<List<NamedEntity>> {
         return withClient { contextClient.listGroups(it, orgId) }
     }
 
     /** A page of an organization's projects whose names contain [name], to restrict a context to. */
-    fun searchProjects(
+    suspend fun searchProjects(
         orgId: String,
         name: String,
         cursor: String?,
@@ -366,7 +366,7 @@ class CircleCIApiService {
      * Validate configuration, resolving private orbs in the organization [orgId];
      * with none, only public orbs resolve.
      */
-    fun validateConfig(
+    suspend fun validateConfig(
         configYaml: String,
         orgId: String?,
         branch: String,
@@ -380,7 +380,7 @@ class CircleCIApiService {
      * Execute an operation with the initialized client.
      * Ensures client is available before delegating to specialized clients.
      */
-    private fun <T> withClient(operation: (CircleCIApiClient) -> Result<T>): Result<T> {
+    private suspend fun <T> withClient(operation: suspend (CircleCIApiClient) -> Result<T>): Result<T> {
         val apiClient = client
         return if (apiClient != null) {
             operation(apiClient)

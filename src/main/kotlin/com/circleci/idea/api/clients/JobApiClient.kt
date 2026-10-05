@@ -31,7 +31,7 @@ class JobApiClient : CircleCIApiClientBase() {
      * @param jobNumber Job number
      * @return Success or error
      */
-    fun cancelJob(
+    suspend fun cancelJob(
         client: CircleCIApiClient,
         projectSlug: String,
         jobNumber: Long,
@@ -40,7 +40,7 @@ class JobApiClient : CircleCIApiClientBase() {
     }
 
     /** A job's artifacts, via GET /api/v3/jobs/{id}/artifacts. */
-    fun getJobArtifacts(
+    suspend fun getJobArtifacts(
         client: CircleCIApiClient,
         jobId: String,
     ): Result<List<ArtifactWire>> {
@@ -53,7 +53,7 @@ class JobApiClient : CircleCIApiClientBase() {
      * Read up to [maxBytes] of an artifact, to view it. The response is
      * marked truncated when the artifact is bigger.
      */
-    fun readArtifact(
+    suspend fun readArtifact(
         client: CircleCIApiClient,
         url: String,
         maxBytes: Long,
@@ -67,7 +67,7 @@ class JobApiClient : CircleCIApiClientBase() {
      * A job's CPU and memory usage, via GET /api/v3/jobs/{id}/resource-usage;
      * null when it recorded none (an approval job, or one canceled before it ran).
      */
-    fun getJobResourceUsage(
+    suspend fun getJobResourceUsage(
         client: CircleCIApiClient,
         jobId: String,
     ): Result<ResourceUsageWire?> {
@@ -84,7 +84,7 @@ class JobApiClient : CircleCIApiClientBase() {
     }
 
     /** A job with its steps, via GET /api/v3/jobs/{id}. */
-    fun getJob(
+    suspend fun getJob(
         client: CircleCIApiClient,
         jobId: String,
     ): Result<JobDetailWire> {
@@ -99,7 +99,7 @@ class JobApiClient : CircleCIApiClientBase() {
      * and whether it has finished (the X-Terminal header). A step with no
      * output yet reads as empty.
      */
-    fun getStepStdout(
+    suspend fun getStepStdout(
         client: CircleCIApiClient,
         jobId: String,
         execution: Int,
@@ -123,7 +123,7 @@ class JobApiClient : CircleCIApiClientBase() {
     }
 
     /** A step's whole stderr; a step without any reads as empty. */
-    fun getStepStderr(
+    suspend fun getStepStderr(
         client: CircleCIApiClient,
         jobId: String,
         execution: Int,
@@ -142,7 +142,7 @@ class JobApiClient : CircleCIApiClientBase() {
      * A job's test results, via GET /api/v3/jobs/{id}/tests. The endpoint
      * streams JSON Lines and takes no filters, so this reads them all.
      */
-    fun getJobTests(
+    suspend fun getJobTests(
         client: CircleCIApiClient,
         jobId: String,
     ): Result<List<TestResultWire>> {

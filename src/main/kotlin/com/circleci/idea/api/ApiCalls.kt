@@ -13,7 +13,7 @@ import kotlinx.coroutines.withContext
  */
 suspend fun <T> callApi(
     project: Project,
-    request: CircleCIApiService.() -> Result<T>,
+    request: suspend CircleCIApiService.() -> Result<T>,
 ): Result<T> =
     withContext(Dispatchers.IO) {
         val authService = CircleCIAuthService.getInstance(project)

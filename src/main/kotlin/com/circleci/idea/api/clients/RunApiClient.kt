@@ -34,7 +34,7 @@ class RunApiClient : CircleCIApiClientBase() {
      * @param limit Page size, at most 20
      */
     @Suppress("LongParameterList")
-    fun searchRuns(
+    suspend fun searchRuns(
         client: CircleCIApiClient,
         projectId: String,
         from: Instant,
@@ -57,7 +57,7 @@ class RunApiClient : CircleCIApiClientBase() {
      * via GET /api/v3/runs?filter[user_id]=me. Null filters are omitted.
      */
     @Suppress("LongParameterList")
-    fun listMyRuns(
+    suspend fun listMyRuns(
         client: CircleCIApiClient,
         phase: String?,
         currentOutcome: String?,
@@ -80,7 +80,7 @@ class RunApiClient : CircleCIApiClientBase() {
     }
 
     /** All workflows of a run. */
-    fun getRunWorkflows(
+    suspend fun getRunWorkflows(
         client: CircleCIApiClient,
         runId: String,
     ): Result<List<WorkflowWire>> {
@@ -92,7 +92,7 @@ class RunApiClient : CircleCIApiClientBase() {
     }
 
     /** All jobs of a workflow. */
-    fun getWorkflowJobs(
+    suspend fun getWorkflowJobs(
         client: CircleCIApiClient,
         workflowId: String,
     ): Result<List<JobWire>> {
@@ -104,7 +104,7 @@ class RunApiClient : CircleCIApiClientBase() {
     }
 
     /** Look up a project by slug (e.g. "gh/org/repo"); fails if there's no such project. */
-    fun getProjectBySlug(
+    suspend fun getProjectBySlug(
         client: CircleCIApiClient,
         slug: String,
     ): Result<ProjectInfo> {
@@ -118,7 +118,7 @@ class RunApiClient : CircleCIApiClientBase() {
      * Look up a project by ID. The API doesn't give its slug, so it's taken as a
      * standalone project's, circleci/<org-id>/<project-id>.
      */
-    fun getProjectById(
+    suspend fun getProjectById(
         client: CircleCIApiClient,
         projectId: String,
     ): Result<ProjectInfo> {

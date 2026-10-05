@@ -33,8 +33,8 @@ sealed class StepOutputEvent {
  * UTF-8 character or an ANSI escape sequence.
  */
 class StepOutputStream(
-    private val fetchStdout: (offset: Long) -> Result<StepOutputChunk>,
-    private val fetchStderr: () -> Result<ByteArray>,
+    private val fetchStdout: suspend (offset: Long) -> Result<StepOutputChunk>,
+    private val fetchStderr: suspend () -> Result<ByteArray>,
     private val isStepActive: () -> Boolean,
     private val pollIntervalMs: Long = POLL_INTERVAL_MS,
 ) {

@@ -22,7 +22,7 @@ class WorkflowApiClient : CircleCIApiClientBase() {
      * @param jobs Optional IDs of specific jobs to rerun
      * @return Success or error
      */
-    fun rerunWorkflow(
+    suspend fun rerunWorkflow(
         client: CircleCIApiClient,
         workflowId: String,
         fromFailed: Boolean = false,
@@ -49,7 +49,7 @@ class WorkflowApiClient : CircleCIApiClientBase() {
      * @param workflowId Workflow ID
      * @return Success or error
      */
-    fun cancelWorkflow(
+    suspend fun cancelWorkflow(
         client: CircleCIApiClient,
         workflowId: String,
     ): Result<Unit> {
@@ -64,7 +64,7 @@ class WorkflowApiClient : CircleCIApiClientBase() {
      * @param approvalRequestId Approval request ID
      * @return Success or error
      */
-    fun approveWorkflow(
+    suspend fun approveWorkflow(
         client: CircleCIApiClient,
         workflowId: String,
         approvalRequestId: String,
