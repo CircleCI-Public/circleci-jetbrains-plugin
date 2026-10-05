@@ -36,9 +36,11 @@ import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import org.jetbrains.jewel.foundation.lazy.SingleSelectionLazyColumn
 import org.jetbrains.jewel.foundation.lazy.items
 import org.jetbrains.jewel.foundation.lazy.rememberSingleSelectionLazyListState
@@ -160,7 +162,13 @@ class TestsTab(
         filter: TestFilter,
         tests: List<TestResult>,
     ) {
-        LaunchedEffect(query) { snapshotFlow { query.text.toString() }.collect { setQuery(it) } }
+        // Filtered once typing pauses, rather than on every keystroke.
+        LaunchedEffect(query) {
+            snapshotFlow { query.text.toString() }.collectLatest {
+                if (it.isNotEmpty()) delay(QUERY_DELAY_MS)
+                setQuery(it)
+            }
+        }
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -193,11 +201,7 @@ class TestsTab(
         val selected by selected.collectAsState()
         val rows =
             remember(tests, filter, sort) {
-                val indexed = tests.withIndex().filter { filter.matches(it.value) }
-                val order = sort.apply(indexed.map { it.value })
-                // Sorting is stable, so equal tests keep their positions' order.
-                val byTest = indexed.groupBy({ it.value }, { it.index }).mapValues { it.value.toMutableList() }
-                order.map { IndexedValue(byTest.getValue(it).removeAt(0), it) }
+                sort.apply(tests.withIndex().filter { filter.matches(it.value) }) { it.value }
             }
         Column(Modifier.fillMaxSize()) {
             HeaderRow(sort)
@@ -270,6 +274,7 @@ class TestsTab(
         const val MIN_PANE = 60
         const val OUTCOME_CHOICE_WIDTH = 110
         const val SEARCH_WIDTH = 240
+        const val QUERY_DELAY_MS = 150L
 
         val OUTCOMES = listOf(null, TestOutcome.FAILURE, TestOutcome.SKIPPED, TestOutcome.SUCCESS)
     }

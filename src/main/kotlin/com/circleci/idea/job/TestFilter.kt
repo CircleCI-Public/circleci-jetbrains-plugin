@@ -15,9 +15,10 @@ data class TestFilter(
     val outcome: TestOutcome? = null,
     val query: String = "",
 ) {
+    private val text = query.trim()
+
     fun matches(test: TestResult): Boolean {
         if (outcome != null && test.outcome != outcome) return false
-        val text = query.trim()
         return text.isEmpty() ||
             test.name.contains(
                 text,
@@ -48,16 +49,22 @@ data class TestSort(
     val column: TestColumn? = null,
     val ascending: Boolean = true,
 ) {
-    fun apply(tests: List<TestResult>): List<TestResult> {
+    fun apply(tests: List<TestResult>): List<TestResult> = apply(tests) { it }
+
+    /** [items] in the order of their [test]s. */
+    fun <T> apply(
+        items: List<T>,
+        test: (T) -> TestResult,
+    ): List<T> {
         val comparator: Comparator<TestResult> =
             when (column) {
-                null -> return tests
+                null -> return items
                 TestColumn.OUTCOME -> compareBy { it.outcome.ordinal }
                 TestColumn.NAME -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }
                 TestColumn.CLASSNAME -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.classname }
                 TestColumn.TIME -> compareBy(nullsFirst()) { it.runTime }
             }
-        return tests.sortedWith(if (ascending) comparator else comparator.reversed())
+        return items.sortedWith(compareBy(if (ascending) comparator else comparator.reversed(), test))
     }
 
     /** The sort after clicking [clicked]'s heading: ascending, then descending, then unsorted. */

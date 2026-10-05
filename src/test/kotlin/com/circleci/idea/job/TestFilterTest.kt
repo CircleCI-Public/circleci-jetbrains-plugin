@@ -81,6 +81,16 @@ class TestFilterTest {
     }
 
     @Test
+    fun testSortKeepsEachRepeatedTestsPosition() {
+        // A test run twice reports twice, the same both times.
+        val b = test("b")
+        val a = test("a")
+        val sorted = TestSort(TestColumn.NAME).apply(listOf(b, a, b).withIndex().toList()) { it.value }
+
+        assertEquals("by name, ties in the job's order", listOf(1, 0, 2), sorted.map { it.index })
+    }
+
+    @Test
     fun testSortToggles() {
         val byName = TestSort().toggle(TestColumn.NAME)
         assertEquals("first click ascends", TestSort(TestColumn.NAME, ascending = true), byName)
