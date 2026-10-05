@@ -507,33 +507,18 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
             responseStatus = 400
             responseBody = """{"error": {"title": "Invalid restriction.", "detail": "Unexpected character '&'"}}"""
 
-            // The client logs the failure as errors, which fail a platform test unless they're let through.
-            var result: Result<*>? = null
-            val ignoreErrors =
-                object : LoggedErrorProcessor() {
-                    override fun processError(
-                        category: String,
-                        message: String,
-                        details: Array<String>,
-                        t: Throwable?,
-                    ): Set<Action> = Action.NONE
-                }
-            LoggedErrorProcessor.executeWith<RuntimeException>(ignoreErrors) {
-                result =
-                    runBlocking {
-                        ContextApiClient().createContextRestriction(
-                            client,
-                            "c-1",
-                            RestrictionType.EXPRESSION,
-                            "a && b",
-                        )
-                    }
-            }
+            val result =
+                ContextApiClient().createContextRestriction(
+                    client,
+                    "c-1",
+                    RestrictionType.EXPRESSION,
+                    "a && b",
+                )
 
             assertEquals(
                 "message",
                 "Invalid restriction: Unexpected character '&'",
-                result!!.exceptionOrNull()?.message,
+                result.exceptionOrNull()?.message,
             )
         }
 
