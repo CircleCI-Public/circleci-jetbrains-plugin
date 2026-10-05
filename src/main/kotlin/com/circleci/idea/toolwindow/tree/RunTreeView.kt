@@ -132,8 +132,12 @@ class RunTreeView(
         val measurer = rememberTextMeasurer()
         val style = JewelTheme.typography.small
         val density = LocalDensity.current
-        return remember(structure, style, density) {
-            val refs = children(model.root).filterIsInstance<RunNode>().mapNotNull { it.getRefText() }
+        // Measured again only when the refs listed change, not on every change to the tree.
+        val refs =
+            remember(structure) {
+                children(model.root).filterIsInstance<RunNode>().mapNotNullTo(mutableSetOf()) { it.getRefText() }
+            }
+        return remember(refs, style, density) {
             val widest = refs.maxOfOrNull { measurer.measure(it, style).size.width } ?: return@remember 0.dp
             // A pixel's slack, so the widest doesn't round down into an ellipsis.
             with(density) { widest.toDp() } + 1.dp
