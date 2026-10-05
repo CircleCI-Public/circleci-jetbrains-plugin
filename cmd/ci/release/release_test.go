@@ -75,7 +75,7 @@ func testConfig(api string) config {
 func TestPublish(t *testing.T) {
 	gh, srv := newFakeGitHub(t, map[string]string{
 		"POST /releases": `{"id": 7, "upload_url": "UPLOAD/repos/o/r/releases/7/assets{?name,label}"}`,
-		"POST /releases/7/assets?name=circleci-idea-plugin-1.3.1-signed.zip": `{}`,
+		"POST /releases/7/assets?name=circleci-jetbrains-plugin-1.3.1-signed.zip": `{}`,
 		"PATCH /releases/7": `{}`,
 	})
 	gh.responses["POST /releases"] = strings.Replace(gh.responses["POST /releases"], "UPLOAD", srv.URL, 1)
@@ -103,7 +103,7 @@ func TestPublish(t *testing.T) {
 	t.Chdir(t.TempDir())
 	err := os.MkdirAll(filepath.Join("build", "distributions"), 0o755)
 	assert.NilError(t, err)
-	zip := filepath.Join("build", "distributions", "circleci-idea-plugin-1.3.1-signed.zip")
+	zip := filepath.Join("build", "distributions", "circleci-jetbrains-plugin-1.3.1-signed.zip")
 	err = os.WriteFile(zip, []byte("plugin"), 0o644)
 	assert.NilError(t, err)
 
@@ -119,7 +119,7 @@ func TestPublish(t *testing.T) {
 	assert.Check(t, cmp.DeepEqual(rel, map[string]any{
 		"tag_name": "v1.3.1", "target_commitish": "head", "name": "v1.3.1", "body": "### Fixed\n- A fix", "draft": true,
 	}))
-	asset := gh.sent["POST /releases/7/assets?name=circleci-idea-plugin-1.3.1-signed.zip"]
+	asset := gh.sent["POST /releases/7/assets?name=circleci-jetbrains-plugin-1.3.1-signed.zip"]
 	assert.Check(t, cmp.Equal(asset, "plugin"))
 	undraft := gh.body("PATCH /releases/7")
 	assert.Check(t, cmp.DeepEqual(undraft, map[string]any{"draft": false}))

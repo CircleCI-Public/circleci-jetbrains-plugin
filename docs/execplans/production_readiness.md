@@ -123,7 +123,7 @@ Verify signing locally:
     PRIVATE_KEY_PASSWORD=yourpassphrase \
     ./gradlew signPlugin
 
-The signed artifact appears at `build/distributions/circleci-idea-plugin-<version>-signed.zip`. Confirm it is larger than the unsigned ZIP (signing wraps the original ZIP in a new outer ZIP containing a signature file).
+The signed artifact appears at `build/distributions/circleci-jetbrains-plugin-<version>-signed.zip`. Confirm it is larger than the unsigned ZIP (signing wraps the original ZIP in a new outer ZIP containing a signature file).
 
 Add a `sign` task to `Taskfile.yml` under the `# Release Tasks` section:
 
@@ -403,8 +403,8 @@ All Gradle tasks are idempotent by design; re-running `./gradlew buildPlugin sig
 
 After `./gradlew signPlugin` completes, `ls -lh build/distributions/` shows two files:
 
-    circleci-idea-plugin-1.3.1.zip           ~2.5 MB  (unsigned, built by buildPlugin)
-    circleci-idea-plugin-1.3.1-signed.zip    ~2.7 MB  (signed, larger due to signature wrapper)
+    circleci-jetbrains-plugin-1.3.1.zip           ~2.5 MB  (unsigned, built by buildPlugin)
+    circleci-jetbrains-plugin-1.3.1-signed.zip    ~2.7 MB  (signed, larger due to signature wrapper)
 
 The signed ZIP is what `./gradlew publishPlugin` uploads and what should be attached to the GitHub Release. The unsigned ZIP should not be distributed.
 

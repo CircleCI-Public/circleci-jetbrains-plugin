@@ -102,7 +102,7 @@ func publish(ctx context.Context, cfg config, gh *gitHub, v version, changelog s
 	if err != nil {
 		return err
 	}
-	zip := filepath.Join("build", "distributions", fmt.Sprintf("circleci-idea-plugin-%s-signed.zip", v))
+	zip := filepath.Join("build", "distributions", fmt.Sprintf("circleci-jetbrains-plugin-%s-signed.zip", v))
 	plugin, err := os.ReadFile(zip)
 	if err != nil {
 		return err

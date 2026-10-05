@@ -4,8 +4,8 @@ vars:
   VERSION:
     sh: sed -n 's/^version = "\(.*\)"$/\1/p' build.gradle.kts
   BUILD_DIR: build/distributions
-  PLUGIN_ZIP: "{{.BUILD_DIR}}/circleci-idea-plugin-{{.VERSION}}.zip"
-  SIGNED_PLUGIN_ZIP: "{{.BUILD_DIR}}/circleci-idea-plugin-{{.VERSION}}-signed.zip"
+  PLUGIN_ZIP: "{{.BUILD_DIR}}/circleci-jetbrains-plugin-{{.VERSION}}.zip"
+  SIGNED_PLUGIN_ZIP: "{{.BUILD_DIR}}/circleci-jetbrains-plugin-{{.VERSION}}-signed.zip"
 
 tasks:
   default:
