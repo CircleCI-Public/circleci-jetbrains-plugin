@@ -133,10 +133,15 @@ class JobNode(val job: Job) : CircleCITreeNode(job) {
 }
 
 /**
- * Node representing a "Load More" action for pagination.
+ * The last row of a run list with more pages: the next page loads as the
+ * tree scrolls near it.
  */
-class LoadMoreNode(val nextCursor: String) : CircleCITreeNode(null) {
-    override fun getDisplayText(): String = "Load More..."
+class LoadMoreNode : CircleCITreeNode(null) {
+    /** Why its page last failed to load, if it did; clicking the row tries again. */
+    var error: String? = null
+
+    override fun getDisplayText(): String =
+        error?.let { "Couldn't load more runs: $it. Click to retry" } ?: "Loading more runs..."
 
     override fun canLoadChildren(): Boolean = false
 }

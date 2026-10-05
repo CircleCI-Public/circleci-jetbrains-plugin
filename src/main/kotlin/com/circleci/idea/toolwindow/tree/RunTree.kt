@@ -13,7 +13,7 @@ import org.jetbrains.jewel.foundation.lazy.tree.buildTree
 
 /**
  * A node's key in the tree: its run, workflow or job, or for a message
- * (loading, empty, error, load more) its place under its parent.
+ * (loading, empty, error, more to load) its place under its parent.
  */
 internal fun keyOf(node: CircleCITreeNode): String =
     when (node) {

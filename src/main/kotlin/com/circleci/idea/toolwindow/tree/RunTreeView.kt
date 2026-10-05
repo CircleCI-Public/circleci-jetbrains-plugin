@@ -68,7 +68,6 @@ import org.jetbrains.jewel.ui.component.LazyTree
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.component.VerticallyScrollableContainer
-import org.jetbrains.jewel.ui.theme.linkStyle
 import org.jetbrains.jewel.ui.typography
 import java.time.Duration
 import java.time.Instant
@@ -290,10 +289,11 @@ private fun LineRow(
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(ICON_GAP.dp)) {
         when (node) {
             is ErrorNode -> StatusDot(RunStatus.FAILED)
+            is LoadMoreNode -> if (node.error != null) StatusDot(RunStatus.FAILED)
             else -> node.getStatus()?.let { StatusDot(it) }
         }
         // Loading and empty rows are in italics, as the tree's other messages are.
-        val muted = node is LoadingNode || node is EmptyNode
+        val muted = node is LoadingNode || node is EmptyNode || (node is LoadMoreNode && node.error == null)
         val style = JewelTheme.defaultTextStyle.let { if (muted) it.copy(fontStyle = FontStyle.Italic) else it }
         Text(
             node.getDisplayText(),
@@ -321,7 +321,7 @@ private fun lineColor(
 ): Color =
     when (node) {
         is ErrorNode -> JewelTheme.globalColors.text.error
-        is LoadMoreNode -> JewelTheme.linkStyle.colors.content
+        is LoadMoreNode -> if (node.error != null) JewelTheme.globalColors.text.error else detailColor(onSelection)
         is LoadingNode, is EmptyNode -> detailColor(onSelection)
         else -> Color.Unspecified
     }

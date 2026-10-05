@@ -49,7 +49,7 @@ class RunTreeTest {
             },
         )
         root.add(RunNode(run("b")))
-        root.add(LoadMoreNode("next"))
+        root.add(LoadMoreNode())
         return root
     }
 
