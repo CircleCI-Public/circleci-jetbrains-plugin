@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- A page for each context, in an editor tab, modelled on the web app's: its environment variables, and its group, project and expression restrictions. Open it with Open Context in the tool window's Org Secrets
+- Expression restrictions are completed and checked as they're typed, with CircleCI's own expression library
 - "Log In via CircleCI..." logs in with your CircleCI account in the browser, as the IDE's GitHub plugin does: a dialog waits while you approve the plugin on CircleCI (Cancel to give up; it stops waiting after 5 minutes), then the browser returns to the IDE and shows the same page as the CircleCI CLI's login. It's offered in the CircleCI tool window, Tools | CircleCI | Login to CircleCI (beside "Log In with Token..."), and Settings. The token it gets lasts 90 days, after which you log in again; logging in again from the same IDE replaces it, rather than adding another to your account
 - "CircleCI Settings..." in the CircleCI tool window's options (gear) menu
 - A "Log Out" button on the CircleCI settings page, beside the authentication status
@@ -29,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "SSH into Job" on a running job's page opens an SSH session into it in a Terminal tab, one per session, using the IDE's SSH client: your ~/.ssh/config, SSH agent and keys, with the IDE asking for a passphrase or to trust the host when needed. It connects where the job's "Enable SSH" step says to, in either format it prints: the ssh.circleci.com proxy (`ssh <job-id>-<execution>@ssh.circleci.com`), or a direct address and port (as runner and server print). "Copy SSH Command" copies the same. Needs the bundled SSH and Terminal plugins
 
 ### Fixed
+- A request the V3 API rejects says why (its error's title and detail), rather than "Request failed"
 - Logging in from the settings page now reaches the projects you have open, whose tool windows only noticed after a restart; changing the auto-refresh settings restarts polling in every open project rather than none
 - Refreshing the runs (the Refresh button, or after rerunning or canceling from the tree) no longer collapses the tree or loses the selection: it updates the tree in place. Rebuilding it for a filter or branch change keeps what was open, selected and focused, and restoring the tree doesn't scroll it
 - Workflows' jobs failed to load ("Workflow not found") because the V2 jobs endpoint doesn't serve them

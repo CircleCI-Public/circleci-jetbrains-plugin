@@ -5,6 +5,8 @@ import com.circleci.idea.api.CircleCIApiClient
 import com.circleci.idea.logging.CircleCILogger
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import java.time.Instant
+import java.time.format.DateTimeParseException
 
 /**
  * Base class for specialized CircleCI API clients.
@@ -113,6 +115,16 @@ abstract class CircleCIApiClientBase {
         logger.warn("Stopped after $MAX_PAGES pages")
         return Result.success(items)
     }
+
+    /** A timestamp the API sent, or null if it sent none, or one that isn't one. */
+    protected fun instant(value: String?): Instant? =
+        value?.takeIf { it.isNotEmpty() }?.let {
+            try {
+                Instant.parse(it)
+            } catch (_: DateTimeParseException) {
+                null
+            }
+        }
 
     /**
      * Ensure client is initialized before making API calls.

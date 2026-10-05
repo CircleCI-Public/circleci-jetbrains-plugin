@@ -101,6 +101,10 @@
         <fileEditorProvider implementation="com.circleci.idea.job.JobEditorProvider"/>
         <fileIconProvider implementation="com.circleci.idea.job.JobFileIconProvider"/>
 
+        <!-- Context pages, one editor tab per context -->
+        <fileEditorProvider implementation="com.circleci.idea.context.ContextEditorProvider"/>
+        <fileIconProvider implementation="com.circleci.idea.context.ContextFileIconProvider"/>
+
         <!-- Startup Activity -->
         <postStartupActivity implementation="com.circleci.idea.CircleCIStartupActivity"/>
 

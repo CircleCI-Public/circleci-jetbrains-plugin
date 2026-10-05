@@ -34,6 +34,13 @@ class SettingsWebUrlsTest {
     }
 
     @Test
+    fun testContextUnderItsOrganization() {
+        val context = SettingsWebUrls.context("gh/acme/app", "c-1")
+
+        assertEquals("context", "https://app.circleci.com/settings/organization/github/acme/contexts/c-1", context)
+    }
+
+    @Test
     fun testNotAProjectSlug() {
         val unknownVcs = SettingsWebUrls.project("gl/org/repo")
         val tooShort = SettingsWebUrls.organization("gh/org")

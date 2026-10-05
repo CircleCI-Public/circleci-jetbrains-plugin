@@ -5,6 +5,8 @@ import androidx.compose.runtime.snapshotFlow
 import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.api.models.Context
 import com.circleci.idea.api.models.EnvVar
+import com.circleci.idea.context.ContextPages
+import com.circleci.idea.context.EnvVarsChanged
 import com.circleci.idea.project.CircleCIProjectService
 import com.circleci.idea.state.PagedList
 import com.circleci.idea.toolwindow.isNearEnd
@@ -26,7 +28,8 @@ import org.jetbrains.jewel.foundation.lazy.tree.TreeState
  * The project's variables and the contexts load as the project is
  * selected, the contexts a page at a time as their list scrolls near its
  * end. A context's variables load as it's first opened. Each list loads
- * again after a change to it, and selecting another project starts over.
+ * again after a change to it, here or on a context's page, and selecting
+ * another project starts over.
  * [scope] must run on the EDT, where the state changes; the API calls
  * switch to IO.
  */
@@ -35,6 +38,7 @@ class SettingsTreeModel(
     private val scope: CoroutineScope,
 ) {
     private val projectService = project.getService(CircleCIProjectService::class.java)
+    private val pages = ContextPages.getInstance(project)
     private val api = SettingsApi(project)
 
     private val _state = MutableStateFlow(SettingsState())
@@ -71,6 +75,15 @@ class SettingsTreeModel(
         }
 
         scope.launch { orgTree.scroll.scrolledOrResized().collect { loadMoreContextsIfNearEnd() } }
+
+        scope.launch {
+            pages.envVarChanges.collect { change ->
+                val listed = change.contextId in _state.value.contextEnvVars
+                if (change.source === this@SettingsTreeModel || !listed) return@collect
+                val contexts = (_state.value.contexts as? Loadable.Loaded)?.value.orEmpty()
+                contexts.firstOrNull { it.id == change.contextId }?.let { loadEnvVars(EnvVarOwner.OrgContext(it)) }
+            }
+        }
     }
 
     /** Load every list again. */
@@ -151,6 +164,7 @@ class SettingsTreeModel(
         val result = tree.loading { api.call(change) }
         // Listed again whether or not it worked: a failure may still have changed something.
         refreshEnvVars(owner)
+        if (owner is EnvVarOwner.OrgContext) pages.envVarsChanged(EnvVarsChanged(owner.context.id, this))
         return result
     }
 

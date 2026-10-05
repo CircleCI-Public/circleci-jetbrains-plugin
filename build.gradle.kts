@@ -29,6 +29,11 @@ version = "1.4.0"
 repositories {
     mavenCentral()
 
+    // The expression language contexts are restricted with, which CircleCI publishes on Clojars.
+    maven("https://repo.clojars.org") {
+        content { includeGroup("com.circleci") }
+    }
+
     // IntelliJ Platform repositories (includes marketplace and dependencies)
     intellijPlatform {
         defaultRepositories()
@@ -60,6 +65,9 @@ dependencies {
     // Charts. Only the jar: the IDE provides Compose (see composeUI() below), and
     // KoalaPlot's material3 dependency is only used by chart types we don't draw.
     implementation("io.github.koalaplot:koalaplot-core-desktop:0.12.1") { isTransitive = false }
+
+    // Checks a context's expression restrictions as they're typed.
+    implementation("com.circleci:expr:1.0.26-21f79fc")
 
     // Note: Kotlin stdlib and coroutines are provided by IntelliJ Platform
 

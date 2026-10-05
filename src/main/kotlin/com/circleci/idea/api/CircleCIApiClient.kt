@@ -299,7 +299,7 @@ class CircleCIApiClient(
                 val errorMessage =
                     try {
                         val json = gson.fromJson(body, JsonObject::class.java)
-                        json.get("message")?.asString ?: "Request failed"
+                        json.get("message")?.asString ?: v3ErrorMessage(json) ?: "Request failed"
                     } catch (e: Exception) {
                         logger.warn("Failed to parse error response JSON", e)
                         "Request failed: $body"
@@ -308,6 +308,17 @@ class CircleCIApiClient(
                 ApiResponse.Error(errorMessage, code)
             }
         }
+    }
+
+    /** A V3 error's `{"error": {"title": "Title.", "detail": "..."}}`, as one line: "Title: detail". */
+    private fun v3ErrorMessage(json: JsonObject): String? {
+        val error = json.get("error")?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+
+        fun text(key: String): String? =
+            error.get(key)?.takeIf { it.isJsonPrimitive }?.asString?.trim()?.takeIf(String::isNotEmpty)
+        val title = text("title")
+        val detail = text("detail") ?: return title
+        return title?.let { "${it.removeSuffix(".")}: $detail" } ?: detail
     }
 
     /**
