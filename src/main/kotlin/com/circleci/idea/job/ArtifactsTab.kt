@@ -32,6 +32,7 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.progress.ProgressIndicator
@@ -39,13 +40,16 @@ import com.intellij.openapi.progress.Task
 import com.intellij.openapi.progress.runBlockingCancellable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.testFramework.BinaryLightVirtualFile
 import com.intellij.testFramework.LightVirtualFile
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.jewel.bridge.icon.fromPlatformIcon
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.lazy.tree.TreeGeneratorScope
@@ -67,6 +71,7 @@ import java.awt.datatransfer.StringSelection
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * A job's artifacts as a file tree: open one in the IDE, download a file or
@@ -89,6 +94,9 @@ class ArtifactsTab(
     /** Which directories are open, and what's selected, kept while the view is off screen. */
     private var openIds: Set<Any> = emptySet()
 
+    // The files open in editors, by URL, to show again rather than read again. Touched on the EDT.
+    private val opened = mutableMapOf<String, VirtualFile>()
+
     /** List the job's artifacts. Call on the EDT. */
     fun load() {
         _content.value = ArtifactsContent.Waiting("Loading artifacts...")
@@ -103,6 +111,7 @@ class ArtifactsTab(
                             openIds = initiallyOpen(entries)
                             ArtifactsContent.Loaded(
                                 entries,
+                                files = ArtifactTree.files(entries),
                                 parallel = artifacts.map { it.execution }.distinct().size > 1,
                             )
                         }
@@ -135,7 +144,7 @@ class ArtifactsTab(
     ) {
         val file = (selected?.node as? ArtifactNode.File)?.artifact
         // Download takes what's selected, or everything.
-        val toDownload = selected?.files ?: loaded?.let { ArtifactTree.files(it.entries) }.orEmpty()
+        val toDownload = selected?.files ?: loaded?.files.orEmpty()
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -153,7 +162,7 @@ class ArtifactsTab(
             ToolbarButton(AllIconsKeys.Actions.Copy, "Copy URL", file != null) { file?.let(::copyUrl) }
             Spacer(Modifier.weight(1f))
             loaded?.let {
-                val count = ArtifactTree.files(it.entries).size
+                val count = it.files.size
                 Text(
                     "$count artifact${if (count == 1) "" else "s"}",
                     color = JewelTheme.globalColors.text.info,
@@ -234,22 +243,22 @@ class ArtifactsTab(
 
     /**
      * Open an artifact in an editor tab: as text when it is text, otherwise
-     * for the IDE to show as best it can (an image, say).
+     * for the IDE to show as best it can (an image, say). One still open
+     * from before is shown as it was read then.
      */
     private fun open(artifact: Artifact) {
+        val editors = FileEditorManager.getInstance(project)
+        opened.values.removeIf { !editors.isFileOpen(it) }
+        opened[artifact.url]?.let {
+            editors.openFile(it, true)
+            return
+        }
         scope.launch {
-            service.readArtifact(artifact).fold(
-                onSuccess = { bytes ->
-                    val name = artifact.path.substringAfterLast('/')
-                    val text = decodeText(bytes)
-                    val file =
-                        if (text != null) {
-                            LightVirtualFile(name, FileTypeManager.getInstance().getFileTypeByFileName(name), text)
-                        } else {
-                            BinaryLightVirtualFile(name, bytes)
-                        }
-                    file.isWritable = false
-                    FileEditorManager.getInstance(project).openFile(file, true)
+            val read = service.readArtifact(artifact)
+            withContext(Dispatchers.Default) { read.map { virtualFile(artifact, it) } }.fold(
+                onSuccess = { file ->
+                    opened[artifact.url] = file
+                    editors.openFile(file, true)
                 },
                 onFailure = { Messages.showErrorDialog(project, it.message ?: "Unknown error", "Can't Open Artifact") },
             )
@@ -317,6 +326,22 @@ class ArtifactsTab(
                 listOf(top) + top.children
             }.filter { it.children.isNotEmpty() }.map { it.id }.toSet()
 
+        /** An artifact's [bytes], read-only: as text when they are text. */
+        fun virtualFile(
+            artifact: Artifact,
+            bytes: ByteArray,
+        ): VirtualFile {
+            val name = artifact.path.substringAfterLast('/')
+            val text = decodeText(bytes)
+            val file =
+                if (text != null) {
+                    LightVirtualFile(name, FileTypeManager.getInstance().getFileTypeByFileName(name), text)
+                } else {
+                    BinaryLightVirtualFile(name, bytes)
+                }
+            return file.apply { isWritable = false }
+        }
+
         /** The bytes as text if they're valid UTF-8 without NULs, as the CLI decides what it can page. */
         fun decodeText(bytes: ByteArray): String? {
             if (bytes.contains(0)) return null
@@ -338,7 +363,12 @@ sealed interface ArtifactsContent {
     /** Nothing yet, nothing at all, or a failure to load: why, in words. */
     data class Waiting(val text: String) : ArtifactsContent
 
-    data class Loaded(val entries: List<ArtifactEntry>, val parallel: Boolean) : ArtifactsContent
+    /** @property files Every artifact, in the tree's order */
+    data class Loaded(
+        val entries: List<ArtifactEntry>,
+        val files: List<Artifact>,
+        val parallel: Boolean,
+    ) : ArtifactsContent
 }
 
 @OptIn(ExperimentalFoundationApi::class) // Jewel's tooltips are built on TooltipArea
@@ -370,8 +400,12 @@ private fun iconKey(node: ArtifactNode): IconKey =
         is ArtifactNode.File -> fileIconKey(node.name)
     }
 
-private fun fileIconKey(name: String): IconKey {
-    val icon = FileTypeManager.getInstance().getFileTypeByFileName(name).icon ?: return AllIconsKeys.FileTypes.Any_type
-    // Only icons loaded from a resource path convert; a plugin's file type may draw its own.
-    return runCatching { IntelliJIconKey.fromPlatformIcon(icon) }.getOrDefault(AllIconsKeys.FileTypes.Any_type)
-}
+private fun fileIconKey(name: String): IconKey =
+    fileTypeIconKeys.computeIfAbsent(FileTypeManager.getInstance().getFileTypeByFileName(name)) { type ->
+        val icon = type.icon ?: return@computeIfAbsent AllIconsKeys.FileTypes.Any_type
+        // Only icons loaded from a resource path convert; a plugin's file type may draw its own.
+        runCatching { IntelliJIconKey.fromPlatformIcon(icon) }.getOrDefault(AllIconsKeys.FileTypes.Any_type)
+    }
+
+// Each file type's icon, converted once rather than for every row drawn.
+private val fileTypeIconKeys = ConcurrentHashMap<FileType, IconKey>()
