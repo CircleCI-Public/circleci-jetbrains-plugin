@@ -269,7 +269,10 @@ class CircleCITreeModel(
         node: WorkflowNode,
         refresh: Boolean,
     ) {
+        // The workflow as it was listed before its jobs were fetched.
+        val ended = !node.workflow.status.isActive
         loadInto(node, refresh, "jobs", { runListService.fetchJobs(node.workflow) }) { jobs, _ ->
+            node.jobsFinal = ended
             if (jobs.isEmpty()) {
                 node.add(EmptyNode("No jobs"))
             }
@@ -338,12 +341,13 @@ class CircleCITreeModel(
 
     /**
      * After a refresh kept some loaded children: re-fetch those still
-     * open, and drop the rest so they load fresh when next opened.
+     * open, and drop the rest so they load fresh when next opened. An ended
+     * workflow's jobs are kept as they are.
      */
     private fun refreshLoadedChildren(node: CircleCITreeNode) {
         val open = treeState.openNodes
         for (child in children(node)) {
-            if (!child.childrenLoaded) continue
+            if (!child.childrenLoaded || (child is WorkflowNode && child.jobsFinal)) continue
             if (keyOf(child) in open) {
                 loadChildren(child, refresh = true)
             } else {
