@@ -56,11 +56,20 @@ class RunQueriesTest {
         assertEquals("queued", RunStatus.QUEUED, RunStatus.fromV3("queued", null, null))
         assertEquals("running", RunStatus.RUNNING, RunStatus.fromV3("started", null, null))
         assertEquals("failing", RunStatus.FAILING, RunStatus.fromV3("started", null, "failed"))
+        assertEquals("erroring", RunStatus.ERRORING, RunStatus.fromV3("started", null, "errored"))
         assertEquals("canceling", RunStatus.CANCELING, RunStatus.fromV3("started", null, "canceled"))
         assertEquals("outcome wins", RunStatus.FAILED, RunStatus.fromV3("ended", "failed", "succeeded"))
         assertEquals("current outcome fallback", RunStatus.SUCCESS, RunStatus.fromV3("ended", null, "succeeded"))
         assertEquals("empty outcome falls back", RunStatus.CANCELED, RunStatus.fromV3("ended", "", "canceled"))
-        assertEquals("timed out is an error", RunStatus.ERROR, RunStatus.fromV3("ended", "timedout", null))
+        assertEquals("errored", RunStatus.ERROR, RunStatus.fromV3("ended", "errored", null))
+        assertEquals(
+            "infrastructure fail",
+            RunStatus.INFRASTRUCTURE_FAIL,
+            RunStatus.fromV3("ended", "infrastructure_fail", null),
+        )
+        assertEquals("timed out", RunStatus.TIMED_OUT, RunStatus.fromV3("ended", "timedout", null))
+        assertEquals("unauthorized", RunStatus.UNAUTHORIZED, RunStatus.fromV3("ended", null, "unauthorized"))
+        assertEquals("canceled", RunStatus.CANCELED, RunStatus.fromV3("ended", "canceled", null))
         assertEquals("not run", RunStatus.NOT_RUN, RunStatus.fromV3("ended", null, "not_run"))
         assertEquals("unknown phase", RunStatus.UNKNOWN, RunStatus.fromV3("mystery", null, null))
     }

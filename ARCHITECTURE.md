@@ -198,18 +198,9 @@ scope.launch {
 
 **Location:** `com.circleci.idea.icons.CircleCIIcons`
 
-**Pattern:**
-```kotlin
-object CircleCIIcons {
-    val StatusSuccess = loadIcon("/icons/status-success.svg")
-    val StatusFailed = loadIcon("/icons/status-failed.svg")
-    val StatusRunning = loadIcon("/icons/status-running.svg")
-
-    private fun loadIcon(path: String): Icon {
-        return IconLoader.getIcon(path, CircleCIIcons::class.java)
-    }
-}
-```
+**Pattern:** `CircleCIIcons` loads the plugin and action SVGs. Statuses aren't
+SVGs: every status (run, workflow, job, step, test) is a small mark drawn by
+`StatusDot.kt`, in Compose (`StatusDot`) or as a Swing `Icon` (`statusIcon`).
 
 ### 8. Logging
 

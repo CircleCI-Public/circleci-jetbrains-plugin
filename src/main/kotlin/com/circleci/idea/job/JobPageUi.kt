@@ -11,41 +11,25 @@ import androidx.compose.ui.awt.SwingPanel
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.circleci.idea.icons.CircleCIIcons
 import com.circleci.idea.run.RunStatus
 import com.circleci.idea.state.TestOutcome
 import org.jetbrains.jewel.bridge.retrieveColorOrUnspecified
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.icon.IconKey
-import org.jetbrains.jewel.ui.icon.PathIconKey
 import javax.swing.JComponent
 
 /*
  * Pieces the job page's Compose views share.
  */
 
-/** The icon a status shows with, as [CircleCIIcons.getStatusIcon] picks it. */
-internal fun statusIconKey(status: RunStatus): IconKey =
-    when (status) {
-        RunStatus.SUCCESS -> icon("status-success")
-        RunStatus.FAILED, RunStatus.FAILING, RunStatus.ERROR -> icon("status-failed")
-        RunStatus.CREATED, RunStatus.QUEUED, RunStatus.RUNNING -> icon("status-running")
-        RunStatus.CANCELED, RunStatus.CANCELING, RunStatus.NOT_RUN, RunStatus.UNAUTHORIZED -> icon("status-canceled")
-        RunStatus.ON_HOLD -> icon("status-on-hold")
-        RunStatus.UNKNOWN -> icon("circleci")
-    }
-
-/** A test's outcome as the status it reads like, or null for one with no icon. */
-internal fun outcomeIconKey(outcome: TestOutcome): IconKey? =
+/** The status a test's outcome reads like, for its dot, or null for one with no dot. */
+internal fun outcomeStatus(outcome: TestOutcome): RunStatus? =
     when (outcome) {
-        TestOutcome.FAILURE -> icon("status-failed")
-        TestOutcome.SKIPPED -> icon("status-canceled")
-        TestOutcome.SUCCESS -> icon("status-success")
+        TestOutcome.FAILURE -> RunStatus.FAILED
+        TestOutcome.SKIPPED -> RunStatus.NOT_RUN
+        TestOutcome.SUCCESS -> RunStatus.SUCCESS
         TestOutcome.OTHER -> null
     }
-
-private fun icon(name: String): IconKey = PathIconKey("/icons/$name.svg", CircleCIIcons::class.java)
 
 /** Text standing in for content that isn't there: loading, failed or empty. */
 @Composable

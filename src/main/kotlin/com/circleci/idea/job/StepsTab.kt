@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.circleci.idea.icons.StatusDot
 import com.circleci.idea.run.RunStatus
 import com.circleci.idea.run.elapsedSince
 import com.circleci.idea.state.JobDetail
@@ -54,7 +55,6 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Divider
 import org.jetbrains.jewel.ui.component.HorizontalSplitLayout
-import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.IconActionButton
 import org.jetbrains.jewel.ui.component.InlineErrorBanner
 import org.jetbrains.jewel.ui.component.InlineSuccessBanner
@@ -306,7 +306,7 @@ class StepsTab(
 @Composable
 private fun ExecutionRow(item: StepsItem.Execution) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Icon(statusIconKey(item.status), item.status.label, Modifier.size(ICON.dp))
+        StatusDot(item.status)
         Text("Execution ${item.execution.index}")
     }
 }
@@ -314,7 +314,7 @@ private fun ExecutionRow(item: StepsItem.Execution) {
 @Composable
 private fun StepRow(step: Step) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Icon(statusIconKey(step.status), step.status.label, Modifier.size(ICON.dp))
+        StatusDot(step.status)
         Text(step.name, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         elapsedSince(step.startedAt, step.endedAt)?.let {
             Text(it, color = JewelTheme.globalColors.text.info, style = JewelTheme.typography.small)
@@ -364,5 +364,4 @@ private fun ExitCodeBanner(exitCode: Int) {
     if (exitCode == 0) InlineSuccessBanner(text, modifier) else InlineErrorBanner(text, modifier)
 }
 
-private const val ICON = 16
 private const val COMMAND_MAX_HEIGHT = 120

@@ -29,12 +29,14 @@ enum class RunStatusFilter(
     val currentOutcome: String?,
 ) {
     CANCELED("canceled", "Canceled", "ended", "canceled"),
+    ERROR("error", "Error", "ended", "errored"),
     FAILED("failed", "Failed", "ended", "failed"),
     FAILING("failing", "Failing", "started", "failed"),
     NOT_RUN("not_run", "Not run", "ended", "not_run"),
     QUEUED("queued", "Queued", "queued", null),
     RUNNING("running", "Running", "started", null),
     SUCCESS("success", "Success", "ended", "succeeded"),
+    UNAUTHORIZED("unauthorized", "Unauthorized", "ended", "unauthorized"),
 }
 
 /** The relative ages the Created filter offers, measured back from now. */

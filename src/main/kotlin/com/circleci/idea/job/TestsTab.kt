@@ -7,12 +7,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
@@ -27,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.circleci.idea.icons.StatusDot
 import com.circleci.idea.state.TestOutcome
 import com.circleci.idea.state.TestResult
 import com.intellij.execution.filters.TextConsoleBuilderFactory
@@ -252,8 +251,7 @@ class TestsTab(
     ) {
         TableRow(modifier) {
             Cell(TestColumn.OUTCOME) {
-                outcomeIconKey(test.outcome)?.let { Icon(it, test.outcome.label, Modifier.size(ICON.dp)) }
-                    ?: Spacer(Modifier.size(ICON.dp))
+                outcomeStatus(test.outcome)?.let { StatusDot(it, description = test.outcome.label) }
             }
             Cell(TestColumn.NAME) { Ellipsized(test.name) }
             Cell(TestColumn.CLASSNAME) { Ellipsized(test.classname, JewelTheme.globalColors.text.info) }
@@ -295,7 +293,7 @@ private fun Counts(tests: List<TestResult>) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                outcomeIconKey(outcome)?.let { Icon(it, outcome.label, Modifier.size(ICON.dp)) }
+                outcomeStatus(outcome)?.let { StatusDot(it, description = outcome.label) }
                 Text(
                     "${String.format(Locale.ROOT, "%,d", count)} ${outcome.label.lowercase()}",
                     color = JewelTheme.globalColors.text.info,

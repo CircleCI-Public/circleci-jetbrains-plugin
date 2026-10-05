@@ -1,8 +1,9 @@
 package com.circleci.idea.run
 
 /**
- * Display status of a run, workflow or job, derived from the V3 API's
- * phase / outcome / current_outcome triple.
+ * Display status of a run, workflow, job or step, derived from the V3 API's
+ * phase / outcome / current_outcome triple as `circleci` derives it (its
+ * `phaseOutcomeParts`), plus on hold for approval jobs.
  *
  * [token] matches the V2-style status words the rest of the plugin (icons,
  * filters) already speaks.
@@ -12,12 +13,15 @@ enum class RunStatus(val token: String, val label: String) {
     QUEUED("queued", "queued"),
     RUNNING("running", "running"),
     FAILING("failing", "failing"),
+    ERRORING("erroring", "erroring"),
     CANCELING("canceling", "canceling"),
     ON_HOLD("on_hold", "on hold"),
     SUCCESS("success", "succeeded"),
     FAILED("failed", "failed"),
     CANCELED("canceled", "canceled"),
     ERROR("error", "errored"),
+    INFRASTRUCTURE_FAIL("infrastructure_fail", "infrastructure failure"),
+    TIMED_OUT("timedout", "timed out"),
     NOT_RUN("not_run", "not run"),
     UNAUTHORIZED("unauthorized", "unauthorized"),
     UNKNOWN("unknown", "unknown"),
@@ -29,7 +33,7 @@ enum class RunStatus(val token: String, val label: String) {
 
     /** True when a workflow in this state can be rerun from the start. */
     val isRerunnable: Boolean
-        get() = !isActive || this == FAILING
+        get() = !isActive || this == FAILING || this == ERRORING
 
     /** True when a workflow in this state can be canceled. */
     val isCancelable: Boolean
@@ -40,8 +44,8 @@ enum class RunStatus(val token: String, val label: String) {
         get() = this in FAILURES
 
     companion object {
-        private val ACTIVE = setOf(CREATED, QUEUED, RUNNING, FAILING, CANCELING, ON_HOLD)
-        private val FAILURES = setOf(FAILING, FAILED, ERROR)
+        private val ACTIVE = setOf(CREATED, QUEUED, RUNNING, FAILING, ERRORING, CANCELING, ON_HOLD)
+        private val FAILURES = setOf(FAILING, ERRORING, FAILED, ERROR, INFRASTRUCTURE_FAIL, TIMED_OUT)
 
         /**
          * Derive a status from a V3 phase and outcome.
@@ -60,7 +64,8 @@ enum class RunStatus(val token: String, val label: String) {
                 "on_hold" -> ON_HOLD
                 "started" ->
                     when (currentOutcome) {
-                        "failed", "errored" -> FAILING
+                        "failed" -> FAILING
+                        "errored" -> ERRORING
                         "canceled" -> CANCELING
                         else -> RUNNING
                     }
@@ -76,7 +81,9 @@ enum class RunStatus(val token: String, val label: String) {
                 "canceled" -> CANCELED
                 "unauthorized" -> UNAUTHORIZED
                 "not_run" -> NOT_RUN
-                "errored", "infrastructure_fail", "timedout" -> ERROR
+                "errored" -> ERROR
+                "infrastructure_fail" -> INFRASTRUCTURE_FAIL
+                "timedout" -> TIMED_OUT
                 else -> UNKNOWN
             }
         }
