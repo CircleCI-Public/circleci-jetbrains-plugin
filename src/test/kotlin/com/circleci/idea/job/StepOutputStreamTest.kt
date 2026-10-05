@@ -88,6 +88,24 @@ class StepOutputStreamTest {
         }
 
     @Test
+    fun testWaitsToBeShownBeforeEachPoll() =
+        runBlocking {
+            val stdout = FakeStdout(listOf("one\n" to false, "two\n" to true))
+            var waits = 0
+            val stream =
+                StepOutputStream(
+                    fetchStdout = stdout::fetch,
+                    fetchStderr = { Result.success(ByteArray(0)) },
+                    isStepActive = { true },
+                    awaitShowing = { waits++ },
+                    pollIntervalMs = 0,
+                )
+            stream.events().toList()
+
+            assertEquals("waited before the second read only", 1, waits)
+        }
+
+    @Test
     fun testFailedReadEndsStream() =
         runBlocking {
             val stream =

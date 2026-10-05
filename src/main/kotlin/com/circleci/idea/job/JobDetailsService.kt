@@ -52,8 +52,10 @@ class JobDetailsService(private val project: Project) {
         execution: Int,
         stepNum: Int,
         isStepActive: () -> Boolean,
+        awaitShowing: suspend () -> Unit,
     ): StepOutputStream {
         return StepOutputStream(
+            awaitShowing = awaitShowing,
             fetchStdout = { offset -> apiService.getStepStdout(jobId, execution, stepNum, offset) },
             fetchStderr = { apiService.getStepStderr(jobId, execution, stepNum) },
             isStepActive = isStepActive,
