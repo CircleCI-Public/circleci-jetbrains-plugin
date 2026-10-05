@@ -215,24 +215,42 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
         assertEquals("request", listOf("DELETE /api/v2/project/gh/org/repo/envvar/A"), requestLines())
     }
 
-    fun testContextsFollowCursors() {
-        responseQueue +=
-            listOf(
-                """{"data": [{"id": "c-1", "attributes": {"name": "deploy"}}], "page": {"next": "n2"}}""",
-                """{"data": [{"id": "c-2", "attributes": {"name": "release"}}], "page": {"next": ""}}""",
-            )
+    fun testContextsAPageAtATime() {
+        responseBody = """{"data": [{"id": "c-2", "attributes": {"name": "release"}}], "page": {"next": "n3"}}"""
 
-        val contexts = SettingsApiClient().listContexts(client, "o-1").getOrThrow()
+        val page = SettingsApiClient().listContexts(client, "o-1", cursor = "n2").getOrThrow()
 
         assertEquals(
-            "requests",
-            listOf(
-                "GET /api/v3/contexts?filter[org_id]=o-1&page[limit]=100",
-                "GET /api/v3/contexts?filter[org_id]=o-1&page[limit]=100&page[cursor]=n2",
-            ),
+            "request",
+            listOf("GET /api/v3/contexts?filter[org_id]=o-1&page[limit]=20&page[cursor]=n2"),
             requestLines(),
         )
-        assertEquals("contexts", listOf(Context("c-1", "deploy"), Context("c-2", "release")), contexts)
+        assertEquals("contexts", listOf(Context("c-2", "release")), page.items)
+        assertEquals("next page", "n3", page.nextCursor)
+    }
+
+    fun testLastPageOfContextsHasNoCursor() {
+        responseBody = """{"data": [{"id": "c-1", "attributes": {"name": "deploy"}}], "page": {"next": ""}}"""
+
+        val page = SettingsApiClient().listContexts(client, "o-1", cursor = null).getOrThrow()
+
+        assertEquals("request", listOf("GET /api/v3/contexts?filter[org_id]=o-1&page[limit]=20"), requestLines())
+        assertNull("no next page", page.nextCursor)
+    }
+
+    fun testCreateContextInAnOrg() {
+        responseBody = """{"data": {"id": "c-3", "attributes": {"name": "staging"}}}"""
+
+        val context = SettingsApiClient().createContext(client, "o-1", "staging").getOrThrow()
+
+        val request = requests.single()
+        assertEquals("request", "POST /api/v3/contexts", "${request.method} ${request.uri}")
+        assertEquals(
+            "body",
+            json("""{"data": {"attributes": {"name": "staging"}, "references": {"org": {"id": "o-1"}}}}"""),
+            json(request.body),
+        )
+        assertEquals("created", Context("c-3", "staging"), context)
     }
 
     fun testContextEnvVarsShowTheirLastCharacters() {

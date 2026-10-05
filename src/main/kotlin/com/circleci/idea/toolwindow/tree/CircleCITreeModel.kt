@@ -14,6 +14,8 @@ import com.circleci.idea.settings.CircleCISettings
 import com.circleci.idea.state.CircleCIStateStore
 import com.circleci.idea.state.PagedList
 import com.circleci.idea.state.Run
+import com.circleci.idea.toolwindow.isNearEnd
+import com.circleci.idea.toolwindow.scrolledOrResized
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -105,14 +107,8 @@ class CircleCITreeModel(
             }
         }
 
-        // Load the next page of runs as the list scrolls near its end. A page
-        // that still leaves the end in view changes the layout, so the next loads too.
-        scope.launch {
-            snapshotFlow {
-                val layout = scroll.layoutInfo
-                (layout.visibleItemsInfo.lastOrNull()?.index ?: -1) to layout.totalItemsCount
-            }.collect { loadMoreIfNearEnd() }
-        }
+        // Load the next page of runs as the list scrolls near its end.
+        scope.launch { scroll.scrolledOrResized().collect { loadMoreIfNearEnd() } }
     }
 
     /** The node selected in the tree, if it's still there. */
@@ -180,9 +176,7 @@ class CircleCITreeModel(
 
     /** Load the next page of runs if the list is scrolled near its end. */
     private fun loadMoreIfNearEnd() {
-        val layout = scroll.layoutInfo
-        val lastVisible = layout.visibleItemsInfo.lastOrNull()?.index ?: return
-        if (lastVisible < layout.totalItemsCount - 1 - PREFETCH_DISTANCE) return
+        if (!scroll.isNearEnd()) return
         (root.lastChildOrNull() as? LoadMoreNode)?.takeIf { it.error == null }?.let(::loadMore)
     }
 
@@ -444,6 +438,3 @@ class CircleCITreeModel(
         return true
     }
 }
-
-/** How many rows from the end of the run list the next page starts loading. */
-private const val PREFETCH_DISTANCE = 5

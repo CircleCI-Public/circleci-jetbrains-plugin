@@ -3,11 +3,9 @@
 
 package com.circleci.idea.toolwindow.settings
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,7 +26,9 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.circleci.idea.job.Placeholder
 import com.intellij.icons.AllIcons
+import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -40,13 +40,16 @@ import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.MessageDialogBuilder
 import com.intellij.openapi.ui.Messages
+import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBPanel
+import com.intellij.util.ui.JBFont
+import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.bridge.JewelComposePanel
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.GroupHeader
-import org.jetbrains.jewel.ui.component.IconActionButton
+import org.jetbrains.jewel.ui.component.IndeterminateHorizontalProgressBar
 import org.jetbrains.jewel.ui.component.SpeedSearchArea
 import org.jetbrains.jewel.ui.component.SpeedSearchState
 import org.jetbrains.jewel.ui.component.Text
@@ -54,14 +57,24 @@ import org.jetbrains.jewel.ui.component.VerticallyScrollableContainer
 import org.jetbrains.jewel.ui.component.rememberSpeedSearchState
 import org.jetbrains.jewel.ui.component.search.SpeedSearchableTree
 import org.jetbrains.jewel.ui.component.search.highlightTextSearch
-import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
+import java.awt.BorderLayout
 import java.awt.datatransfer.StringSelection
 import javax.swing.Icon
 import javax.swing.JComponent
 
+/** Which settings a section shows, under its title. */
+enum class SettingsSection(val title: String) {
+    /** The selected project's environment variables. */
+    PROJECT("Project Secrets"),
+
+    /** The contexts of the project's organization, with theirs. */
+    ORG("Org Secrets"),
+}
+
 /**
- * The settings tree, drawn with Jewel, with a right-click menu for each row.
+ * A settings section: its title and toolbar above its tree, drawn with
+ * Jewel, with a right-click menu for each row.
  * Double-clicking a variable updates it.
  *
  * Its actions take the IDE's shortcuts for the same things (New, Delete,
@@ -71,15 +84,31 @@ class SettingsTreeView(
     private val project: Project,
     private val model: SettingsTreeModel,
     private val scope: CoroutineScope,
+    private val section: SettingsSection,
 ) {
+    private val tree = if (section == SettingsSection.PROJECT) model.projectTree else model.orgTree
+
     // The row the actions act on: the one selected, or right-clicked.
     private var selected: SettingsNode? = null
     private var searchState: SpeedSearchState? = null
 
+    // The project's variables are added to from anywhere in its section, a context's from its rows.
     private val addAction =
-        SettingsAction("Add Environment Variable…", AllIcons.General.Add, IdeActions.ACTION_NEW_ELEMENT) { node ->
-            (node as? SettingsNode.EnvVars)?.owner ?: (node as? SettingsNode.Variable)?.owner
+        when (section) {
+            SettingsSection.PROJECT ->
+                SettingsAction("Add Environment Variable…", AllIcons.General.Add, IdeActions.ACTION_NEW_ELEMENT) {
+                    model.state.value.projectSlug?.let(EnvVarOwner::Project)
+                }
+            SettingsSection.ORG ->
+                SettingsAction("Add Environment Variable…", AllIcons.General.Add, shortcutFrom = null) { node ->
+                    (node as? SettingsNode.EnvVars)?.owner ?: (node as? SettingsNode.Variable)?.owner
+                }
         }.performing { addVariable(it) }
+
+    private val newContextAction =
+        SettingsAction("New Context…", AllIcons.General.Add, IdeActions.ACTION_NEW_ELEMENT) {
+            model.state.value.projectSlug
+        }.performing { newContext(it) }
 
     private val updateAction =
         SettingsAction("Update Value…", AllIcons.Actions.Edit, shortcutFrom = null) { it as? SettingsNode.Variable }
@@ -94,57 +123,133 @@ class SettingsTreeView(
             .performing { copy(it.envVar.name) }
 
     private val refreshAction =
-        SettingsAction("Refresh", AllIcons.Actions.Refresh, IdeActions.ACTION_REFRESH) { Unit }
-            .performing { model.refresh() }
+        SettingsAction("Refresh", AllIcons.Actions.Refresh, IdeActions.ACTION_REFRESH) {
+            model.state.value.projectSlug
+        }.performing {
+            when (section) {
+                SettingsSection.PROJECT -> model.refreshEnvVars(EnvVarOwner.Project(it))
+                SettingsSection.ORG -> model.refreshContexts()
+            }
+        }
+
+    // The full settings, in the web app: the project's, or its organization's.
+    private val openInBrowserAction =
+        when (section) {
+            SettingsSection.PROJECT ->
+                SettingsAction("Open Project Settings in Browser", AllIcons.Ide.External_link_arrow, null) {
+                    model.state.value.projectSlug?.let(SettingsWebUrls::project)
+                }
+            SettingsSection.ORG ->
+                SettingsAction("Open Org Settings in Browser", AllIcons.Ide.External_link_arrow, null) {
+                    model.state.value.projectSlug?.let(SettingsWebUrls::organization)
+                }
+        }.performing { BrowserUtil.browse(it) }
 
     private val findAction =
         SettingsAction("Find", AllIcons.Actions.Find, IdeActions.ACTION_FIND) { Unit }
             .performing { searchState?.isVisible = true }
 
-    private val actions = listOf(addAction, updateAction, deleteAction, copyNameAction, refreshAction, findAction)
-
-    /** The tree in a Swing panel, with the actions' shortcuts working while it has focus. */
-    fun component(): JComponent =
-        JewelComposePanel { View() }.also { panel ->
-            actions.forEach { it.registerCustomShortcutSet(it.shortcutSet, panel) }
+    private val toolbarActions =
+        when (section) {
+            SettingsSection.PROJECT -> listOf(addAction, refreshAction, openInBrowserAction)
+            SettingsSection.ORG -> listOf(newContextAction, refreshAction, openInBrowserAction)
         }
+
+    private val actions =
+        (toolbarActions + listOf(addAction, updateAction, deleteAction, copyNameAction, findAction)).distinct()
+
+    /** The title and toolbar above the tree, with the actions' shortcuts working while the tree has focus. */
+    fun component(): JComponent {
+        val treePanel = JewelComposePanel { View() }
+        actions.forEach { it.registerCustomShortcutSet(it.shortcutSet, treePanel) }
+        val toolbar =
+            ActionManager.getInstance()
+                .createActionToolbar(ActionPlaces.TOOLWINDOW_CONTENT, DefaultActionGroup(toolbarActions), true)
+        toolbar.targetComponent = treePanel
+        val header =
+            JBPanel<JBPanel<*>>(BorderLayout()).apply {
+                border = JBUI.Borders.emptyLeft(TITLE_PADDING)
+                add(JBLabel(section.title).apply { font = JBFont.label().asBold() }, BorderLayout.WEST)
+                add(toolbar.component, BorderLayout.EAST)
+            }
+        return JBPanel<JBPanel<*>>(BorderLayout()).apply {
+            add(header, BorderLayout.NORTH)
+            add(treePanel, BorderLayout.CENTER)
+        }
+    }
 
     @Composable
     private fun View() {
         val state by model.state.collectAsState()
-        val tree = remember(state) { settingsTree(state) }
+        val nodes =
+            remember(state) {
+                when (section) {
+                    SettingsSection.PROJECT -> projectSettingsTree(state)
+                    SettingsSection.ORG -> orgSettingsTree(state)
+                }
+            }
+        val loads by tree.loads.collectAsState()
         val search = rememberSpeedSearchState()
         SideEffect { searchState = search }
-        Column(Modifier.fillMaxSize()) {
-            Text("Settings", Modifier.padding(TITLE_PADDING.dp), style = JewelTheme.typography.h4TextStyle)
-            SpeedSearchArea(search, Modifier.fillMaxSize()) {
-                val area = this
-                VerticallyScrollableContainer(model.scroll, Modifier.fillMaxSize()) {
-                    area.SpeedSearchableTree(
-                        tree = tree,
-                        nodeText = { it.data.searchText() },
-                        modifier = Modifier.fillMaxSize().focusable(),
-                        treeState = model.treeState,
-                        onElementDoubleClick = { element ->
-                            (element.data as? SettingsNode.Variable)?.let(::updateVariable)
-                        },
-                        onSelectionChange = { elements -> selected = elements.firstOrNull()?.data },
-                    ) { element ->
-                        val node = element.data
-                        Box(Modifier.fillMaxWidth().popupMenu(node)) {
-                            SettingsRow(node, isSelected && isActive, refreshFor(node))
+        Box(Modifier.fillMaxSize()) {
+            // A placeholder while the list first loads; a context shows its own loading row.
+            val placeholder = placeholder(state)
+            if (placeholder != null) {
+                Placeholder(placeholder)
+            } else {
+                SpeedSearchArea(search, Modifier.fillMaxSize()) {
+                    val area = this
+                    VerticallyScrollableContainer(tree.scroll, Modifier.fillMaxSize()) {
+                        area.SpeedSearchableTree(
+                            tree = nodes,
+                            nodeText = { it.data.searchText() },
+                            modifier = Modifier.fillMaxSize().focusable(),
+                            treeState = tree.treeState,
+                            onElementClick = { element ->
+                                if (element.data is SettingsNode.MoreContexts) model.loadMoreContexts()
+                            },
+                            onElementDoubleClick = { element ->
+                                (element.data as? SettingsNode.Variable)?.let(::updateVariable)
+                            },
+                            onSelectionChange = { elements -> selected = elements.firstOrNull()?.data },
+                        ) { element ->
+                            val node = element.data
+                            Box(Modifier.fillMaxWidth().rowPointer(node)) {
+                                SettingsRow(node, isSelected && isActive)
+                            }
                         }
                     }
                 }
             }
+            if (loads > 0) IndeterminateHorizontalProgressBar(Modifier.fillMaxWidth().align(Alignment.TopCenter))
         }
     }
 
-    /** Right-clicking a row selects it and offers its actions. */
+    /** What to show in place of the section's list while it first loads, if it is. */
+    private fun placeholder(state: SettingsState): String? {
+        if (state.projectSlug == null) return null
+        return when (section) {
+            SettingsSection.PROJECT ->
+                "Loading environment variables...".takeIf { state.projectEnvVars.isLoading() }
+            SettingsSection.ORG -> "Loading contexts...".takeIf { state.contexts.isLoading() }
+        }
+    }
+
+    /**
+     * Pressing a row ends the speed search, as in the IDE's own trees. While
+     * it's open, Jewel's tree puts the selection back on a matching row, so a
+     * row that doesn't match, such as a context's variable, couldn't be
+     * selected. The row sees the press before the tree selects it.
+     *
+     * Right-clicking a row selects it and offers its actions.
+     */
     @OptIn(ExperimentalComposeUiApi::class)
-    private fun Modifier.popupMenu(node: SettingsNode): Modifier =
-        // Platforms differ on whether the press or the release is the popup trigger.
-        onPointerEvent(PointerEventType.Press) { showPopupMenu(node, it) }
+    private fun Modifier.rowPointer(node: SettingsNode): Modifier =
+        onPointerEvent(PointerEventType.Press) {
+            searchState?.isVisible = false
+            showPopupMenu(node, it)
+        }
+            // Platforms differ on whether the press or the release is the popup trigger.
             .onPointerEvent(PointerEventType.Release) { showPopupMenu(node, it) }
 
     private fun showPopupMenu(
@@ -152,10 +257,11 @@ class SettingsTreeView(
         event: PointerEvent,
     ) {
         val mouse = event.awtEventOrNull?.takeIf { it.isPopupTrigger } ?: return
-        model.treeState.selectedKeys = setOf(node.key)
+        tree.treeState.selectedKeys = setOf(node.key)
         selected = node
         val group =
             DefaultActionGroup().apply {
+                if (section == SettingsSection.ORG) add(newContextAction)
                 add(addAction)
                 add(updateAction)
                 add(deleteAction)
@@ -168,14 +274,6 @@ class SettingsTreeView(
             .component.show(mouse.component, mouse.x, mouse.y)
     }
 
-    /** Reloading the project's variables or the contexts, from a button on their row. */
-    private fun refreshFor(node: SettingsNode): (() -> Unit)? =
-        when (node) {
-            is SettingsNode.EnvVars -> if (node.owner is EnvVarOwner.Project) model::refreshProjectEnvVars else null
-            is SettingsNode.Contexts -> model::refreshContexts
-            else -> null
-        }
-
     private fun addVariable(owner: EnvVarOwner) {
         val dialog = EnvVarDialog(project, existingName = null, ownerLabel = owner.label())
         if (!dialog.showAndGet()) return
@@ -187,6 +285,12 @@ class SettingsTreeView(
         val dialog = EnvVarDialog(project, existingName = name, ownerLabel = node.owner.label())
         if (!dialog.showAndGet()) return
         change("Couldn't update $name") { model.setEnvVar(node.owner, name, dialog.value) }
+    }
+
+    private fun newContext(projectSlug: String) {
+        val dialog = NewContextDialog(project, projectSlug)
+        if (!dialog.showAndGet()) return
+        change("Couldn't create ${dialog.name}") { model.createContext(dialog.name).map {} }
     }
 
     private fun deleteVariable(node: SettingsNode.Variable) {
@@ -237,7 +341,10 @@ class SettingsTreeView(
         override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 
         override fun update(e: AnActionEvent) {
-            e.presentation.isEnabledAndVisible = searchState?.isVisible != true && target(selected) != null
+            val enabled = searchState?.isVisible != true && target(selected) != null
+            e.presentation.isEnabled = enabled
+            // A toolbar keeps its buttons in place, disabled.
+            e.presentation.isVisible = enabled || e.isFromActionToolbar
         }
 
         override fun actionPerformed(e: AnActionEvent) {
@@ -253,48 +360,47 @@ private fun EnvVarOwner.label(): String =
         is EnvVarOwner.OrgContext -> "the context ${context.name}"
     }
 
+private fun Loadable<*>.isLoading(): Boolean = this == Loadable.NotLoaded || this == Loadable.Loading
+
 /** What speed search matches a row by: its name, for the rows that have one. */
 private fun SettingsNode.searchText(): String =
     when (this) {
-        is SettingsNode.Group, is SettingsNode.Message -> ""
+        is SettingsNode.Message, is SettingsNode.MoreContexts -> ""
         else -> label
     }
 
-/**
- * A row: a heading, or its label, and for a variable, its masked value in
- * grey after it. With [onRefresh], a refresh button at its right edge.
- */
+/** A row: its label, and for a variable, its masked value in grey after it. */
 @Composable
 private fun SettingsRow(
     node: SettingsNode,
     onSelection: Boolean,
-    onRefresh: (() -> Unit)?,
 ) {
-    if (node is SettingsNode.Group) {
-        GroupHeader(node.label, Modifier.fillMaxWidth())
-        return
-    }
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(GAP.dp),
     ) {
-        val message = node as? SettingsNode.Message
+        val isMessage = node is SettingsNode.Message || node is SettingsNode.MoreContexts
+        val isError =
+            when (node) {
+                is SettingsNode.Message -> node.error
+                is SettingsNode.MoreContexts -> node.error != null
+                else -> false
+            }
         val style =
             JewelTheme.defaultTextStyle.let {
-                if (message != null && !message.error) it.copy(fontStyle = FontStyle.Italic) else it
+                if (isMessage && !isError) it.copy(fontStyle = FontStyle.Italic) else it
             }
         val color =
             when {
-                message?.error == true -> JewelTheme.globalColors.text.error
-                message != null -> detailColor(onSelection)
+                isError -> JewelTheme.globalColors.text.error
+                isMessage -> detailColor(onSelection)
                 else -> Color.Unspecified
             }
         Text(
             // What speed search matched, highlighted.
             node.label.highlightTextSearch(),
-            // Filling the row, when there's a button, puts it at the right edge.
-            Modifier.weight(1f, fill = onRefresh != null),
+            Modifier.weight(1f, fill = false),
             color = color,
             style = style,
             maxLines = 1,
@@ -309,14 +415,7 @@ private fun SettingsRow(
                 maxLines = 1,
             )
         }
-        onRefresh?.let { RefreshButton(it) }
     }
-}
-
-@OptIn(ExperimentalFoundationApi::class) // Jewel's tooltips are built on TooltipArea
-@Composable
-private fun RefreshButton(onClick: () -> Unit) {
-    IconActionButton(AllIconsKeys.Actions.Refresh, "Refresh", onClick) { Text("Refresh") }
 }
 
 /** Grey, unless on the focused selection's background, where it wouldn't read. */
