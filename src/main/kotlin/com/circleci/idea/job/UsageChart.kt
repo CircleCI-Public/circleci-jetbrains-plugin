@@ -14,10 +14,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -74,9 +74,10 @@ internal fun UsageChart(
     format: (Double) -> String,
     modifier: Modifier = Modifier,
 ) {
-    val xMax = timeExtent(series)
-    val yMax = valueExtent(series, ceiling) * HEADROOM
-    val colors = series.indices.map { seriesColor(it) }
+    val xMax = remember(series) { timeExtent(series) }
+    val yMax = remember(series, ceiling) { valueExtent(series, ceiling) * HEADROOM }
+    val colors = remember(series.size, JewelTheme.isDark) { series.indices.map { seriesColor(it) } }
+    val points = remember(series) { series.map(::points) }
     val gridColor = JewelTheme.globalColors.borders.normal.copy(alpha = GRID_ALPHA)
     val labelStyle = JewelTheme.typography.small.copy(color = JewelTheme.globalColors.text.info)
     val xAxis = rememberDoubleLinearAxisModel(0.0..xMax, minimumMajorTickSpacing = X_TICK_SPACING.dp)
@@ -85,8 +86,9 @@ internal fun UsageChart(
         rememberAxisContent<Double>(labels = { Text(formatSeconds(it), style = labelStyle) }, style = axisStyle(1.dp))
     val yLabels = rememberAxisContent<Double>(labels = { YLabel(format(it), labelStyle) }, style = axisStyle(0.dp))
 
-    var hover by remember(series) { mutableStateOf<Hover?>(null) }
-    val snapped = hover?.let { snap(series, it.seconds) }
+    // Read only by the crosshair and the card, so moving the pointer recomposes just them.
+    val hover = remember(series) { mutableStateOf<Hover?>(null) }
+    val snapped = remember(series) { derivedStateOf { hover.value?.let { snap(series, it.seconds) } } }
 
     // The plot sees each event first, so this only moves a card it has shown.
     val moveCard =
@@ -94,7 +96,7 @@ internal fun UsageChart(
             awaitPointerEventScope {
                 while (true) {
                     val position = awaitPointerEvent().changes.firstOrNull()?.position ?: continue
-                    hover = hover?.copy(position = position)
+                    hover.value = hover.value?.copy(position = position)
                 }
             }
         }
@@ -109,19 +111,14 @@ internal fun UsageChart(
             onPointerEvent = { event ->
                 val position = event.changes.firstOrNull()?.position
                 val exited = event.type == PointerEventType.Exit || position == null
-                hover = if (exited) null else Hover(scale(position).x, hover?.position ?: position)
+                hover.value = if (exited) null else Hover(scale(position).x, hover.value?.position ?: position)
             },
         ) {
-            Lines(series, colors)
+            Lines(points, colors)
             if (ceiling > 0) Limit(ceiling, format(ceiling), labelStyle)
-            if (snapped != null) Crosshair(series, colors, snapped)
+            Crosshair(series, colors, snapped)
         }
-        val current = hover
-        if (current != null && snapped != null) {
-            HoverCard(current.position) {
-                HoverContent(series, colors, snapped, ceiling, format)
-            }
-        }
+        HoverCard(hover, snapped) { seconds -> HoverContent(series, colors, seconds, ceiling, format) }
     }
     if (series.size > 1) Legend(series, colors)
 }
@@ -146,12 +143,11 @@ private fun YLabel(
 /** One line per execution; a lone execution's is filled down to zero. */
 @Composable
 private fun XYGraphScope<Double, Double>.Lines(
-    series: List<ChartSeries>,
+    lines: List<List<Point<Double, Double>>>,
     colors: List<Color>,
 ) {
-    val single = series.size == 1
-    series.forEachIndexed { index, line ->
-        val points = line.values.mapIndexed { i, value -> Point(line.secondsAt(i), value) }
+    val single = lines.size == 1
+    lines.forEachIndexed { index, points ->
         if (points.isEmpty()) return@forEachIndexed
         val color = colors[index]
         val stroke = LineStyle(SolidColor(color), if (single) 2.dp else 1.5.dp)
@@ -184,13 +180,14 @@ private fun XYGraphScope<Double, Double>.Limit(
     }
 }
 
-/** A line at [seconds] with a marker on each execution's sample there. */
+/** A line at the [snapped] time, if any, with a marker on each execution's sample there. */
 @Composable
 private fun XYGraphScope<Double, Double>.Crosshair(
     series: List<ChartSeries>,
     colors: List<Color>,
-    seconds: Double,
+    snapped: State<Double?>,
 ) {
+    val seconds = snapped.value ?: return
     val muted = JewelTheme.globalColors.text.info
     VerticalLineAnnotation(seconds, LineStyle(SolidColor(muted.copy(alpha = CROSSHAIR_ALPHA)), 1.dp))
     series.forEachIndexed { index, line ->
@@ -206,13 +203,19 @@ private fun XYGraphScope<Double, Double>.Crosshair(
     }
 }
 
-/** Places [content] beside the pointer at [position], flipping to its left near the right edge. */
+/**
+ * Places [content], for the [snapped] time, beside the pointer while it's
+ * [hover]ing, flipping to its left near the right edge.
+ */
 @Composable
 private fun HoverCard(
-    position: Offset,
-    content: @Composable () -> Unit,
+    hover: State<Hover?>,
+    snapped: State<Double?>,
+    content: @Composable (Double) -> Unit,
 ) {
-    Layout(content = { content() }) { measurables, constraints ->
+    val position = hover.value?.position ?: return
+    val seconds = snapped.value ?: return
+    Layout(content = { content(seconds) }) { measurables, constraints ->
         val card = measurables.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
         val gap = CARD_GAP.dp.roundToPx()
         val right = position.x.roundToInt() + gap
@@ -287,6 +290,10 @@ private fun Legend(
         }
     }
 }
+
+/** A line's samples, at their time into the run. */
+private fun points(line: ChartSeries): List<Point<Double, Double>> =
+    line.values.mapIndexed { i, value -> Point(line.secondsAt(i), value) }
 
 private fun Color.takeOrElse(fallback: Color): Color = if (this == Color.Unspecified) fallback else this
 
