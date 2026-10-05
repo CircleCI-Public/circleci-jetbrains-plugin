@@ -1,6 +1,7 @@
 package com.circleci.idea.api
 
 import com.circleci.idea.api.clients.ConfigApiClient
+import com.circleci.idea.api.clients.ContextApiClient
 import com.circleci.idea.api.clients.JobApiClient
 import com.circleci.idea.api.clients.ProjectApiClient
 import com.circleci.idea.api.clients.RunApiClient
@@ -11,10 +12,14 @@ import com.circleci.idea.api.clients.WorkflowApiClient
 import com.circleci.idea.api.models.ArtifactWire
 import com.circleci.idea.api.models.ConfigValidationResult
 import com.circleci.idea.api.models.Context
+import com.circleci.idea.api.models.ContextDetail
+import com.circleci.idea.api.models.ContextRestriction
 import com.circleci.idea.api.models.EnvVar
 import com.circleci.idea.api.models.JobDetailWire
 import com.circleci.idea.api.models.JobWire
+import com.circleci.idea.api.models.NamedEntity
 import com.circleci.idea.api.models.ResourceUsageWire
+import com.circleci.idea.api.models.RestrictionType
 import com.circleci.idea.api.models.RunWire
 import com.circleci.idea.api.models.TestResultWire
 import com.circleci.idea.api.models.UserInfo
@@ -45,6 +50,7 @@ class CircleCIApiService {
     private val projectClient = ProjectApiClient()
     private val configClient = ConfigApiClient()
     private val settingsClient = SettingsApiClient()
+    private val contextClient = ContextApiClient()
 
     /**
      * Initialize the API client with token.
@@ -307,6 +313,11 @@ class CircleCIApiService {
         return withClient { settingsClient.createContext(it, orgId, name) }
     }
 
+    /** A context, with the organization it's in. */
+    fun getContext(contextId: String): Result<ContextDetail> {
+        return withClient { contextClient.getContext(it, contextId) }
+    }
+
     /** A context's environment variables, with their values masked. */
     fun listContextEnvVars(contextId: String): Result<List<EnvVar>> {
         return withClient { settingsClient.listContextEnvVars(it, contextId) }
@@ -326,6 +337,39 @@ class CircleCIApiService {
         name: String,
     ): Result<Unit> {
         return withClient { settingsClient.deleteContextEnvVar(it, contextId, name) }
+    }
+
+    fun listContextRestrictions(contextId: String): Result<List<ContextRestriction>> {
+        return withClient { contextClient.listContextRestrictions(it, contextId) }
+    }
+
+    fun createContextRestriction(
+        contextId: String,
+        type: RestrictionType,
+        value: String,
+    ): Result<Unit> {
+        return withClient { contextClient.createContextRestriction(it, contextId, type, value) }
+    }
+
+    fun deleteContextRestriction(
+        contextId: String,
+        restrictionId: String,
+    ): Result<Unit> {
+        return withClient { contextClient.deleteContextRestriction(it, contextId, restrictionId) }
+    }
+
+    /** An organization's groups, to restrict a context to. */
+    fun listGroups(orgId: String): Result<List<NamedEntity>> {
+        return withClient { contextClient.listGroups(it, orgId) }
+    }
+
+    /** A page of an organization's projects whose names contain [name], to restrict a context to. */
+    fun searchProjects(
+        orgId: String,
+        name: String,
+        cursor: String?,
+    ): Result<V3Page<NamedEntity>> {
+        return withClient { contextClient.searchProjects(it, orgId, name, cursor) }
     }
 
     // ========== Config Operations ==========

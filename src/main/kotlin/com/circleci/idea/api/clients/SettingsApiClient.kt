@@ -100,7 +100,14 @@ class SettingsApiClient : CircleCIApiClientBase() {
                     gson.fromJson(data, object : TypeToken<V3List<ContextEnvVarWire>>() {}.type)
                 val vars =
                     list.data.orEmpty().mapNotNull { v ->
-                        v.attributes?.name?.let { EnvVar(it, MASK + v.attributes.truncatedValue.orEmpty()) }
+                        v.attributes?.name?.let {
+                            EnvVar(
+                                it,
+                                MASK + v.attributes.truncatedValue.orEmpty(),
+                                instant(v.attributes.createdAt),
+                                instant(v.attributes.updatedAt),
+                            )
+                        }
                     }
                 V3Page(vars, list.page?.next?.takeIf { it.isNotEmpty() })
             }

@@ -22,6 +22,12 @@ object SettingsWebUrls {
         return "$APP_URL/organization/$vcs/$org"
     }
 
+    /** A context's page in its organization's settings, or null if [projectSlug] isn't a project slug. */
+    fun context(
+        projectSlug: String,
+        contextId: String,
+    ): String? = organization(projectSlug)?.let { "$it/contexts/$contextId" }
+
     private fun parts(projectSlug: String): List<String>? {
         val parts = projectSlug.split('/')
         if (parts.size != SLUG_PARTS || parts.any { it.isEmpty() }) return null

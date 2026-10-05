@@ -1,13 +1,18 @@
 package com.circleci.idea.api
 
 import com.circleci.idea.api.clients.ConfigApiClient
+import com.circleci.idea.api.clients.ContextApiClient
 import com.circleci.idea.api.clients.ProjectApiClient
 import com.circleci.idea.api.clients.SettingsApiClient
 import com.circleci.idea.api.clients.WorkflowApiClient
 import com.circleci.idea.api.models.ConfigCompileResponse
 import com.circleci.idea.api.models.ConfigValidationResult
 import com.circleci.idea.api.models.Context
+import com.circleci.idea.api.models.ContextDetail
+import com.circleci.idea.api.models.ContextRestriction
 import com.circleci.idea.api.models.EnvVar
+import com.circleci.idea.api.models.NamedEntity
+import com.circleci.idea.api.models.RestrictionType
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.intellij.testFramework.LoggedErrorProcessor
@@ -15,6 +20,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
 import java.net.URLDecoder
+import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -34,6 +40,7 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
     // Written on the server's thread, read on the test's.
     private val requests = CopyOnWriteArrayList<Recorded>()
     private var responseBody = "{}"
+    private var responseStatus = 200
 
     // Answered in turn, ahead of responseBody, for paged lists.
     private val responseQueue = ConcurrentLinkedQueue<String>()
@@ -48,7 +55,7 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
             requests += Recorded(exchange.requestMethod, uri, exchange.requestBody.readBytes().decodeToString())
             val bytes = (responseQueue.poll() ?: responseBody).toByteArray()
             exchange.responseHeaders.add("Content-Type", "application/json")
-            exchange.sendResponseHeaders(200, bytes.size.toLong())
+            exchange.sendResponseHeaders(responseStatus, bytes.size.toLong())
             exchange.responseBody.use { it.write(bytes) }
         }
         server.start()
@@ -275,5 +282,144 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
     fun testDeleteContextEnvVarNamesItInAFilter() {
         assertTrue("delete succeeds", SettingsApiClient().deleteContextEnvVar(client, "c-1", "TOKEN").isSuccess)
         assertEquals("request", listOf("DELETE /api/v3/contexts/c-1/env-vars?filter[name]=TOKEN"), requestLines())
+    }
+
+    fun testContextWithItsOrganization() {
+        responseBody =
+            """
+            {"data": {"id": "c-1", "attributes": {"name": "deploy", "created_at": "2026-01-02T03:04:05Z"},
+                      "references": {"org": {"id": "o-1"}}}}
+            """
+
+        val context = ContextApiClient().getContext(client, "c-1").getOrThrow()
+
+        assertEquals("request", listOf("GET /api/v3/contexts/c-1"), requestLines())
+        assertEquals("context", ContextDetail("c-1", "deploy", "o-1", Instant.parse("2026-01-02T03:04:05Z")), context)
+    }
+
+    fun testContextEnvVarsWithTheirDates() {
+        responseBody =
+            """
+            {"data": [{"attributes": {"name": "TOKEN", "truncated_value": "abcd",
+                                      "created_at": "2026-01-02T03:04:05Z", "updated_at": "2026-02-03T04:05:06Z"}}]}
+            """
+
+        val envVar = SettingsApiClient().listContextEnvVars(client, "c-1").getOrThrow().single()
+
+        assertEquals("created", Instant.parse("2026-01-02T03:04:05Z"), envVar.createdAt)
+        assertEquals("updated", Instant.parse("2026-02-03T04:05:06Z"), envVar.updatedAt)
+    }
+
+    fun testRestrictionsOfTheTypesKnown() {
+        responseBody =
+            """
+            {"data": [
+              {"id": "r-1", "attributes": {"restriction_type": "project", "match_pattern": "p-1", "name": "app"}},
+              {"id": "r-2", "attributes": {"restriction_type": "expression", "match_pattern": "pipeline.git.branch == \"main\""}},
+              {"id": "r-3", "attributes": {"restriction_type": "group", "match_pattern": "g-1", "name": ""}},
+              {"id": "r-4", "attributes": {"restriction_type": "someday", "match_pattern": "x"}}
+            ]}
+            """
+
+        val restrictions = ContextApiClient().listContextRestrictions(client, "c-1").getOrThrow()
+
+        assertEquals("request", listOf("GET /api/v3/context-restrictions?filter[context_id]=c-1"), requestLines())
+        assertEquals(
+            "restrictions, without the unknown type, and with no name where it's empty",
+            listOf(
+                ContextRestriction("r-1", RestrictionType.PROJECT, "p-1", "app"),
+                ContextRestriction("r-2", RestrictionType.EXPRESSION, "pipeline.git.branch == \"main\"", null),
+                ContextRestriction("r-3", RestrictionType.GROUP, "g-1", null),
+            ),
+            restrictions,
+        )
+    }
+
+    fun testCreateRestrictionOnTheContext() {
+        responseBody = """{"data": {"id": "r-1"}}"""
+
+        val result = ContextApiClient().createContextRestriction(client, "c-1", RestrictionType.EXPRESSION, "true")
+
+        assertTrue("create succeeds", result.isSuccess)
+        val request = requests.single()
+        assertEquals("request", "POST /api/v3/context-restrictions", "${request.method} ${request.uri}")
+        assertEquals(
+            "body",
+            json(
+                """
+                {"data": {"attributes": {"restriction_type": "expression", "match_pattern": "true"},
+                          "references": {"context": {"id": "c-1"}}}}
+                """,
+            ),
+            json(request.body),
+        )
+    }
+
+    fun testRejectedRestrictionSaysWhy() {
+        responseStatus = 400
+        responseBody = """{"error": {"title": "Invalid restriction.", "detail": "Unexpected character '&'"}}"""
+
+        // The client logs the failure as errors, which fail a platform test unless they're let through.
+        var result: Result<*>? = null
+        val ignoreErrors =
+            object : LoggedErrorProcessor() {
+                override fun processError(
+                    category: String,
+                    message: String,
+                    details: Array<String>,
+                    t: Throwable?,
+                ): Set<Action> = Action.NONE
+            }
+        LoggedErrorProcessor.executeWith<RuntimeException>(ignoreErrors) {
+            result = ContextApiClient().createContextRestriction(client, "c-1", RestrictionType.EXPRESSION, "a && b")
+        }
+
+        assertEquals("message", "Invalid restriction: Unexpected character '&'", result!!.exceptionOrNull()?.message)
+    }
+
+    fun testDeleteRestrictionNamesItsContext() {
+        assertTrue("delete succeeds", ContextApiClient().deleteContextRestriction(client, "c-1", "r-1").isSuccess)
+        assertEquals(
+            "request",
+            listOf("DELETE /api/v3/context-restrictions/r-1?filter[context_id]=c-1"),
+            requestLines(),
+        )
+    }
+
+    fun testGroupsOfAnOrg() {
+        responseBody = """{"data": [{"id": "g-1", "attributes": {"name": "admins"}}, {"id": "g-2"}]}"""
+
+        val groups = ContextApiClient().listGroups(client, "o-1").getOrThrow()
+
+        assertEquals("request", listOf("GET /api/v3/groups?filter[org_id]=o-1"), requestLines())
+        assertEquals(
+            "groups, by ID where unnamed",
+            listOf(NamedEntity("g-1", "admins"), NamedEntity("g-2", "g-2")),
+            groups,
+        )
+    }
+
+    fun testProjectsSearchedByName() {
+        responseBody = """{"data": [{"id": "p-1", "attributes": {"name": "app"}}], "page": {"next": "n-1"}}"""
+
+        val page = ContextApiClient().searchProjects(client, "o-1", " ap ", "c-0").getOrThrow()
+
+        val uri = requests.single().uri
+        assertTrue("projects", uri.startsWith("/api/v3/projects?"))
+        assertEquals(
+            "params",
+            setOf("filter[org_id]=o-1", "filter[name]=ap", "order_by=name", "page[limit]=50", "page[cursor]=c-0"),
+            uri.substringAfter('?').split('&').toSet(),
+        )
+        assertEquals("projects", listOf(NamedEntity("p-1", "app")), page.items)
+        assertEquals("next", "n-1", page.nextCursor)
+    }
+
+    fun testProjectsUnfilteredWithoutAName() {
+        responseBody = """{"data": []}"""
+
+        ContextApiClient().searchProjects(client, "o-1", "", null).getOrThrow()
+
+        assertFalse("no name filter", requests.single().uri.contains("filter[name]"))
     }
 }

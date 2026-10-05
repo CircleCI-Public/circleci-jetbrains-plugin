@@ -26,17 +26,16 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.circleci.idea.context.ContextPages
+import com.circleci.idea.context.ContextRef
 import com.circleci.idea.job.Placeholder
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionPlaces
-import com.intellij.openapi.actionSystem.ActionUpdateThread
-import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.IdeActions
 import com.intellij.openapi.ide.CopyPasteManager
-import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.MessageDialogBuilder
 import com.intellij.openapi.ui.Messages
@@ -96,34 +95,42 @@ class SettingsTreeView(
     private val addAction =
         when (section) {
             SettingsSection.PROJECT ->
-                SettingsAction("Add Environment Variable…", AllIcons.General.Add, IdeActions.ACTION_NEW_ELEMENT) {
+                settingsAction("Add Environment Variable…", AllIcons.General.Add, IdeActions.ACTION_NEW_ELEMENT) {
                     model.state.value.projectSlug?.let(EnvVarOwner::Project)
                 }
             SettingsSection.ORG ->
-                SettingsAction("Add Environment Variable…", AllIcons.General.Add, shortcutFrom = null) { node ->
+                settingsAction("Add Environment Variable…", AllIcons.General.Add, shortcutFrom = null) { node ->
                     (node as? SettingsNode.EnvVars)?.owner ?: (node as? SettingsNode.Variable)?.owner
                 }
         }.performing { addVariable(it) }
 
+    private val openContextAction =
+        settingsAction("Open Context", AllIcons.Actions.EditSource, IdeActions.ACTION_EDIT_SOURCE) { node ->
+            val context =
+                (node as? SettingsNode.EnvVars)?.owner?.context
+                    ?: ((node as? SettingsNode.Variable)?.owner as? EnvVarOwner.OrgContext)?.context
+            context?.let { model.state.value.projectSlug?.let { slug -> ContextRef(it.id, it.name, slug) } }
+        }.performing { ContextPages.getInstance(project).open(it) }
+
     private val newContextAction =
-        SettingsAction("New Context…", AllIcons.General.Add, IdeActions.ACTION_NEW_ELEMENT) {
+        settingsAction("New Context…", AllIcons.General.Add, IdeActions.ACTION_NEW_ELEMENT) {
             model.state.value.projectSlug
         }.performing { newContext(it) }
 
     private val updateAction =
-        SettingsAction("Update Value…", AllIcons.Actions.Edit, shortcutFrom = null) { it as? SettingsNode.Variable }
+        settingsAction("Update Value…", AllIcons.Actions.Edit, shortcutFrom = null) { it as? SettingsNode.Variable }
             .performing { updateVariable(it) }
 
     private val deleteAction =
-        SettingsAction("Delete…", AllIcons.General.Remove, IdeActions.ACTION_DELETE) { it as? SettingsNode.Variable }
+        settingsAction("Delete…", AllIcons.General.Remove, IdeActions.ACTION_DELETE) { it as? SettingsNode.Variable }
             .performing { deleteVariable(it) }
 
     private val copyNameAction =
-        SettingsAction("Copy Name", AllIcons.Actions.Copy, IdeActions.ACTION_COPY) { it as? SettingsNode.Variable }
+        settingsAction("Copy Name", AllIcons.Actions.Copy, IdeActions.ACTION_COPY) { it as? SettingsNode.Variable }
             .performing { copy(it.envVar.name) }
 
     private val refreshAction =
-        SettingsAction("Refresh", AllIcons.Actions.Refresh, IdeActions.ACTION_REFRESH) {
+        settingsAction("Refresh", AllIcons.Actions.Refresh, IdeActions.ACTION_REFRESH) {
             model.state.value.projectSlug
         }.performing {
             when (section) {
@@ -136,27 +143,28 @@ class SettingsTreeView(
     private val openInBrowserAction =
         when (section) {
             SettingsSection.PROJECT ->
-                SettingsAction("Open Project Settings in Browser", AllIcons.Ide.External_link_arrow, null) {
+                settingsAction("Open Project Settings in Browser", AllIcons.Ide.External_link_arrow, null) {
                     model.state.value.projectSlug?.let(SettingsWebUrls::project)
                 }
             SettingsSection.ORG ->
-                SettingsAction("Open Org Settings in Browser", AllIcons.Ide.External_link_arrow, null) {
+                settingsAction("Open Org Settings in Browser", AllIcons.Ide.External_link_arrow, null) {
                     model.state.value.projectSlug?.let(SettingsWebUrls::organization)
                 }
         }.performing { BrowserUtil.browse(it) }
 
     private val findAction =
-        SettingsAction("Find", AllIcons.Actions.Find, IdeActions.ACTION_FIND) { Unit }
+        settingsAction("Find", AllIcons.Actions.Find, IdeActions.ACTION_FIND) { Unit }
             .performing { searchState?.isVisible = true }
 
     private val toolbarActions =
         when (section) {
             SettingsSection.PROJECT -> listOf(addAction, refreshAction, openInBrowserAction)
-            SettingsSection.ORG -> listOf(newContextAction, refreshAction, openInBrowserAction)
+            SettingsSection.ORG -> listOf(newContextAction, openContextAction, refreshAction, openInBrowserAction)
         }
 
     private val actions =
-        (toolbarActions + listOf(addAction, updateAction, deleteAction, copyNameAction, findAction)).distinct()
+        (toolbarActions + listOf(addAction, updateAction, deleteAction, copyNameAction, findAction, openContextAction))
+            .distinct()
 
     /** The title and toolbar above the tree, with the actions' shortcuts working while the tree has focus. */
     fun component(): JComponent {
@@ -261,7 +269,11 @@ class SettingsTreeView(
         selected = node
         val group =
             DefaultActionGroup().apply {
-                if (section == SettingsSection.ORG) add(newContextAction)
+                if (section == SettingsSection.ORG) {
+                    add(openContextAction)
+                    addSeparator()
+                    add(newContextAction)
+                }
                 add(addAction)
                 add(updateAction)
                 add(deleteAction)
@@ -290,7 +302,12 @@ class SettingsTreeView(
     private fun newContext(projectSlug: String) {
         val dialog = NewContextDialog(project, projectSlug)
         if (!dialog.showAndGet()) return
-        change("Couldn't create ${dialog.name}") { model.createContext(dialog.name).map {} }
+        // The new context opens on its page, to restrict it and add its variables.
+        change("Couldn't create ${dialog.name}") {
+            model.createContext(
+                dialog.name,
+            ).map { ContextPages.getInstance(project).open(ContextRef(it.id, it.name, projectSlug)) }
+        }
     }
 
     private fun deleteVariable(node: SettingsNode.Variable) {
@@ -318,39 +335,14 @@ class SettingsTreeView(
         CopyPasteManager.getInstance().setContents(StringSelection(text))
     }
 
-    /**
-     * An action on the selected row, shown and enabled only where [target]
-     * finds something in it to act on, with the shortcut of the IDE's own
-     * [shortcutFrom] action. It's off while the speed search is open, so the
-     * search field gets the keys.
-     */
-    private inner class SettingsAction<T : Any>(
+    /** An action on the selected row; see [SelectionAction]. */
+    private fun <T : Any> settingsAction(
         text: String,
         icon: Icon,
         shortcutFrom: String?,
-        private val target: (SettingsNode?) -> T?,
-    ) : DumbAwareAction(text, null, icon) {
-        private var perform: (T) -> Unit = {}
-
-        init {
-            shortcutFrom?.let { ActionManager.getInstance().getAction(it) }?.let(::copyShortcutFrom)
-        }
-
-        fun performing(perform: (T) -> Unit): SettingsAction<T> = apply { this.perform = perform }
-
-        override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
-
-        override fun update(e: AnActionEvent) {
-            val enabled = searchState?.isVisible != true && target(selected) != null
-            e.presentation.isEnabled = enabled
-            // A toolbar keeps its buttons in place, disabled.
-            e.presentation.isVisible = enabled || e.isFromActionToolbar
-        }
-
-        override fun actionPerformed(e: AnActionEvent) {
-            target(selected)?.let(perform)
-        }
-    }
+        target: (SettingsNode?) -> T?,
+    ): SelectionAction<SettingsNode, T> =
+        SelectionAction(text, icon, shortcutFrom, { selected }, { searchState?.isVisible == true }, target)
 }
 
 /** What to call where an environment variable is kept, in a sentence. */
