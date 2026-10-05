@@ -67,8 +67,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         root.add(splitter, RUNS_CARD)
         root.add(signedOutView.component, SIGNED_OUT_CARD)
 
-        // Restore authentication and initialize API client
-        authService.restoreAuthentication()
+        scope.launch(Dispatchers.IO) { authService.restoreAuthentication() }
 
         // Auto-detect projects if authenticated
         autoDetectProjects()
