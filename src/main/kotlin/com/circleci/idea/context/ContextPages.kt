@@ -42,9 +42,13 @@ data class ContextRef(
 /** A change to a context's environment variables, which [source] made and needn't hear about. */
 data class EnvVarsChanged(val contextId: String, val source: Any)
 
+/** A context deleted, which [source] did and needn't hear about. */
+data class ContextDeleted(val contextId: String, val source: Any)
+
 /**
  * Opens context pages, one editor tab per context, and tells those showing
- * a context's environment variables when another changes them.
+ * a context's environment variables when another changes them. A deleted
+ * context's page closes.
  */
 @Service(Service.Level.PROJECT)
 class ContextPages(private val project: Project) {
@@ -54,6 +58,9 @@ class ContextPages(private val project: Project) {
     private val _envVarChanges = MutableSharedFlow<EnvVarsChanged>(extraBufferCapacity = CHANGES_BUFFER)
     val envVarChanges: SharedFlow<EnvVarsChanged> = _envVarChanges.asSharedFlow()
 
+    private val _deletions = MutableSharedFlow<ContextDeleted>(extraBufferCapacity = CHANGES_BUFFER)
+    val deletions: SharedFlow<ContextDeleted> = _deletions.asSharedFlow()
+
     /** Open a context's page, or select it if it's open. Must be called on the EDT. */
     fun open(ref: ContextRef) {
         val file = files.computeIfAbsent(ref.id) { ContextVirtualFile(ref) }
@@ -62,6 +69,12 @@ class ContextPages(private val project: Project) {
 
     fun envVarsChanged(change: EnvVarsChanged) {
         _envVarChanges.tryEmit(change)
+    }
+
+    /** Close a deleted context's page, if it's open, and say it's gone. Must be called on the EDT. */
+    fun contextDeleted(deletion: ContextDeleted) {
+        files.remove(deletion.contextId)?.let { FileEditorManager.getInstance(project).closeFile(it) }
+        _deletions.tryEmit(deletion)
     }
 
     companion object {

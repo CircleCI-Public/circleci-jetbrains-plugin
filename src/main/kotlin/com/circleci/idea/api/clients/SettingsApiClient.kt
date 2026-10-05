@@ -85,6 +85,14 @@ class SettingsApiClient : CircleCIApiClientBase() {
         }
     }
 
+    /** Delete a context, with its environment variables and restrictions. */
+    fun deleteContext(
+        client: CircleCIApiClient,
+        contextId: String,
+    ): Result<Unit> {
+        return executeDeleteRequest(client, "/api/v3/contexts/$contextId")
+    }
+
     /** All of a context's environment variables. */
     fun listContextEnvVars(
         client: CircleCIApiClient,

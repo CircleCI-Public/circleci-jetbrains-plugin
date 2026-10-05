@@ -260,6 +260,11 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
         assertEquals("created", Context("c-3", "staging"), context)
     }
 
+    fun testDeleteContext() {
+        assertTrue("delete succeeds", SettingsApiClient().deleteContext(client, "c-1").isSuccess)
+        assertEquals("request", listOf("DELETE /api/v3/contexts/c-1"), requestLines())
+    }
+
     fun testContextEnvVarsShowTheirLastCharacters() {
         responseBody = """{"data": [{"attributes": {"name": "TOKEN", "truncated_value": "abcd"}}]}"""
 

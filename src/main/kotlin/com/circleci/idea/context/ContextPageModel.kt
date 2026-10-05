@@ -79,14 +79,19 @@ class ContextPageModel(
 
     suspend fun deleteEnvVar(name: String): Result<Unit> = changeEnvVars { deleteContextEnvVar(ref.id, name) }
 
+    /** Delete the context; its page closes once it's gone. */
+    suspend fun deleteContext(): Result<Unit> =
+        requests.counted { api.call { deleteContext(ref.id) } }
+            .onSuccess { pages.contextDeleted(ContextDeleted(ref.id, this)) }
+
     /** Restrict the context, by a group's or project's ID or an expression; then list its restrictions again. */
     suspend fun addRestriction(
         type: RestrictionType,
         value: String,
-    ): Result<Unit> = changeRestrictions { createContextRestriction(ref.id, type, value) }
+    ): Result<Unit> = requests.change(api, { createContextRestriction(ref.id, type, value) }, ::loadRestrictions)
 
     suspend fun deleteRestriction(restriction: ContextRestriction): Result<Unit> =
-        changeRestrictions { deleteContextRestriction(ref.id, restriction.id) }
+        requests.change(api, { deleteContextRestriction(ref.id, restriction.id) }, ::loadRestrictions)
 
     /** The ID of the context's organization, which is also the group of all its members. */
     suspend fun orgId(): Result<String> {
@@ -110,19 +115,11 @@ class ContextPageModel(
         return api.call { searchProjects(orgId, name, cursor) }
     }
 
-    private suspend fun changeEnvVars(change: CircleCIApiService.() -> Result<Unit>): Result<Unit> {
-        val result = requests.counted { api.call(change) }
-        // Listed again whether or not it worked: a failure may still have changed something.
-        loadEnvVars()
-        pages.envVarsChanged(EnvVarsChanged(ref.id, this))
-        return result
-    }
-
-    private suspend fun changeRestrictions(change: CircleCIApiService.() -> Result<Unit>): Result<Unit> {
-        val result = requests.counted { api.call(change) }
-        loadRestrictions()
-        return result
-    }
+    private suspend fun changeEnvVars(change: CircleCIApiService.() -> Result<Unit>): Result<Unit> =
+        requests.change(api, change) {
+            loadEnvVars()
+            pages.envVarsChanged(EnvVarsChanged(ref.id, this))
+        }
 
     private fun loadContext() {
         load({ api.call { getContext(ref.id) } }) { it.copy(context = keep(it.context, this)) }
@@ -171,6 +168,16 @@ private class Requests {
         }
     }
 }
+
+/**
+ * [request], counted among the requests, then [reload] what it changed,
+ * whether or not it worked: a failure may still have changed something.
+ */
+private suspend fun Requests.change(
+    api: SettingsApi,
+    request: CircleCIApiService.() -> Result<Unit>,
+    reload: () -> Unit,
+): Result<Unit> = counted { api.call(request) }.also { reload() }
 
 /** [next], except that while it's still loading, what's shown stays. */
 private fun <T> keep(

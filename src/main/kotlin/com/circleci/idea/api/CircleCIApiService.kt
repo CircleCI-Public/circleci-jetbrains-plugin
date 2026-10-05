@@ -313,6 +313,10 @@ class CircleCIApiService {
         return withClient { settingsClient.createContext(it, orgId, name) }
     }
 
+    fun deleteContext(contextId: String): Result<Unit> {
+        return withClient { settingsClient.deleteContext(it, contextId) }
+    }
+
     /** A context, with the organization it's in. */
     fun getContext(contextId: String): Result<ContextDetail> {
         return withClient { contextClient.getContext(it, contextId) }
