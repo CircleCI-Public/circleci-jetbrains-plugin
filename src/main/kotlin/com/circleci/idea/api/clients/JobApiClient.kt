@@ -11,8 +11,12 @@ import com.circleci.idea.api.models.V3List
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
-/** A read of a step's output: the new bytes, and whether the output has finished. */
-class StepOutputChunk(val data: ByteArray, val terminal: Boolean)
+/**
+ * A read of a step's output: the new bytes, and whether the output has
+ * finished ([terminal]). [more] says the read stopped at its limit, with
+ * more to read already.
+ */
+class StepOutputChunk(val data: ByteArray, val terminal: Boolean, val more: Boolean = false)
 
 /**
  * API client for job-related operations.
@@ -91,8 +95,9 @@ class JobApiClient : CircleCIApiClientBase() {
     }
 
     /**
-     * A step's stdout from byte [offset] on, and whether it has finished
-     * (the X-Terminal header). A step with no output yet reads as empty.
+     * A step's stdout from byte [offset] on, up to [STDOUT_READ_BYTES] of it,
+     * and whether it has finished (the X-Terminal header). A step with no
+     * output yet reads as empty.
      */
     fun getStepStdout(
         client: CircleCIApiClient,
@@ -102,9 +107,10 @@ class JobApiClient : CircleCIApiClientBase() {
         offset: Long,
     ): Result<StepOutputChunk> {
         val headers = mapOf("Range" to "bytes=$offset-")
-        return client.getBytes("/api/v3/jobs/$jobId/stdout", stepParams(execution, stepNum), headers).mapCatching {
+        val params = stepParams(execution, stepNum)
+        return client.getBytes("/api/v3/jobs/$jobId/stdout", params, headers, STDOUT_READ_BYTES).mapCatching {
             when {
-                it.isSuccessful -> StepOutputChunk(it.body, it.headers["X-Terminal"] == "true")
+                it.isSuccessful -> StepOutputChunk(it.body, it.headers["X-Terminal"] == "true", more = it.truncated)
                 // Not written yet, or nothing past the offset.
                 it.code == HTTP_NOT_FOUND || it.code == HTTP_RANGE_NOT_SATISFIABLE ->
                     StepOutputChunk(
@@ -162,6 +168,9 @@ class JobApiClient : CircleCIApiClientBase() {
     private companion object {
         const val HTTP_NOT_FOUND = 404
         const val HTTP_RANGE_NOT_SATISFIABLE = 416
+
+        // A long log reads in pieces this size, so none of it is held, or printed, all at once.
+        const val STDOUT_READ_BYTES = 512 * 1024L
     }
 }
 

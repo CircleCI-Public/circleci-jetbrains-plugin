@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.lazy.tree.buildTree
@@ -227,17 +228,10 @@ class StepsTab(
                 var printedAny = false
                 val isStepActive = { findStep(key)?.status?.isActive ?: false }
                 service.stepOutput(ref.jobId, key.execution, key.num, isStepActive).events()
+                    .map { decode(decoder, it) }
                     .flowOn(Dispatchers.IO)
-                    .collect { event ->
-                        when (event) {
-                            is StepOutputEvent.Stdout -> printAnsi(decoder, event.text, ProcessOutputTypes.STDOUT)
-                            is StepOutputEvent.Stderr -> printAnsi(decoder, event.text, ProcessOutputTypes.STDERR)
-                            is StepOutputEvent.Failed ->
-                                console.print(
-                                    "Failed to load output: ${event.error.message}\n",
-                                    ConsoleViewContentType.ERROR_OUTPUT,
-                                )
-                        }
+                    .collect { pieces ->
+                        pieces.forEach { console.print(it.text.toString(), it.type) }
                         printedAny = true
                     }
                 if (!printedAny) {
@@ -246,18 +240,11 @@ class StepsTab(
             }
     }
 
-    private fun printAnsi(
-        decoder: AnsiEscapeDecoder,
-        text: String,
-        outputType: Key<*>,
-    ) {
-        decoder.escapeText(text, outputType) { chunk, attributes ->
-            console.print(chunk, ConsoleViewContentType.getConsoleViewType(attributes))
-        }
-    }
-
     private fun findStep(key: StepKey): Step? =
         detail()?.executions?.firstOrNull { it.index == key.execution }?.steps?.firstOrNull { it.num == key.num }
+
+    /** Output to print, in a console content type. */
+    private class Piece(val text: StringBuilder, val type: ConsoleViewContentType)
 
     private companion object {
         const val STEPS_PROPORTION = 0.3f
@@ -277,6 +264,37 @@ class StepsTab(
         }
 
         fun executionId(index: Int): String = "execution:$index"
+
+        /** [event] as the console prints it, its ANSI escapes decoded, in one piece for each run of a content type. */
+        fun decode(
+            decoder: AnsiEscapeDecoder,
+            event: StepOutputEvent,
+        ): List<Piece> =
+            when (event) {
+                is StepOutputEvent.Stdout -> decodeAnsi(decoder, event.text, ProcessOutputTypes.STDOUT)
+                is StepOutputEvent.Stderr -> decodeAnsi(decoder, event.text, ProcessOutputTypes.STDERR)
+                is StepOutputEvent.Failed ->
+                    listOf(
+                        Piece(
+                            StringBuilder("Failed to load output: ${event.error.message}\n"),
+                            ConsoleViewContentType.ERROR_OUTPUT,
+                        ),
+                    )
+            }
+
+        fun decodeAnsi(
+            decoder: AnsiEscapeDecoder,
+            text: String,
+            outputType: Key<*>,
+        ): List<Piece> {
+            val pieces = mutableListOf<Piece>()
+            decoder.escapeText(text, outputType) { chunk, attributes ->
+                val type = ConsoleViewContentType.getConsoleViewType(attributes)
+                val last = pieces.lastOrNull()
+                if (last?.type == type) last.text.append(chunk) else pieces += Piece(StringBuilder(chunk), type)
+            }
+            return pieces
+        }
 
         /**
          * Only executions open and close; a lone execution's steps are the

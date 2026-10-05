@@ -21,7 +21,8 @@ sealed class StepOutputEvent {
  * Streams a step's output the way `circleci run get` does: read stdout from
  * the current byte offset, then every [pollIntervalMs] read on from where it
  * left off, until the server says stdout is complete (X-Terminal); then read
- * stderr once.
+ * stderr once. A read that stopped at its limit is followed by the next
+ * straight away.
  *
  * A step that has ended without stdout ever being marked complete (one that
  * produced none, say) would otherwise be polled forever, so once
@@ -52,6 +53,7 @@ class StepOutputStream(
                 offset += chunk.data.size
                 lines.append(chunk.data)?.let { emit(StepOutputEvent.Stdout(it)) }
 
+                if (chunk.more) continue
                 if (chunk.terminal || (chunk.data.isEmpty() && !isStepActive())) break
                 delay(pollIntervalMs)
             }
