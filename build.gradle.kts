@@ -112,6 +112,9 @@ dependencies {
         bundledPlugin("intellij.ssh.plugin")
         bundledPlugin("org.jetbrains.plugins.terminal")
         bundledModule("intellij.libraries.jediterm.core")
+        // Optional at runtime (see github-support.xml): the GitHub account the language server's
+        // GitHub token comes from.
+        bundledPlugin("org.jetbrains.plugins.github")
         // Compose and Jewel, which the resource usage charts are drawn with.
         composeUI()
         // The archive doesn't bundle a JetBrains Runtime; runIde and tests need one.

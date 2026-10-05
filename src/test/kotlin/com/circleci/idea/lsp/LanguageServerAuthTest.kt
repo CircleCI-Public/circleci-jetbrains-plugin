@@ -22,3 +22,41 @@ class LanguageServerAuthTest {
         assertEquals("token", listOf(""), commands.first().arguments)
     }
 }
+
+class GitHubTokenRecipientsTest {
+    @Test
+    fun `sends a token`() {
+        val recipients = GitHubTokenRecipients<String>()
+
+        assertEquals("sent", "gh-token", recipients.toSend("client", "gh-token"))
+    }
+
+    @Test
+    fun `sends nothing without a token to a client never sent one`() {
+        val recipients = GitHubTokenRecipients<String>()
+
+        assertEquals("sent", null, recipients.toSend("client", null))
+    }
+
+    @Test
+    fun `clears a token it sent, once`() {
+        val recipients = GitHubTokenRecipients<String>()
+        recipients.toSend("client", "gh-token")
+
+        val cleared = recipients.toSend("client", null)
+        val again = recipients.toSend("client", null)
+
+        assertEquals("cleared", "", cleared)
+        assertEquals("again", null, again)
+    }
+
+    @Test
+    fun `clears only the clients it sent a token`() {
+        val recipients = GitHubTokenRecipients<String>()
+        recipients.toSend("sent", "gh-token")
+
+        val other = recipients.toSend("other", null)
+
+        assertEquals("other", null, other)
+    }
+}

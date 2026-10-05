@@ -55,6 +55,14 @@
     </dependencies>
     <depends optional="true" config-file="terminal-support.xml">org.jetbrains.plugins.terminal</depends>
     <depends optional="true" config-file="ssh-support.xml">intellij.ssh.plugin</depends>
+    <depends optional="true" config-file="github-support.xml">org.jetbrains.plugins.github</depends>
+
+    <extensionPoints>
+        <!-- The GitHub token the language server fetches private orbs with -->
+        <extensionPoint qualifiedName="com.circleci.idea.gitHubTokenSource"
+                        interface="com.circleci.idea.lsp.GitHubTokenSource"
+                        dynamic="true"/>
+    </extensionPoints>
 
     <extensions defaultExtensionNs="com.intellij">
         <!-- Tool Window: top of the left stripe, with the other VCS tools (Commit, Pull Requests) -->
