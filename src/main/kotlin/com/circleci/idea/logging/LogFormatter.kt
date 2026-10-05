@@ -1,13 +1,14 @@
 package com.circleci.idea.logging
 
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 /**
  * Formats log messages with timestamp, level, and context.
  */
 object LogFormatter {
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+    // Shared by every thread that logs.
+    private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
 
     /**
      * Format a log message for file output.
@@ -18,7 +19,7 @@ object LogFormatter {
         context: LogContext? = null,
         throwable: Throwable? = null,
     ): String {
-        val timestamp = dateFormat.format(Date())
+        val timestamp = dateFormat.format(LocalDateTime.now())
         val levelStr = level.displayName.padEnd(5)
 
         val builder = StringBuilder()
