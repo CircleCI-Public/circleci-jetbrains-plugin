@@ -7,25 +7,34 @@ import com.circleci.idea.settings.CircleCISettings
 import com.circleci.idea.state.CircleCIStateStore
 import com.circleci.idea.toolwindow.CircleCIToolWindowService
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationActivationListener
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.wm.IdeFrame
+import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowManager
+import com.intellij.openapi.wm.ex.ToolWindowManagerListener
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.temporal.ChronoUnit
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.min
 
 /**
- * Service for polling run updates.
- * Uses adaptive polling intervals based on run age:
- * - Fast polling (30s) for runs < 1 day old
- * - Slow polling (2m) for runs > 1 day old
+ * Service for polling run updates while the tool window is showing.
+ *
+ * It polls at the fast interval while a run listed is in progress, and at
+ * the slow one otherwise, or while the IDE isn't the active app. Failed polls
+ * back off, doubling the slow interval each time up to [MAX_BACKOFF_MS].
+ * Showing the tool window, or switching back to the IDE, polls straight away
+ * once the fast interval has passed since the last poll.
  */
 @Service(Service.Level.PROJECT)
 class RunPollingService(private val project: Project) : Disposable {
@@ -38,11 +47,29 @@ class RunPollingService(private val project: Project) : Disposable {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var pollingJob: Job? = null
 
-    private var lastPollTime: Instant? = null
-    private var newestRunTime: Instant? = null
+    // Cuts the wait for the next poll short.
+    private val wake = Channel<Unit>(Channel.CONFLATED)
+
+    @Volatile
+    private var lastPollMs = 0L
+    private var failures = 0
 
     init {
         logger.logLifecycleEvent("RunPollingService initialized")
+        ApplicationManager.getApplication().messageBus.connect(this).subscribe(
+            ApplicationActivationListener.TOPIC,
+            object : ApplicationActivationListener {
+                override fun applicationActivated(ideFrame: IdeFrame) = wakeIfDue()
+            },
+        )
+        project.messageBus.connect(this).subscribe(
+            ToolWindowManagerListener.TOPIC,
+            object : ToolWindowManagerListener {
+                override fun toolWindowShown(toolWindow: ToolWindow) {
+                    if (toolWindow.id == TOOL_WINDOW_ID) wakeIfDue()
+                }
+            },
+        )
     }
 
     /**
@@ -64,22 +91,19 @@ class RunPollingService(private val project: Project) : Disposable {
         pollingJob =
             scope.launch {
                 while (isActive) {
-                    try {
-                        // Only poll if tool window is visible
-                        if (isToolWindowVisible()) {
-                            pollRuns()
-                        } else {
-                            logger.debug("Tool window not visible, skipping poll")
+                    val interval =
+                        try {
+                            if (isToolWindowVisible()) pollRuns() else slowIntervalMs()
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (
+                            @Suppress("TooGenericExceptionCaught") e: Exception,
+                        ) {
+                            logger.error("Error in polling loop", e)
+                            slowIntervalMs()
                         }
-
-                        // Wait for next poll interval
-                        val interval = calculatePollInterval()
-                        logger.debug("Next poll in ${interval}ms")
-                        delay(interval)
-                    } catch (e: Exception) {
-                        logger.error("Error in polling loop", e)
-                        delay(settings.slowPollIntervalSeconds * 1000L) // Fall back to slow interval on error
-                    }
+                    logger.debug("Next poll in ${interval}ms")
+                    withTimeoutOrNull(interval) { wake.receive() }
                 }
             }
     }
@@ -107,57 +131,43 @@ class RunPollingService(private val project: Project) : Disposable {
     fun isPolling(): Boolean = pollingJob?.isActive == true
 
     /**
-     * Poll the runs the tool window lists.
+     * Poll the runs the tool window lists, giving how long to wait for the next poll.
      */
-    private suspend fun pollRuns() {
+    private suspend fun pollRuns(): Long {
         if (projectService.getSelectedProject() == null && stateStore.filters.value.scope != RunScope.MY_RUNS) {
             logger.debug("No project to list runs for, skipping poll")
-            return
+            return slowIntervalMs()
         }
 
-        lastPollTime = Instant.now()
+        lastPollMs = System.currentTimeMillis()
 
         // Re-fetch from the API, keeping the tree's state
-        toolWindowService.refreshRuns()
+        val result = toolWindowService.pollRuns() ?: return slowIntervalMs()
+        return result.fold(
+            onSuccess = { runs ->
+                failures = 0
+                val inProgress = runs.any { it.status.isActive }
+                if (inProgress && ApplicationManager.getApplication().isActive) {
+                    fastIntervalMs()
+                } else {
+                    slowIntervalMs()
+                }
+            },
+            onFailure = {
+                failures++
+                val backoff = slowIntervalMs() shl min(failures - 1, MAX_BACKOFF_DOUBLINGS)
+                min(backoff, MAX_BACKOFF_MS)
+            },
+        )
     }
 
-    /**
-     * Calculate the next poll interval based on run age.
-     * Returns interval in milliseconds.
-     */
-    private fun calculatePollInterval(): Long {
-        // If we haven't detected any runs yet, use fast polling
-        val newestRun = newestRunTime
-        if (newestRun == null) {
-            logger.debug("No run age detected, using fast poll interval")
-            return settings.fastPollIntervalSeconds * 1000L
-        }
-
-        // Calculate age of newest run
-        val now = Instant.now()
-        val ageInHours = ChronoUnit.HOURS.between(newestRun, now)
-
-        // Use fast polling for runs less than 24 hours old
-        return if (ageInHours < 24) {
-            logger.debug("Newest run is ${ageInHours}h old, using fast poll interval")
-            settings.fastPollIntervalSeconds * 1000L
-        } else {
-            logger.debug("Newest run is ${ageInHours}h old, using slow poll interval")
-            settings.slowPollIntervalSeconds * 1000L
-        }
+    private fun wakeIfDue() {
+        if (System.currentTimeMillis() - lastPollMs >= fastIntervalMs()) wake.trySend(Unit)
     }
 
-    /**
-     * Update the newest run time for adaptive polling.
-     * Should be called after fetching runs.
-     */
-    fun updateNewestRunTime(runCreatedAt: Instant) {
-        val current = newestRunTime
-        if (current == null || runCreatedAt.isAfter(current)) {
-            logger.debug("Updated newest run time: $runCreatedAt")
-            newestRunTime = runCreatedAt
-        }
-    }
+    private fun fastIntervalMs(): Long = settings.fastPollIntervalSeconds * MS_PER_SECOND
+
+    private fun slowIntervalMs(): Long = settings.slowPollIntervalSeconds * MS_PER_SECOND
 
     /**
      * Check if the CircleCI tool window is currently visible.
@@ -165,7 +175,7 @@ class RunPollingService(private val project: Project) : Disposable {
     private fun isToolWindowVisible(): Boolean {
         return try {
             val toolWindowManager = ToolWindowManager.getInstance(project)
-            val toolWindow = toolWindowManager.getToolWindow("CircleCI")
+            val toolWindow = toolWindowManager.getToolWindow(TOOL_WINDOW_ID)
             toolWindow?.isVisible == true
         } catch (e: Exception) {
             logger.warn("Failed to check tool window visibility", e)
@@ -177,5 +187,14 @@ class RunPollingService(private val project: Project) : Disposable {
         logger.logLifecycleEvent("RunPollingService disposing")
         stopPolling()
         scope.cancel()
+    }
+
+    private companion object {
+        const val TOOL_WINDOW_ID = "CircleCI"
+        const val MS_PER_SECOND = 1000L
+        const val MAX_BACKOFF_MS = 15 * 60 * 1000L
+
+        // Enough to reach the cap from any slow interval, without overflowing the shift.
+        const val MAX_BACKOFF_DOUBLINGS = 10
     }
 }

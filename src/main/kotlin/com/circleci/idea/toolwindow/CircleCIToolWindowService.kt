@@ -1,5 +1,6 @@
 package com.circleci.idea.toolwindow
 
+import com.circleci.idea.state.Run
 import com.circleci.idea.toolwindow.tree.CircleCITreeModel
 import com.circleci.idea.toolwindow.tree.CircleCITreeNode
 import com.intellij.openapi.components.Service
@@ -30,4 +31,7 @@ class CircleCIToolWindowService {
     fun refreshRuns() {
         treeModel?.refreshRuns()
     }
+
+    /** [refreshRuns], waiting for the run list: null with no tree, or no run list in it. */
+    suspend fun pollRuns(): Result<List<Run>>? = treeModel?.pollRuns()
 }
