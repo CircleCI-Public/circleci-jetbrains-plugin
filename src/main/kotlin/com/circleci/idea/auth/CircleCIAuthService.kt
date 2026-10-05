@@ -29,6 +29,10 @@ class CircleCIAuthService(private val project: Project) {
         private const val CREDENTIAL_SERVICE_NAME = "CircleCI"
         private const val CREDENTIAL_USER_NAME = "api-token"
 
+        // The stored token, kept once read: every project shares it.
+        @Volatile
+        private var storedToken: StoredToken? = null
+
         fun getInstance(project: Project): CircleCIAuthService {
             return project.service()
         }
@@ -63,8 +67,10 @@ class CircleCIAuthService(private val project: Project) {
      * Get the current authentication token.
      */
     fun getToken(): String? {
-        val credentials = passwordSafe.get(createCredentialAttributes())
-        return credentials?.getPasswordAsString()
+        storedToken?.let { return it.value }
+        val token = passwordSafe.get(createCredentialAttributes())?.getPasswordAsString()
+        storedToken = StoredToken(token)
+        return token
     }
 
     /** How the stored token was got, or null if there's none. */
@@ -160,6 +166,7 @@ class CircleCIAuthService(private val project: Project) {
     fun logout() {
         // Clear token from secure storage
         passwordSafe.set(createCredentialAttributes(), null)
+        storedToken = StoredToken(null)
         CircleCISettings.getInstance().authMethod = ""
 
         // Update state
@@ -241,6 +248,7 @@ class CircleCIAuthService(private val project: Project) {
     private fun storeToken(token: String) {
         val credentials = Credentials(CREDENTIAL_USER_NAME, token)
         passwordSafe.set(createCredentialAttributes(), credentials)
+        storedToken = StoredToken(token)
     }
 
     /**
@@ -283,3 +291,6 @@ class CircleCIAuthService(private val project: Project) {
         }
     }
 }
+
+/** The token read from the password safe, or null if none is stored. */
+private class StoredToken(val value: String?)
