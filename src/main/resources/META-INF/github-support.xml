@@ -1,0 +1,6 @@
+<idea-plugin>
+    <!-- Optional GitHub integration: the language server fetches private orbs with the GitHub account's token -->
+    <extensions defaultExtensionNs="com.circleci.idea">
+        <gitHubTokenSource implementation="com.circleci.idea.github.GitHubAccountTokenSource"/>
+    </extensions>
+</idea-plugin>
