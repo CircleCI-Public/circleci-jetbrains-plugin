@@ -93,12 +93,14 @@ class CircleCIConfigurable : Configurable {
             JBLabel("Fast poll interval (seconds):"),
             fastPollIntervalField,
         )
-        formBuilder.addComponent(JBLabel("<html><font color='gray'>For runs less than 1 day old</font></html>"))
+        formBuilder.addComponent(JBLabel("<html><font color='gray'>While a run is in progress</font></html>"))
         formBuilder.addLabeledComponent(
             JBLabel("Slow poll interval (seconds):"),
             slowPollIntervalField,
         )
-        formBuilder.addComponent(JBLabel("<html><font color='gray'>For runs more than 1 day old</font></html>"))
+        formBuilder.addComponent(
+            JBLabel("<html><font color='gray'>When none is, or the IDE isn't in front</font></html>"),
+        )
 
         // Notifications section
         formBuilder.addSeparator(5)

@@ -22,8 +22,8 @@ class CircleCISettings : PersistentStateComponent<CircleCISettings> {
 
     // Auto-refresh settings
     var autoRefreshEnabled: Boolean = true
-    var fastPollIntervalSeconds: Int = 30 // For runs < 1 day old
-    var slowPollIntervalSeconds: Int = 120 // For runs > 1 day old
+    var fastPollIntervalSeconds: Int = 30 // While a run is in progress
+    var slowPollIntervalSeconds: Int = 120 // Otherwise
 
     // How the stored token was got: "oauth" (in the browser), "token" (pasted), or "" when logged out.
     var authMethod: String = ""

@@ -6,7 +6,6 @@ import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.api.clients.V3Page
 import com.circleci.idea.auth.CircleCIAuthService
 import com.circleci.idea.logging.CircleCILogger
-import com.circleci.idea.polling.RunPollingService
 import com.circleci.idea.project.CircleCIProjectService
 import com.circleci.idea.run.RunListService
 import com.circleci.idea.run.RunScope
@@ -54,7 +53,6 @@ class CircleCITreeModel(
     private val settings = CircleCISettings.getInstance()
     private val stateStore = CircleCIStateStore.getInstance(project)
     private val runListService = RunListService.getInstance(project)
-    private val pollingService = project.getService(RunPollingService::class.java)
 
     /** The (hidden) root, whose children are the runs listed. */
     val root = RootNode()
@@ -123,6 +121,17 @@ class CircleCITreeModel(
             if (runs != null) loadRuns(refresh = true)
         }
     }
+
+    /**
+     * [refreshRuns], waiting for the run list (the levels below it refresh
+     * after): the runs listed, or why they couldn't be; null with no run list.
+     */
+    suspend fun pollRuns(): Result<List<Run>>? =
+        withContext(Dispatchers.Main) {
+            val list = runs ?: return@withContext null
+            val generation = startLoad(root, refresh = true)
+            counted { fillRuns(list, generation, refresh = true, myRuns = isMyRuns()) }
+        }
 
     /**
      * Rebuild the tree from the selected projects and the current filters.
@@ -207,9 +216,20 @@ class CircleCITreeModel(
     /** List the runs at the top of the tree: the first page, or on a [refresh] as many as are listed. */
     private fun loadRuns(refresh: Boolean) {
         val list = runs ?: return
-        val node = root
+        val generation = startLoad(root, refresh)
         val myRuns = isMyRuns()
-        loadInto(node, refresh, "runs", { if (refresh) list.refresh() else list.reload() }) { items, previous ->
+        tracked { fillRuns(list, generation, refresh, myRuns) }
+    }
+
+    private suspend fun fillRuns(
+        list: PagedList<Run, String>,
+        generation: Int,
+        refresh: Boolean,
+        myRuns: Boolean,
+    ): Result<List<Run>> {
+        val node = root
+        val fetch = suspend { if (refresh) list.refresh() else list.reload() }
+        return fill(node, generation, refresh, "runs", fetch) { items, previous ->
             val existing = existingChildren<RunNode, String>(previous) { it.run.id }
             if (items.isEmpty()) {
                 node.add(EmptyNode(emptyRunsMessage()))
@@ -226,7 +246,6 @@ class CircleCITreeModel(
             }
             if (list.state.value.hasMore) node.add(LoadMoreNode())
 
-            items.firstNotNullOfOrNull { it.createdAt }?.let { pollingService.updateNewestRunTime(it) }
             items.filter { it.projectSlug != null }.groupBy { it.projectSlug!! }.forEach { (slug, runs) ->
                 stateStore.setRuns(slug, runs)
             }
@@ -295,6 +314,15 @@ class CircleCITreeModel(
         // Given the result and the node's children before it, some of which it may keep.
         populate: (T, List<CircleCITreeNode>) -> Unit,
     ) {
+        val generation = startLoad(node, refresh)
+        tracked { fill(node, generation, refresh, what, fetch, populate) }
+    }
+
+    /** Start a load of [node]'s children, giving its generation; a first load shows its loading row. */
+    private fun startLoad(
+        node: CircleCITreeNode,
+        refresh: Boolean,
+    ): Int {
         val generation = ++node.loadGeneration
         if (!refresh) {
             node.removeAllChildren()
@@ -303,40 +331,51 @@ class CircleCITreeModel(
             if (node !== root) node.add(LoadingNode())
             structureChanged()
         }
+        return generation
+    }
 
-        tracked {
-            val result = authenticated(fetch)
-            // Stale, or for a node no longer in the tree.
-            if (generation != node.loadGeneration || (node !== root && node.parent == null)) return@tracked
-            if (refresh && result.isFailure) {
-                // Keep showing what loaded last; the next refresh tries again.
-                logger.warn("Failed to refresh $what: ${result.exceptionOrNull()?.message}")
-                return@tracked
-            }
-
-            // Taken before clearing, so populate can keep the nodes still listed (and so their expansion).
-            val previous = node.children().toList().filterIsInstance<CircleCITreeNode>()
-            node.removeAllChildren()
-            result.fold(
-                onSuccess = {
-                    populate(it, previous)
-                    node.childrenLoaded = true
-                },
-                onFailure = { error ->
-                    logger.error("Failed to load $what: ${error.message}", error)
-                    node.add(ErrorNode(error.message ?: "Failed to load $what"))
-                    node.childrenLoaded = false
-                },
-            )
-            if (refresh) {
-                refreshLoadedChildren(node)
-            }
-            structureChanged()
-            // Nodes rebuilt while open load again.
-            loadOpened()
-            // A rebuilt run list may end where a page was loading when it was replaced.
-            if (node === root) loadMoreIfNearEnd()
+    /** The fetch of [loadInto], for the load [generation]: gives its result, whether or not it was stale. */
+    @Suppress("LongParameterList")
+    private suspend fun <T> fill(
+        node: CircleCITreeNode,
+        generation: Int,
+        refresh: Boolean,
+        what: String,
+        fetch: suspend () -> Result<T>,
+        populate: (T, List<CircleCITreeNode>) -> Unit,
+    ): Result<T> {
+        val result = authenticated(fetch)
+        // Stale, or for a node no longer in the tree.
+        if (generation != node.loadGeneration || (node !== root && node.parent == null)) return result
+        if (refresh && result.isFailure) {
+            // Keep showing what loaded last; the next refresh tries again.
+            logger.warn("Failed to refresh $what: ${result.exceptionOrNull()?.message}")
+            return result
         }
+
+        // Taken before clearing, so populate can keep the nodes still listed (and so their expansion).
+        val previous = node.children().toList().filterIsInstance<CircleCITreeNode>()
+        node.removeAllChildren()
+        result.fold(
+            onSuccess = {
+                populate(it, previous)
+                node.childrenLoaded = true
+            },
+            onFailure = { error ->
+                logger.error("Failed to load $what: ${error.message}", error)
+                node.add(ErrorNode(error.message ?: "Failed to load $what"))
+                node.childrenLoaded = false
+            },
+        )
+        if (refresh) {
+            refreshLoadedChildren(node)
+        }
+        structureChanged()
+        // Nodes rebuilt while open load again.
+        loadOpened()
+        // A rebuilt run list may end where a page was loading when it was replaced.
+        if (node === root) loadMoreIfNearEnd()
+        return result
     }
 
     /**
@@ -379,16 +418,34 @@ class CircleCITreeModel(
 
     /** Launch [block] on the EDT, counted as a load in flight until it ends, however it ends. */
     private fun tracked(block: suspend CoroutineScope.() -> Unit) {
-        activeLoads++
-        _loading.value = true
+        loadStarted()
         scope.launch {
             try {
                 block()
             } finally {
-                activeLoads--
-                _loading.value = activeLoads > 0
+                loadEnded()
             }
         }
+    }
+
+    /** Run [block], counted as a load in flight until it ends. Call it on the EDT. */
+    private suspend fun <R> counted(block: suspend () -> R): R {
+        loadStarted()
+        try {
+            return block()
+        } finally {
+            loadEnded()
+        }
+    }
+
+    private fun loadStarted() {
+        activeLoads++
+        _loading.value = true
+    }
+
+    private fun loadEnded() {
+        activeLoads--
+        _loading.value = activeLoads > 0
     }
 
     private inline fun <reified N : CircleCITreeNode, K> existingChildren(
