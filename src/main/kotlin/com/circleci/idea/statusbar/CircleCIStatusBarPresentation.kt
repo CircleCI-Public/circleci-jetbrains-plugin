@@ -1,6 +1,8 @@
 package com.circleci.idea.statusbar
 
 import com.circleci.idea.icons.CircleCIIcons
+import com.circleci.idea.icons.statusIcon
+import com.circleci.idea.run.RunStatus
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.ToolWindowManager
@@ -10,12 +12,12 @@ import javax.swing.Icon
 
 /**
  * Presentation for the CircleCI status bar widget.
- * Shows current run status with color coding and icon.
+ * Shows the latest workflow's status as a dot in its colour.
  */
 class CircleCIStatusBarPresentation(private val project: Project) : StatusBarWidget.IconPresentation {
     private var isAuthenticated: Boolean = false
     private var isLoading: Boolean = false
-    private var latestStatus: String? = null
+    private var latestStatus: RunStatus? = null
 
     /**
      * Update authentication state.
@@ -29,7 +31,7 @@ class CircleCIStatusBarPresentation(private val project: Project) : StatusBarWid
      */
     fun updateRunStatus(
         isLoading: Boolean,
-        latestStatus: String?,
+        latestStatus: RunStatus?,
     ) {
         this.isLoading = isLoading
         this.latestStatus = latestStatus
@@ -38,19 +40,16 @@ class CircleCIStatusBarPresentation(private val project: Project) : StatusBarWid
     override fun getTooltipText(): String {
         return when {
             !isAuthenticated -> "CircleCI: Not logged in. Click to open CircleCI panel and log in."
-            isLoading -> "CircleCI: Loading runs..."
+            latestStatus == null && isLoading -> "CircleCI: Loading runs..."
             latestStatus == null -> "CircleCI: No runs found. Click to open CircleCI panel."
-            else -> "CircleCI: ${getStatusDisplayText(latestStatus!!)}. Click to open CircleCI panel."
+            else -> "CircleCI: Latest workflow ${latestStatus!!.label}. Click to open CircleCI panel."
         }
     }
 
+    /** The latest workflow's status dot, kept while a refresh is under way. */
     override fun getIcon(): Icon {
-        return when {
-            !isAuthenticated -> CircleCIIcons.PLUGIN_ICON
-            isLoading -> CircleCIIcons.Status.RUNNING
-            latestStatus == null -> CircleCIIcons.PLUGIN_ICON
-            else -> getStatusIcon(latestStatus!!)
-        }
+        val status = latestStatus
+        return if (isAuthenticated && status != null) statusIcon(status) else CircleCIIcons.PLUGIN_ICON
     }
 
     override fun getClickConsumer(): Consumer<MouseEvent>? {
@@ -58,37 +57,6 @@ class CircleCIStatusBarPresentation(private val project: Project) : StatusBarWid
             // Open CircleCI tool window on click
             val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("CircleCI")
             toolWindow?.show()
-        }
-    }
-
-    /**
-     * Get display text for status.
-     */
-    private fun getStatusDisplayText(status: String): String {
-        return when (status.lowercase()) {
-            "success" -> "✓ Success"
-            "failed" -> "✗ Failed"
-            "failing" -> "✗ Failing"
-            "running" -> "Running"
-            "canceled" -> "Canceled"
-            "on_hold" -> "On Hold"
-            "not_run" -> "Not Run"
-            "error" -> "✗ Error"
-            else -> status.replaceFirstChar { it.uppercase() }
-        }
-    }
-
-    /**
-     * Get status icon.
-     */
-    private fun getStatusIcon(status: String): Icon {
-        return when (status.lowercase()) {
-            "success" -> CircleCIIcons.Status.SUCCESS
-            "failed", "failing", "error" -> CircleCIIcons.Status.FAILED
-            "running", "queued" -> CircleCIIcons.Status.RUNNING
-            "canceled" -> CircleCIIcons.Status.CANCELED
-            "on_hold", "on-hold" -> CircleCIIcons.Status.ON_HOLD
-            else -> CircleCIIcons.PLUGIN_ICON
         }
     }
 }

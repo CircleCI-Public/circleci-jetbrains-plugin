@@ -7,13 +7,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.circleci.idea.icons.StatusDot
 import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.run.elapsedSince
 import com.circleci.idea.state.JobDetail
@@ -38,7 +38,6 @@ import org.jetbrains.jewel.bridge.JewelComposePanel
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.Orientation
 import org.jetbrains.jewel.ui.component.Divider
-import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.SimpleTabContent
 import org.jetbrains.jewel.ui.component.TabData
 import org.jetbrains.jewel.ui.component.TabStrip
@@ -194,7 +193,7 @@ class JobPanel(
         ) {
             Text(ref.name, style = JewelTheme.typography.h3TextStyle)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                job?.let { Icon(statusIconKey(it.status), it.status.label, Modifier.size(STATUS_ICON.dp)) }
+                job?.let { StatusDot(it.status) }
                 Text(loadError ?: summary(job), color = JewelTheme.globalColors.text.info)
             }
         }
@@ -221,7 +220,6 @@ class JobPanel(
     private companion object {
         /** How often a running job is re-read for new steps and statuses. */
         const val JOB_POLL_INTERVAL_MS = 5_000L
-        const val STATUS_ICON = 16
     }
 }
 

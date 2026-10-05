@@ -1,6 +1,7 @@
 package com.circleci.idea.statusbar
 
 import com.circleci.idea.logging.CircleCILogger
+import com.circleci.idea.run.RunStatus
 import com.circleci.idea.state.CircleCIStateStore
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
@@ -74,14 +75,14 @@ class CircleCIStatusBarWidget(private val project: Project) : StatusBarWidget {
     /**
      * Find the latest workflow status across all projects.
      */
-    private fun findLatestWorkflowStatus(projectsDataState: com.circleci.idea.state.ProjectsDataState): String? {
+    private fun findLatestWorkflowStatus(projectsDataState: com.circleci.idea.state.ProjectsDataState): RunStatus? {
         val allWorkflows =
             projectsDataState.data.values
                 .flatMap { it.runs }
                 .flatMap { it.workflows }
                 .sortedByDescending { it.createdAt }
 
-        return allWorkflows.firstOrNull()?.status?.token
+        return allWorkflows.firstOrNull()?.status
     }
 
     /**

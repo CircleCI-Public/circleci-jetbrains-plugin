@@ -2,7 +2,6 @@ package com.circleci.idea.toolwindow.tree
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
+import com.circleci.idea.icons.StatusDot
 import com.circleci.idea.job.JobDetailsService
 import com.circleci.idea.job.JobRef
 import com.circleci.idea.job.Placeholder
@@ -347,22 +347,6 @@ private fun lineDetail(node: CircleCITreeNode): String? =
 private fun detailColor(onSelection: Boolean): Color =
     if (onSelection) Color.Unspecified else JewelTheme.globalColors.text.info
 
-/** A small dot in a status's colour, as the Pull Requests list marks its rows. */
-@Composable
-private fun StatusDot(status: RunStatus) {
-    Box(Modifier.size(DOT.dp).background(statusColor(status).toComposeColor(), CircleShape))
-}
-
-/** Blue while running, green passed, red failed, purple on hold, grey otherwise. */
-private fun statusColor(status: RunStatus): JBColor =
-    when (status) {
-        RunStatus.RUNNING -> BLUE
-        RunStatus.SUCCESS -> GREEN
-        RunStatus.FAILED, RunStatus.FAILING, RunStatus.ERROR -> RED
-        RunStatus.ON_HOLD -> PURPLE
-        else -> GREY
-    }
-
 private fun Color.takeOrElse(fallback: () -> Color): Color = if (this == Color.Unspecified) fallback() else this
 
 /** A timestamp as "X ago" (e.g. "2h ago", "5m ago"). */
@@ -381,12 +365,6 @@ private const val GAP = 8
 private const val ICON_GAP = 6
 private const val VERTICAL_PADDING = 3
 private const val AVATAR_PADDING = 6
-private const val DOT = 8
 private const val BRANCH_COLUMN_SHARE = 0.3f
 
-private val BLUE = JBColor(0x3574F0, 0x548AF7)
-private val GREEN = JBColor(0x369650, 0x5FAD65)
-private val RED = JBColor(0xE55765, 0xDB5C5C)
-private val PURPLE = JBColor(0x955AE0, 0xA571E6)
-private val GREY = JBColor(0xA8ADBD, 0x6F737A)
 private val RING_COLOR = JBColor(0xD3D5DB, 0x4E5157)

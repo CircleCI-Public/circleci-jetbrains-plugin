@@ -1,6 +1,6 @@
 package com.circleci.idea.job
 
-import com.circleci.idea.icons.CircleCIIcons
+import com.circleci.idea.icons.statusIcon
 import com.intellij.ide.FileIconProvider
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorPolicy
@@ -82,5 +82,5 @@ class JobFileIconProvider : FileIconProvider {
         file: VirtualFile,
         @Iconable.IconFlags flags: Int,
         project: Project?,
-    ): Icon? = (file as? JobVirtualFile)?.let { CircleCIIcons.getStatusIcon(it.status) }
+    ): Icon? = (file as? JobVirtualFile)?.let { statusIcon(it.status) }
 }
