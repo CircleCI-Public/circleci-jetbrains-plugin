@@ -4,6 +4,7 @@ import com.circleci.idea.auth.CircleCIAuthService
 import com.circleci.idea.auth.CircleCILoginDialog
 import com.circleci.idea.auth.CircleCIOAuthLoginDialog
 import com.circleci.idea.logging.CircleCILogger
+import com.circleci.idea.lsp.LanguageServerAuth
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.ComboBox
@@ -141,12 +142,18 @@ class CircleCIConfigurable : Configurable {
     override fun apply() {
         val settings = CircleCISettings.getInstance()
 
+        val hostChanged = hostUrlField.text != settings.hostUrl
         settings.hostUrl = hostUrlField.text
         settings.autoRefreshEnabled = autoRefreshEnabledCheck.isSelected
         settings.fastPollIntervalSeconds = fastPollIntervalField.text.toIntOrNull() ?: 30
         settings.slowPollIntervalSeconds = slowPollIntervalField.text.toIntOrNull() ?: 120
         settings.notificationsEnabled = notificationsEnabledCheck.isSelected
         settings.logLevel = logLevelCombo.selectedItem?.toString()?.lowercase() ?: "info"
+
+        if (hostChanged) {
+            ProjectManager.getInstance().openProjects.filterNot { it.isDisposed }
+                .forEach { LanguageServerAuth.getInstance(it).hostChanged() }
+        }
 
         // Restart polling with the new settings, in every open project
         for (pollingService in getPollingServices()) {

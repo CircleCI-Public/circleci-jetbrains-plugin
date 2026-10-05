@@ -1,6 +1,5 @@
 package com.circleci.idea.lsp
 
-import com.circleci.idea.auth.CircleCIAuthService
 import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.settings.CircleCIConfigurable
 import com.circleci.idea.settings.CircleCISettings
@@ -10,8 +9,10 @@ import com.intellij.openapi.util.IconLoader
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.lsp.api.LspClient
 import com.intellij.platform.lsp.api.LspIntegrationProvider
+import com.intellij.platform.lsp.api.LspServerListener
 import com.intellij.platform.lsp.api.ProjectWideLspClientDescriptor
 import com.intellij.platform.lsp.api.lsWidget.LspClientWidgetItem
+import org.eclipse.lsp4j.InitializeResult
 
 /**
  * Whether the file is a CircleCI config file (a .yml or .yaml file in a .circleci directory).
@@ -74,16 +75,14 @@ class CircleCILanguageServerDescriptor(project: Project) :
             if (basePath != null) {
                 withWorkDirectory(basePath)
             }
-
-            // Add CircleCI API token as environment variable
-            val authService = CircleCIAuthService.getInstance(project)
-            val token = authService.getToken()
-            if (token != null && token.isNotEmpty()) {
-                withEnvironment("CIRCLECI_CLI_TOKEN", token)
-                logger.info("CircleCI token configured for language server")
-            } else {
-                logger.warn("No CircleCI token found - language server diagnostics may be limited")
-            }
         }
     }
+
+    // The server takes the token and host as commands, once it's initialized.
+    override val lspServerListener: LspServerListener =
+        object : LspServerListener {
+            override fun serverInitialized(params: InitializeResult) {
+                LanguageServerAuth.getInstance(project).sendTo(this@CircleCILanguageServerDescriptor)
+            }
+        }
 }
