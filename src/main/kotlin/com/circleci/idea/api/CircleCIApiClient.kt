@@ -19,6 +19,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.IOException
+import java.io.Reader
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
@@ -108,6 +109,33 @@ class CircleCIApiClient(
                 } else {
                     val (body, truncated) = readBody(response, maxBytes)
                     Result.success(RawResponse(response.code, body, response.headers, truncated))
+                }
+            }
+        } catch (e: IOException) {
+            logger.logApiError(request.method, request.url.toString(), 0, e.message ?: "Network error")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * A GET whose body [read] takes as it arrives, given the status and the
+     * body (empty without one), rather than held whole. As with [getBytes],
+     * only 401, network errors and what [read] throws fail.
+     */
+    suspend fun <T> getStreaming(
+        path: String,
+        read: (code: Int, body: Reader) -> T,
+    ): Result<T> {
+        val request = Request.Builder().url(buildUrl(path)).get().build()
+        logger.logApiRequest(request.method, request.url.toString())
+        rateLimiter.acquire()
+
+        return try {
+            respond(request).use { response ->
+                if (response.code == 401) {
+                    Result.failure(Exception("Unauthorized: Invalid or expired token"))
+                } else {
+                    runCatching { read(response.code, response.body?.charStream() ?: Reader.nullReader()) }
                 }
             }
         } catch (e: IOException) {
@@ -292,16 +320,17 @@ class CircleCIApiClient(
         startTime: Long,
     ): ApiResponse {
         val code = response.code
-        val body = response.body?.string() ?: ""
         val duration = System.currentTimeMillis() - startTime
 
         // Log response
         logger.logApiResponse(request.method, request.url.toString(), code, duration)
 
+        // A success is parsed as it's read; the rest are small.
+        val body = if (response.isSuccessful) "" else response.body?.string() ?: ""
         return when {
             response.isSuccessful -> {
                 try {
-                    val json = gson.fromJson(body, JsonObject::class.java)
+                    val json = gson.fromJson(response.body?.charStream(), JsonObject::class.java)
                     ApiResponse.Success(json, code)
                 } catch (e: Exception) {
                     logger.warn("Failed to parse JSON response: ${e.message}")

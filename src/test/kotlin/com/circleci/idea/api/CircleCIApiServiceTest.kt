@@ -2,6 +2,7 @@ package com.circleci.idea.api
 
 import com.circleci.idea.api.clients.ConfigApiClient
 import com.circleci.idea.api.clients.ContextApiClient
+import com.circleci.idea.api.clients.JobApiClient
 import com.circleci.idea.api.clients.ProjectApiClient
 import com.circleci.idea.api.clients.RunApiClient
 import com.circleci.idea.api.clients.SettingsApiClient
@@ -152,6 +153,25 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
 
             assertEquals("sent once", 1, sent.get())
             assertEquals("rate limited", ApiResponse.RateLimited(3600), response)
+        }
+
+    fun testJobTestsAreReadALineAtATime() =
+        runBlocking<Unit> {
+            responseBody = "{\"name\":\"a\",\"result\":\"success\"}\n\n{\"name\":\"b\",\"result\":\"failure\"}\n"
+
+            val tests = JobApiClient().getJobTests(client, "j-1").getOrThrow()
+
+            assertEquals("request", "GET /api/v3/jobs/j-1/tests", requests.single().let { "${it.method} ${it.uri}" })
+            assertEquals("names", listOf("a", "b"), tests.map { it.name })
+        }
+
+    fun testJobWithoutTestsHasNone() =
+        runBlocking<Unit> {
+            responseStatus = 404
+
+            val tests = JobApiClient().getJobTests(client, "j-1").getOrThrow()
+
+            assertEquals("none", emptyList<Any>(), tests)
         }
 
     fun testCancellingARequestCancelsItsCall() =
