@@ -13,16 +13,13 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 /**
  * Service for managing CircleCI authentication.
  * Handles token storage, validation, and user authentication state.
  */
 @Service(Service.Level.PROJECT)
-class CircleCIAuthService(private val project: Project, private val scope: CoroutineScope) {
+class CircleCIAuthService(private val project: Project) {
     private val log = logger<CircleCIAuthService>()
     private val passwordSafe = PasswordSafe.instance
     private val apiService = CircleCIApiService.getInstance()
@@ -55,13 +52,15 @@ class CircleCIAuthService(private val project: Project, private val scope: Corou
             allProjects().forEach { getInstance(it).logout() }
         }
 
-        /**
-         * After logging in in one project, have every other open project pick
-         * up the token, validating it with the API.
-         */
-        suspend fun restoreEverywhere(except: Project) {
+        /** After logging in in one project as [user], log every other open project in too. */
+        private fun shareLogin(
+            except: Project,
+            user: User,
+            token: String,
+            hostUrl: String,
+        ) {
             ProjectManager.getInstance().openProjects.filter { it != except && !it.isDisposed }
-                .forEach { getInstance(it).restoreAuthentication() }
+                .forEach { getInstance(it).loggedIn(user, token, hostUrl) }
         }
     }
 
@@ -127,20 +126,10 @@ class CircleCIAuthService(private val project: Project, private val scope: Corou
                         name = userInfo.name ?: userInfo.login,
                     )
 
-                // Update state
-                updateAuthState { state ->
-                    state.copy(
-                        isAuthenticated = true,
-                        token = redactToken(token),
-                        hostUrl = effectiveHostUrl,
-                        user = user,
-                        error = null,
-                    )
-                }
-
+                loggedIn(user, token, effectiveHostUrl)
                 log.info("Successfully authenticated as ${user.login}")
                 // The token is shared: have the other open projects' tool windows pick it up.
-                scope.launch(Dispatchers.IO) { restoreEverywhere(except = project) }
+                shareLogin(except = project, user, token, effectiveHostUrl)
                 Result.success(user)
             },
             onFailure = { error ->
@@ -160,6 +149,22 @@ class CircleCIAuthService(private val project: Project, private val scope: Corou
                 Result.failure(error)
             },
         )
+    }
+
+    private fun loggedIn(
+        user: User,
+        token: String,
+        hostUrl: String,
+    ) {
+        updateAuthState { state ->
+            state.copy(
+                isAuthenticated = true,
+                token = redactToken(token),
+                hostUrl = hostUrl,
+                user = user,
+                error = null,
+            )
+        }
     }
 
     /**
