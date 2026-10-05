@@ -23,10 +23,6 @@ class CircleCIStatusBarWidgetFactory : StatusBarWidgetFactory {
         return CircleCIStatusBarWidget(project)
     }
 
-    override fun disposeWidget(widget: StatusBarWidget) {
-        widget.dispose()
-    }
-
     override fun canBeEnabledOn(statusBar: StatusBar): Boolean {
         // Can be enabled on any status bar
         return true

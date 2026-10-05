@@ -7,22 +7,18 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.DumbAware
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
  * Action to refresh projects and runs.
  */
-class RefreshAction :
+class RefreshAction(private val scope: CoroutineScope) :
     AnAction(
         "Refresh",
         "Refresh CircleCI projects and runs",
         AllIcons.Actions.Refresh,
     ),
     DumbAware {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val projectService = project.getService(CircleCIProjectService::class.java)

@@ -13,6 +13,7 @@ import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.fileTypes.PlainTextFileType
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Iconable
 import com.intellij.openapi.util.UserDataHolderBase
 import com.intellij.openapi.vfs.VirtualFile
@@ -121,6 +122,10 @@ class ContextEditor(
 ) : UserDataHolderBase(), FileEditor {
     private val panel = ContextPanel(project, file.ref)
 
+    init {
+        Disposer.register(this, panel)
+    }
+
     override fun getComponent(): JComponent = panel
 
     override fun getPreferredFocusedComponent(): JComponent = panel.preferredFocusedComponent
@@ -146,7 +151,7 @@ class ContextEditor(
     }
 
     override fun dispose() {
-        panel.dispose()
+        // The panel is disposed as this editor's child.
     }
 }
 

@@ -4,7 +4,6 @@ import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.run.RunStatus
 import com.circleci.idea.state.CircleCIStateStore
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import kotlinx.coroutines.CoroutineScope
@@ -28,7 +27,6 @@ class CircleCIStatusBarWidget(private val project: Project) : StatusBarWidget {
 
     init {
         logger.debug("CircleCIStatusBarWidget initialized")
-        Disposer.register(project, this)
         observeState()
     }
 

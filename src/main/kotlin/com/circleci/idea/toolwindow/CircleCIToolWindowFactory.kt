@@ -31,6 +31,7 @@ class CircleCIToolWindowFactory : ToolWindowFactory, DumbAware {
         // The runs are the tool window's only view, so it needs no tab: an
         // untitled content shows as just "CircleCI" in the header.
         val content = ContentFactory.getInstance().createContent(contentPanel, null, false)
+        content.setDisposer(circleCIToolWindow)
         toolWindow.contentManager.addContent(content)
 
         // Refresh and auto-refresh in the title bar; settings in the options (gear) menu.
