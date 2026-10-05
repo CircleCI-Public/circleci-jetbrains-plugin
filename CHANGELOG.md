@@ -5,6 +5,23 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-10-05
+
+### What's Changed
+* Load more runs as the run list is scrolled, and keep them on a refresh by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/14
+* Some maintenance on the AGENT guidance by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/15
+* Document where to find the platform's sources and the running plugin's logs by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/19
+* Split the settings into project and org sections, paging the contexts by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/17
+* Add a page for each context, modelled on the web app's by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/20
+* Delete contexts from Org Secrets and from their pages by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/21
+* Look projects and their organizations up in one place by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/22
+* Show the IDE's progress indicator while changing things in CircleCI by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/23
+* Show every status as a dot, ring or slashed ring, as circleci does by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/24
+* Dispose job and context pages, and what's under them, when they close by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/25
+
+
+**Full Changelog**: https://github.com/CircleCI-Public/circleci-jetbrains-plugin/compare/v1.4.0...v1.5.0
+
 ## [1.4.0] - 2026-10-02
 
 ### What's Changed
