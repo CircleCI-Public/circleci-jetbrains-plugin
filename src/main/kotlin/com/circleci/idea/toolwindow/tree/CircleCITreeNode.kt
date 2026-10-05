@@ -107,6 +107,9 @@ class WorkflowNode(workflow: Workflow) : CircleCITreeNode(workflow) {
             userObject = value
         }
 
+    /** Its jobs loaded after it ended, so they won't change: a rerun is a new workflow. */
+    var jobsFinal: Boolean = false
+
     override fun getDisplayText(): String = workflow.name
 
     override fun getStatus(): RunStatus = workflow.status
