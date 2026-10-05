@@ -41,6 +41,8 @@ import java.time.Instant
 @Service(Service.Level.APP)
 class CircleCIApiService {
     private val logger = CircleCILogger.getInstance()
+
+    @Volatile
     private var client: CircleCIApiClient? = null
 
     // Specialized API clients
@@ -53,12 +55,16 @@ class CircleCIApiService {
     private val contextClient = ContextApiClient()
 
     /**
-     * Initialize the API client with token.
+     * Initialize the API client with token, keeping the current one (and its
+     * in-flight requests and rate limit) if the token and host are the same.
      */
+    @Synchronized
     fun initialize(
         token: String,
         hostUrl: String = "https://circleci.com",
     ) {
+        val current = client
+        if (current != null && current.token == token && current.baseUrl == hostUrl) return
         client = CircleCIApiClient(baseUrl = hostUrl, token = token)
     }
 

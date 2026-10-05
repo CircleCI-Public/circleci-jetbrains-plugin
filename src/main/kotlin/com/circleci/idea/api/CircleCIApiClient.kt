@@ -32,8 +32,8 @@ import kotlin.math.pow
  * - Automatic error handling and parsing
  */
 class CircleCIApiClient(
-    private val baseUrl: String = "https://circleci.com",
-    private val token: String,
+    val baseUrl: String = "https://circleci.com",
+    val token: String,
     private val userAgent: String = "CircleCI-IntelliJ-Plugin/1.0.0",
 ) {
     private val gson = Gson()
@@ -46,12 +46,9 @@ class CircleCIApiClient(
     // Rate limiter
     private val rateLimiter = RateLimiter(maxRequestsPerSecond = 50)
 
-    // OkHttp client with timeouts
+    // One connection pool and dispatcher, shared with every other client
     private val client =
-        OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
+        sharedHttpClient.newBuilder()
             .addInterceptor(AuthInterceptor(token, userAgent))
             .addInterceptor(RetryInterceptor(maxRetries = 3))
             .build()
@@ -333,6 +330,15 @@ class CircleCIApiClient(
         // Encoded here, as filter values carry characters such as "/" in branch names.
         queryParams.forEach { (key, value) -> builder.addQueryParameter(key, value) }
         return builder.build().toString()
+    }
+
+    private companion object {
+        val sharedHttpClient: OkHttpClient =
+            OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build()
     }
 }
 
