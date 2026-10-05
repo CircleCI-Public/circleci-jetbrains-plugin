@@ -1,11 +1,13 @@
 package com.circleci.idea.logging
 
+import com.intellij.util.concurrency.AppExecutorUtil
+import java.io.BufferedWriter
 import java.io.File
 import java.io.FileWriter
-import java.io.PrintWriter
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -13,6 +15,9 @@ import kotlin.concurrent.withLock
  * File logger with rotation support.
  * Rotates log files when they exceed maxFileSizeBytes.
  * Keeps up to maxFiles log files.
+ *
+ * Lines are buffered, and written within [FLUSH_DELAY_MS] of being logged,
+ * or at once when [write] is asked to flush.
  */
 class FileLogger(
     private val logDirectory: Path,
@@ -22,7 +27,11 @@ class FileLogger(
 ) {
     private val lock = ReentrantLock()
     private var currentLogFile: File
-    private var currentWriter: PrintWriter?
+    private var currentWriter: BufferedWriter?
+
+    // The current file's length, counted as lines are written rather than asked of the file system.
+    private var currentSize = 0L
+    private var flushScheduled = false
 
     init {
         // Ensure log directory exists
@@ -34,28 +43,49 @@ class FileLogger(
     }
 
     /**
-     * Write a log message to file.
+     * Write a log message to file, and with [flush] everything written so far.
      */
-    fun write(message: String) {
+    fun write(
+        message: String,
+        flush: Boolean = false,
+    ) {
         lock.withLock {
             try {
-                // Check if rotation is needed
-                if (currentLogFile.length() >= maxFileSizeBytes) {
+                // Lazy initialize writer
+                val writer =
+                    currentWriter ?: BufferedWriter(FileWriter(currentLogFile, true)).also {
+                        currentWriter = it
+                        currentSize = currentLogFile.length()
+                    }
+
+                writer.write(message)
+                writer.newLine()
+                currentSize += message.length + 1
+                if (flush) writer.flush() else scheduleFlush()
+
+                if (currentSize >= maxFileSizeBytes) {
                     rotate()
                 }
-
-                // Lazy initialize writer
-                if (currentWriter == null) {
-                    currentWriter = PrintWriter(FileWriter(currentLogFile, true))
-                }
-
-                currentWriter?.println(message)
-                currentWriter?.flush()
             } catch (e: Exception) {
                 // Fail silently to avoid breaking the application
                 System.err.println("Failed to write to log file: ${e.message}")
             }
         }
+    }
+
+    private fun scheduleFlush() {
+        if (flushScheduled) return
+        flushScheduled = true
+        AppExecutorUtil.getAppScheduledExecutorService().schedule(
+            {
+                lock.withLock {
+                    flushScheduled = false
+                    runCatching { currentWriter?.flush() }
+                }
+            },
+            FLUSH_DELAY_MS,
+            TimeUnit.MILLISECONDS,
+        )
     }
 
     /**
@@ -139,6 +169,8 @@ class FileLogger(
     }
 
     companion object {
+        const val FLUSH_DELAY_MS = 1_000L
+
         /**
          * Get default log directory path.
          */
