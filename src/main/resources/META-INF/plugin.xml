@@ -86,8 +86,6 @@
 
         <!-- Project Services -->
         <projectService
-            serviceImplementation="com.circleci.idea.services.CircleCIProjectService"/>
-        <projectService
             serviceImplementation="com.circleci.idea.project.CircleCIProjectService"/>
         <projectService
             serviceImplementation="com.circleci.idea.run.RunListService"/>

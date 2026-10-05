@@ -220,7 +220,6 @@ src/main/kotlin/com/circleci/idea/
 ├── api/                          # API client and services
 │   ├── CircleCIApiClient.kt      # Low-level HTTP client
 │   ├── CircleCIApiService.kt     # Typed API endpoints
-│   ├── ResponseCache.kt          # Caching layer
 │   └── models/                   # API data models
 ├── toolwindow/                   # UI components
 │   ├── CircleCIToolWindowFactory.kt
@@ -378,7 +377,6 @@ fun updateMyFeature(data: String) {
 ## Performance Considerations
 
 - Load long lists a page at a time as they're scrolled (`PagedList`)
-- Cache responses with TTL (`ResponseCache`)
 - Rate limit API calls (token bucket in `CircleCIApiClient`)
 - Deduplicate in-flight requests
 - Load a run's workflows, and a workflow's jobs, as it's opened
