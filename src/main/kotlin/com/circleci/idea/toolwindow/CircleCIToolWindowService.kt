@@ -18,6 +18,11 @@ class CircleCIToolWindowService {
         this.treeModel = model
     }
 
+    /** Forget [model], as its tool window content goes, unless another has replaced it. */
+    fun clearTreeModel(model: CircleCITreeModel) {
+        if (treeModel === model) treeModel = null
+    }
+
     fun setToolWindow(toolWindow: ToolWindow) {
         this.toolWindow = toolWindow
     }
