@@ -3,6 +3,10 @@ package com.circleci.idea.logging
 import com.circleci.idea.settings.CircleCISettings
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.Service
+import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 
@@ -288,8 +292,20 @@ class CircleCILogger private constructor() {
          */
         fun getInstance(): CircleCILogger {
             return instance ?: synchronized(this) {
-                instance ?: CircleCILogger().also { instance = it }
+                instance ?: CircleCILogger().also {
+                    instance = it
+                    // Outside the IDE, in a unit test, there's no application to close it with.
+                    ApplicationManager.getApplication()?.let { app -> runCatching { app.service<LogFileCloser>() } }
+                }
             }
         }
+    }
+}
+
+/** Closes the log file as the IDE exits or the plugin unloads, so what's buffered is written. */
+@Service(Service.Level.APP)
+internal class LogFileCloser : Disposable {
+    override fun dispose() {
+        CircleCILogger.getInstance().close()
     }
 }
