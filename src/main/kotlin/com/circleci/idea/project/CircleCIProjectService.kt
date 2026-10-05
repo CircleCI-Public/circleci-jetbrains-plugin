@@ -60,7 +60,7 @@ class CircleCIProjectService(
         _isLoading.value = true
 
         try {
-            val detectedProjects = scanner.scanForProjects()
+            val detectedProjects = withContext(Dispatchers.IO) { scanner.scanForProjects() }
 
             // Preserve manually added projects that aren't in git scan
             val existingManualProjects =

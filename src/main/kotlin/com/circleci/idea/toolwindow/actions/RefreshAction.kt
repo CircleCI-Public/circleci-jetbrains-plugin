@@ -7,7 +7,9 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.DumbAware
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Action to refresh projects and runs.
@@ -25,8 +27,7 @@ class RefreshAction(private val scope: CoroutineScope) :
         val authService = CircleCIAuthService.getInstance(project)
 
         scope.launch {
-            // Ensure authentication is restored
-            authService.restoreAuthentication()
+            withContext(Dispatchers.IO) { authService.restoreAuthentication() }
 
             // Always refresh projects (auth is checked inside)
             projectService.refresh()
