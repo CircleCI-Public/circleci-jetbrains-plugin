@@ -5,6 +5,7 @@ import androidx.compose.runtime.snapshotFlow
 import com.circleci.idea.api.CircleCIApiService
 import com.circleci.idea.api.models.Context
 import com.circleci.idea.api.models.EnvVar
+import com.circleci.idea.context.ContextDeleted
 import com.circleci.idea.context.ContextPages
 import com.circleci.idea.context.EnvVarsChanged
 import com.circleci.idea.project.CircleCIProjectService
@@ -68,7 +69,8 @@ class SettingsTreeModel(
         scope.launch {
             var previous = emptySet<Any>()
             snapshotFlow { orgTree.treeState.openNodes }.collect { open ->
-                forgetFailedLoads(previous - open)
+                val closed = previous - open
+                _state.update { it.withoutFailedLoads(closed) }
                 previous = open
                 loadShown()
             }
@@ -82,6 +84,12 @@ class SettingsTreeModel(
                 if (change.source === this@SettingsTreeModel || !listed) return@collect
                 val contexts = (_state.value.contexts as? Loadable.Loaded)?.value.orEmpty()
                 contexts.firstOrNull { it.id == change.contextId }?.let { loadEnvVars(EnvVarOwner.OrgContext(it)) }
+            }
+        }
+
+        scope.launch {
+            pages.deletions.collect { deletion ->
+                if (deletion.source !== this@SettingsTreeModel) refreshContexts()
             }
         }
     }
@@ -127,6 +135,15 @@ class SettingsTreeModel(
     suspend fun createContext(name: String): Result<Context> {
         val slug = _state.value.projectSlug ?: return Result.failure(IllegalStateException("No project selected"))
         val result = orgTree.loading { api.inOrg(slug) { createContext(it, name) } }
+        refreshContexts()
+        return result
+    }
+
+    /** Delete one of the organization's contexts, closing its page; then list the contexts again. */
+    suspend fun deleteContext(context: Context): Result<Unit> {
+        val result = orgTree.loading { api.call { deleteContext(context.id) } }
+        result.onSuccess { pages.contextDeleted(ContextDeleted(context.id, this)) }
+        // Listed again whether or not it worked: a failure may still have changed something.
         refreshContexts()
         return result
     }
@@ -248,15 +265,11 @@ class SettingsTreeModel(
             }
         }
     }
-
-    /** Set the variables of contexts just closed back to unloaded if they failed, so opening them again retries. */
-    private fun forgetFailedLoads(closed: Set<Any>) {
-        _state.update { state ->
-            val kept = state.contextEnvVars.filterNot { it.value is Loadable.Failed && contextKey(it.key) in closed }
-            state.copy(contextEnvVars = kept)
-        }
-    }
 }
+
+/** The variables of the contexts [closed] set back to unloaded if they failed, so opening them again retries. */
+private fun SettingsState.withoutFailedLoads(closed: Set<Any>): SettingsState =
+    copy(contextEnvVars = contextEnvVars.filterNot { it.value is Loadable.Failed && contextKey(it.key) in closed })
 
 private fun <T> Result<T>.toLoadable(): Loadable<T> =
     fold({ Loadable.Loaded(it) }, { Loadable.Failed(it.message ?: "Failed to load") })

@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - A page for each context, in an editor tab, modelled on the web app's: its environment variables, and its group, project and expression restrictions. Open it with Open Context in the tool window's Org Secrets
+- Delete a context from the tool window's Org Secrets (Delete, on its row) or from its page's toolbar (Delete Context...), after confirming. Its page closes, and Org Secrets lists the contexts again
 - Expression restrictions are completed and checked as they're typed, with CircleCI's own expression library
 - "Log In via CircleCI..." logs in with your CircleCI account in the browser, as the IDE's GitHub plugin does: a dialog waits while you approve the plugin on CircleCI (Cancel to give up; it stops waiting after 5 minutes), then the browser returns to the IDE and shows the same page as the CircleCI CLI's login. It's offered in the CircleCI tool window, Tools | CircleCI | Login to CircleCI (beside "Log In with Token..."), and Settings. The token it gets lasts 90 days, after which you log in again; logging in again from the same IDE replaces it, rather than adding another to your account
 - "CircleCI Settings..." in the CircleCI tool window's options (gear) menu

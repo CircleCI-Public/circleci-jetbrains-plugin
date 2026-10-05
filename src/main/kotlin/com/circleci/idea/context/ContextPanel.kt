@@ -22,6 +22,7 @@ import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.IdeActions
+import com.intellij.openapi.actionSystem.Separator
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
@@ -115,6 +116,13 @@ class ContextPanel(
 
     private val copyIdAction = pageAction("Copy Context ID", AllIcons.Actions.Copy, null) { copy(ref.id) }
 
+    private val deleteAction =
+        pageAction("Delete Context…", AllIcons.General.Remove, null) {
+            if (confirm(project, "Delete the context ${ref.name}?", DELETE_CONTEXT_WARNING, "Delete")) {
+                change("Couldn't delete ${ref.name}") { model.deleteContext() }
+            }
+        }
+
     private val openInBrowserAction =
         pageAction("Open in Browser", AllIcons.Ide.External_link_arrow, null) {
             SettingsWebUrls.context(ref.projectSlug, ref.id)?.let(BrowserUtil::browse)
@@ -134,7 +142,13 @@ class ContextPanel(
         val toolbar =
             ActionManager.getInstance().createActionToolbar(
                 ActionPlaces.TOOLBAR,
-                DefaultActionGroup(refreshAction, copyIdAction, openInBrowserAction),
+                DefaultActionGroup(
+                    refreshAction,
+                    copyIdAction,
+                    openInBrowserAction,
+                    Separator.getInstance(),
+                    deleteAction,
+                ),
                 true,
             )
         toolbar.targetComponent = this
@@ -338,6 +352,8 @@ class ContextPanel(
                 "https://circleci.com/docs/guides/security/env-vars/",
             )
         const val ALL_MEMBERS = "All members"
+        const val DELETE_CONTEXT_WARNING =
+            "Its environment variables and restrictions are deleted with it, and jobs using it will fail."
         const val STATUS_GAP = 6
 
         /** What a restriction is to: its project's or group's name, the organization's members, or its expression. */

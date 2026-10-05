@@ -26,6 +26,7 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.circleci.idea.api.models.Context
 import com.circleci.idea.context.ContextPages
 import com.circleci.idea.context.ContextRef
 import com.circleci.idea.job.Placeholder
@@ -121,9 +122,17 @@ class SettingsTreeView(
         settingsAction("Update Value…", AllIcons.Actions.Edit, shortcutFrom = null) { it as? SettingsNode.Variable }
             .performing { updateVariable(it) }
 
+    // A variable, or in the organization's section, a context.
     private val deleteAction =
-        settingsAction("Delete…", AllIcons.General.Remove, IdeActions.ACTION_DELETE) { it as? SettingsNode.Variable }
-            .performing { deleteVariable(it) }
+        settingsAction("Delete…", AllIcons.General.Remove, IdeActions.ACTION_DELETE) { node ->
+            node.takeIf { it is SettingsNode.Variable || it is SettingsNode.EnvVars }
+        }.performing { node ->
+            when (node) {
+                is SettingsNode.Variable -> deleteVariable(node)
+                is SettingsNode.EnvVars -> deleteContext(node.owner.context)
+                else -> Unit
+            }
+        }
 
     private val copyNameAction =
         settingsAction("Copy Name", AllIcons.Actions.Copy, IdeActions.ACTION_COPY) { it as? SettingsNode.Variable }
@@ -308,6 +317,20 @@ class SettingsTreeView(
                 dialog.name,
             ).map { ContextPages.getInstance(project).open(ContextRef(it.id, it.name, projectSlug)) }
         }
+    }
+
+    private fun deleteContext(context: Context) {
+        val confirmed =
+            MessageDialogBuilder.yesNo(
+                "Delete the context ${context.name}?",
+                "Its environment variables and restrictions are deleted with it, and jobs using it will fail.",
+            )
+                .yesText("Delete")
+                .noText("Cancel")
+                .asWarning()
+                .ask(project)
+        if (!confirmed) return
+        change("Couldn't delete ${context.name}") { model.deleteContext(context) }
     }
 
     private fun deleteVariable(node: SettingsNode.Variable) {
