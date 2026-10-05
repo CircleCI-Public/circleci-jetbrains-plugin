@@ -5,6 +5,16 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-10-05
+
+### What's Changed
+* Name the plugin consistent with the repo name by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/26
+* Give the language server the token with its setToken command by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/28
+* Give the language server the GitHub account's token by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/29
+
+
+**Full Changelog**: https://github.com/CircleCI-Public/circleci-jetbrains-plugin/compare/v1.5.0...v1.6.0
+
 ## [1.5.0] - 2026-10-05
 
 ### What's Changed
