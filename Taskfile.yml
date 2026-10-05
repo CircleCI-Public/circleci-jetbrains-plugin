@@ -25,6 +25,26 @@ tasks:
       - ./gradlew buildPlugin
       - echo "✅ Plugin built at {{.PLUGIN_ZIP}}"
 
+  sources:
+    desc: Unpack the IntelliJ Platform's sources, Jewel's included, to search and read
+    vars:
+      IDE_VERSION:
+        sh: sed -n 's/.*intellijIdea("\(.*\)").*/\1/p' build.gradle.kts
+      JAR_NAME: idea-{{.IDE_VERSION}}-sources.jar
+      DIR: .intellijPlatform/sources/{{.IDE_VERSION}}
+    status:
+      - test -d {{.DIR}}
+    cmds:
+      - mkdir -p .intellijPlatform/sources
+      - |
+        jar=$(ls ~/.gradle/caches/modules-2/files-2.1/com.jetbrains.intellij.idea/idea/{{.IDE_VERSION}}/*/{{.JAR_NAME}} 2>/dev/null | head -1)
+        if [ -z "$jar" ]; then
+          jar=.intellijPlatform/sources/{{.JAR_NAME}}
+          curl -fsSL -o "$jar" https://www.jetbrains.com/intellij-repository/releases/com/jetbrains/intellij/idea/idea/{{.IDE_VERSION}}/{{.JAR_NAME}}
+        fi
+        unzip -q -o "$jar" -d {{.DIR}}.tmp && mv {{.DIR}}.tmp {{.DIR}}
+      - echo "✅ IntelliJ Platform {{.IDE_VERSION}} sources in {{.DIR}}"
+
   test:
     desc: Run unit tests, verify plugin, and generate coverage report
     cmds:

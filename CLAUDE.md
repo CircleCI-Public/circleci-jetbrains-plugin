@@ -12,6 +12,7 @@ task test       # Run tests + verify
 task run        # Launch IDE
 task lint       # Static analysis
 task format     # Auto-fix style
+task sources    # Unpack the IntelliJ Platform's sources (Jewel too) to read
 ```
 
 View all: `task --list`
@@ -68,6 +69,31 @@ Use Kotlin Flows:
 private val _state = MutableStateFlow(value)
 val state: StateFlow<T> = _state.asStateFlow()
 ```
+
+## Finding Things
+
+`.intellijPlatform/` is git-ignored: give its paths to searches that skip
+ignored files.
+
+- **The IDE version built against**: `intellijIdea("...")` in `build.gradle.kts`
+- **The platform's and Jewel's source**: run `task sources`, then search
+  `.intellijPlatform/sources/<IDE version>/` (e.g.
+  `org/jetbrains/jewel/ui/component/search/`). The IDE's own view of a
+  platform class is a decompiled stub, with no method bodies.
+- **A library's source**: Gradle's cache, at
+  `~/.gradle/caches/modules-2/files-2.1/<group>/<artifact>/<version>/*/<artifact>-<version>-sources.jar`.
+  Read a file with `unzip -p <jar> <path>`, or search with `ugrep -z`.
+- **The running plugin's IDE log (`task run`)**:
+  `.intellijPlatform/sandbox/*/*/log_runIde/idea.log`. A running IDE's
+  `-Didea.log.path` names its log directory, so
+  `ps -ax -o args= | grep -o 'idea\.log\.path=/[^ ]*'` finds it. The logs in
+  `build/idea-sandbox/` aren't the running IDE's. Each start begins with an
+  `AppStarter - JVM options:` line. The plugin logs under the `CircleCI`
+  category, and errors the platform caught are `SEVERE` lines followed by
+  `Plugin to blame: CircleCI`.
+- **The plugin's own log**: `~/.circleci-plugin/logs/circleci.log`, every API
+  request and its status. Every IDE with the plugin writes to it, the
+  everyday one too, so go by the timestamps.
 
 ## Docs
 
