@@ -63,7 +63,7 @@ A JetBrains IDE plugin for monitoring, managing, and debugging CircleCI runs dir
 ### Project Structure
 
 ```
-circleci-idea-plugin/
+circleci-jetbrains-plugin/
 ├── src/
 │   ├── main/
 │   │   ├── kotlin/
@@ -179,8 +179,8 @@ To debug the plugin:
 ### Download a release
 1. Run: ```gh release download \
      --repo CircleCI-Public/circleci-jetbrains-plugin \
-     --pattern "circleci-idea-plugin-*-signed.zip" \
-   --output ~/Downloads/circleci-idea-plugin.zip```
+     --pattern "circleci-jetbrains-plugin-*-signed.zip" \
+   --output ~/Downloads/circleci-jetbrains-plugin.zip```
 2. Go to intellij -> settings -> plugins -> gear icon -> install from disk
 
 ## Release Process
@@ -193,7 +193,7 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-- **Issues**: https://github.com/circleci/circleci-idea-plugin/issues
+- **Issues**: https://github.com/CircleCI-Public/circleci-jetbrains-plugin/issues
 - **Documentation**: https://circleci.com/docs
 - **Community**: https://discuss.circleci.com
 

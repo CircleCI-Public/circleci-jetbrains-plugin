@@ -46,4 +46,4 @@ Don't edit the release PR's branch: it's rewritten on every push to main.
 The Marketplace won't take the same version twice, so if the job fails after uploading it,
 rerunning it fails too. Finish by hand: delete any draft GitHub release it left, and make the
 release `vX.Y.Z` on the merge commit, with the version's `CHANGELOG.md` section as its notes and
-`circleci-idea-plugin-X.Y.Z-signed.zip` from the job's `build-and-test` artifacts attached.
+`circleci-jetbrains-plugin-X.Y.Z-signed.zip` from the job's `build-and-test` artifacts attached.
