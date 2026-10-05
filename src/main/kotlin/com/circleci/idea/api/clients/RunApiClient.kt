@@ -10,6 +10,8 @@ import com.circleci.idea.api.models.RunWire
 import com.circleci.idea.api.models.V3Entity
 import com.circleci.idea.api.models.V3List
 import com.circleci.idea.api.models.WorkflowWire
+import com.circleci.idea.project.models.Organization
+import com.circleci.idea.project.models.ProjectInfo
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
 import java.time.Instant
@@ -105,21 +107,43 @@ class RunApiClient : CircleCIApiClientBase() {
     fun getProjectBySlug(
         client: CircleCIApiClient,
         slug: String,
-    ): Result<ProjectWire> {
+    ): Result<ProjectInfo> {
         return executeRequest(client, "/api/v3/projects", mapOf("filter[slug]" to slug)) { data ->
-            parsePage<ProjectWire>(data).items.firstOrNull() ?: error("No CircleCI project found for $slug")
+            val wire = parsePage<ProjectWire>(data).items.firstOrNull() ?: error("No CircleCI project found for $slug")
+            projectInfo(wire, slug)
         }
     }
 
-    /** Look up a project by ID. */
+    /**
+     * Look up a project by ID. The API doesn't give its slug, so it's taken as a
+     * standalone project's, circleci/<org-id>/<project-id>.
+     */
     fun getProjectById(
         client: CircleCIApiClient,
         projectId: String,
-    ): Result<ProjectWire> {
+    ): Result<ProjectInfo> {
         return executeRequest(client, "/api/v3/projects/$projectId") { data ->
-            gson.fromJson<V3Entity<ProjectWire>>(data, object : TypeToken<V3Entity<ProjectWire>>() {}.type).data
-                ?: error("No CircleCI project found for $projectId")
+            val wire =
+                gson.fromJson<V3Entity<ProjectWire>>(data, object : TypeToken<V3Entity<ProjectWire>>() {}.type).data
+                    ?: error("No CircleCI project found for $projectId")
+            projectInfo(wire, slug = null)
         }
+    }
+
+    /** [wire] as a project, named after its [slug] (when known) where the API leaves a name out. */
+    private fun projectInfo(
+        wire: ProjectWire,
+        slug: String?,
+    ): ProjectInfo {
+        val id = wire.id ?: error("The project ${slug.orEmpty()} has no ID")
+        val orgId = wire.references?.org?.id ?: error("The project ${slug ?: id} has no organization")
+        val slugParts = slug?.split('/')?.takeIf { it.size == 3 && it[0] != "circleci" }
+        return ProjectInfo(
+            id = id,
+            slug = slug ?: "circleci/$orgId/$id",
+            name = wire.attributes?.name ?: slugParts?.get(2) ?: id,
+            org = Organization(orgId, wire.references.org.attributes?.name ?: slugParts?.get(1) ?: orgId),
+        )
     }
 
     private inline fun <reified T> parsePage(data: JsonObject): V3Page<T> {

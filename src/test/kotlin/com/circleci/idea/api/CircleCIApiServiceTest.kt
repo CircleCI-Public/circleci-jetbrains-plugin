@@ -3,6 +3,7 @@ package com.circleci.idea.api
 import com.circleci.idea.api.clients.ConfigApiClient
 import com.circleci.idea.api.clients.ContextApiClient
 import com.circleci.idea.api.clients.ProjectApiClient
+import com.circleci.idea.api.clients.RunApiClient
 import com.circleci.idea.api.clients.SettingsApiClient
 import com.circleci.idea.api.clients.WorkflowApiClient
 import com.circleci.idea.api.models.ConfigCompileResponse
@@ -13,6 +14,8 @@ import com.circleci.idea.api.models.ContextRestriction
 import com.circleci.idea.api.models.EnvVar
 import com.circleci.idea.api.models.NamedEntity
 import com.circleci.idea.api.models.RestrictionType
+import com.circleci.idea.project.models.Organization
+import com.circleci.idea.project.models.ProjectInfo
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.intellij.testFramework.LoggedErrorProcessor
@@ -426,5 +429,55 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
         ContextApiClient().searchProjects(client, "o-1", "", null).getOrThrow()
 
         assertFalse("no name filter", requests.single().uri.contains("filter[name]"))
+    }
+
+    fun testProjectBySlugWithItsOrganization() {
+        responseBody =
+            """
+            {"data": [{"id": "p-1", "attributes": {"name": "app"},
+                       "references": {"org": {"id": "o-1", "attributes": {"name": "acme"}}}}]}
+            """
+
+        val info = RunApiClient().getProjectBySlug(client, "gh/acme/app").getOrThrow()
+
+        assertEquals("request", listOf("GET /api/v3/projects?filter[slug]=gh/acme/app"), requestLines())
+        assertEquals("project", ProjectInfo("p-1", "gh/acme/app", "app", Organization("o-1", "acme")), info)
+    }
+
+    fun testProjectNamedAfterItsSlugWhereUnnamed() {
+        responseBody = """{"data": [{"id": "p-1", "references": {"org": {"id": "o-1"}}}]}"""
+
+        val info = RunApiClient().getProjectBySlug(client, "gh/acme/app").getOrThrow()
+
+        assertEquals("project", ProjectInfo("p-1", "gh/acme/app", "app", Organization("o-1", "acme")), info)
+    }
+
+    fun testNoProjectForASlug() {
+        responseBody = """{"data": []}"""
+
+        // The client logs the failure as an error, which fails a platform test unless expected.
+        var result: Result<*>? = null
+        LoggedErrorProcessor.executeAndReturnLoggedError {
+            result =
+                RunApiClient().getProjectBySlug(
+                    client,
+                    "gh/acme/app",
+                )
+        }
+
+        assertTrue("fails", result!!.isFailure)
+    }
+
+    fun testProjectByIdHasAStandaloneSlug() {
+        responseBody =
+            """
+            {"data": {"id": "p-1", "attributes": {"name": "app"},
+                      "references": {"org": {"id": "o-1", "attributes": {"name": "acme"}}}}}
+            """
+
+        val info = RunApiClient().getProjectById(client, "p-1").getOrThrow()
+
+        assertEquals("request", listOf("GET /api/v3/projects/p-1"), requestLines())
+        assertEquals("project", ProjectInfo("p-1", "circleci/o-1/p-1", "app", Organization("o-1", "acme")), info)
     }
 }

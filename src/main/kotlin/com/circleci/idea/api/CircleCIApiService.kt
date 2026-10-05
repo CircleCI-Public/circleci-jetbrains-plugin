@@ -25,7 +25,7 @@ import com.circleci.idea.api.models.TestResultWire
 import com.circleci.idea.api.models.UserInfo
 import com.circleci.idea.api.models.WorkflowWire
 import com.circleci.idea.logging.CircleCILogger
-import com.circleci.idea.project.ProjectLinkFile
+import com.circleci.idea.project.models.ProjectInfo
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import java.nio.file.Path
@@ -151,41 +151,19 @@ class CircleCIApiService {
     }
 
     /**
-     * Get a project's ID from its slug.
+     * Look up a project, with its organization, by slug. Prefer
+     * [com.circleci.idea.project.ProjectInfoService].
      */
-    fun getProjectId(slug: String): Result<String> {
-        return withClient { client ->
-            runClient.getProjectBySlug(client, slug).mapCatching { it.id ?: error("Project $slug has no ID") }
-        }
+    fun getProject(slug: String): Result<ProjectInfo> {
+        return withClient { runClient.getProjectBySlug(it, slug) }
     }
 
     /**
-     * What `.circleci/info.yml` records to link a checkout to the project
-     * [slug] names; fails if there's no such project.
+     * Look up a project, with its organization, by ID; its slug is taken as a
+     * standalone project's. Prefer [com.circleci.idea.project.ProjectInfoService].
      */
-    fun getProjectLink(slug: String): Result<ProjectLinkFile.Info> {
-        return withClient { client ->
-            runClient.getProjectBySlug(client, slug).map {
-                ProjectLinkFile.Info(
-                    slug = slug,
-                    projectId = it.id,
-                    projectName = it.attributes?.name,
-                    orgId = it.references?.org?.id,
-                    orgName = it.references?.org?.attributes?.name,
-                )
-            }
-        }
-    }
-
-    /**
-     * Get the ID of the organization a project belongs to.
-     */
-    fun getProjectOrgId(projectId: String): Result<String> {
-        return withClient { client ->
-            runClient.getProjectById(client, projectId).mapCatching {
-                it.references?.org?.id ?: error("Project $projectId has no organization")
-            }
-        }
+    fun getProjectById(projectId: String): Result<ProjectInfo> {
+        return withClient { runClient.getProjectById(it, projectId) }
     }
 
     // ========== Workflow Operations ==========
@@ -379,18 +357,15 @@ class CircleCIApiService {
     // ========== Config Operations ==========
 
     /**
-     * Validate configuration, resolving private orbs in [projectSlug]'s org.
-     * If the project can't be looked up, only public orbs resolve.
+     * Validate configuration, resolving private orbs in the organization [orgId];
+     * with none, only public orbs resolve.
      */
     fun validateConfig(
         configYaml: String,
-        projectSlug: String,
+        orgId: String?,
         branch: String,
     ): Result<ConfigValidationResult> {
-        return withClient { client ->
-            val orgId = runClient.getProjectBySlug(client, projectSlug).getOrNull()?.references?.org?.id
-            configClient.validateConfig(client, configYaml, branch, orgId)
-        }
+        return withClient { configClient.validateConfig(it, configYaml, branch, orgId) }
     }
 
     // ========== Helper Methods ==========
