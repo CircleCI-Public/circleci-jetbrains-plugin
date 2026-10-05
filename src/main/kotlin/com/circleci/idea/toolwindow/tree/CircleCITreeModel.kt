@@ -12,6 +12,7 @@ import com.circleci.idea.run.RunListService
 import com.circleci.idea.run.RunScope
 import com.circleci.idea.settings.CircleCISettings
 import com.circleci.idea.state.CircleCIStateStore
+import com.circleci.idea.state.PagedList
 import com.circleci.idea.state.Run
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CoroutineScope
@@ -29,11 +30,13 @@ import javax.swing.SwingUtilities
  * The run tree's nodes: the runs listed (the selected project's, or "My
  * runs"), each run's workflows and each workflow's jobs.
  *
- * Children load asynchronously when a node is first opened. A refresh
- * re-fetches every loaded level in place, keeping the nodes of runs and
- * workflows that are still listed. What's open and selected is kept by key
- * in [treeState], so it carries over to the nodes a reload rebuilds, which
- * load again if they're open.
+ * Children load asynchronously when a node is first opened. The run list
+ * loads a page at a time, the next as the tree scrolls near its end. A
+ * refresh re-fetches every loaded level in place (as many pages of runs as
+ * are listed), keeping the nodes of runs and workflows that are still
+ * listed. What's open and selected is kept by key in [treeState], so it
+ * carries over to the nodes a reload rebuilds, which load again if they're
+ * open.
  *
  * All node mutation happens on the EDT: the coroutine [scope] runs on
  * Dispatchers.Main, and the fetches switch to IO themselves.
@@ -72,6 +75,9 @@ class CircleCITreeModel(
     /** Whether any of the tree is loading or refreshing. */
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
+    // The runs listed, a page at a time; replaced as the project or filters change.
+    private var runs: PagedList<Run, String>? = null
+
     init {
         // Listen to project changes and reload root
         scope.launch {
@@ -98,6 +104,15 @@ class CircleCITreeModel(
                 loadOpened()
             }
         }
+
+        // Load the next page of runs as the list scrolls near its end. A page
+        // that still leaves the end in view changes the layout, so the next loads too.
+        scope.launch {
+            snapshotFlow {
+                val layout = scroll.layoutInfo
+                (layout.visibleItemsInfo.lastOrNull()?.index ?: -1) to layout.totalItemsCount
+            }.collect { loadMoreIfNearEnd() }
+        }
     }
 
     /** The node selected in the tree, if it's still there. */
@@ -109,7 +124,7 @@ class CircleCITreeModel(
      */
     fun refreshRuns() {
         SwingUtilities.invokeLater {
-            if (runFetcher() != null) loadRuns(refresh = true)
+            if (runs != null) loadRuns(refresh = true)
         }
     }
 
@@ -118,7 +133,9 @@ class CircleCITreeModel(
      */
     fun reloadRoot() {
         SwingUtilities.invokeLater {
-            if (runFetcher() != null) {
+            val fetch = runFetcher()
+            runs = fetch?.let { PagedList({ run -> run.id }) { cursor -> authenticated { fetch(cursor) } } }
+            if (runs != null) {
                 loadRuns(refresh = false)
             } else {
                 root.loadGeneration++
@@ -131,37 +148,42 @@ class CircleCITreeModel(
     }
 
     /**
-     * Load the next page of runs in place of [loadMoreNode].
+     * Load the next page of runs after [loadMoreNode], unless it's loading
+     * already. Clicking the row after a page failed to load tries it again.
      */
     fun loadMore(loadMoreNode: LoadMoreNode) {
-        val parent = loadMoreNode.parent as? RootNode ?: return
-        val fetch = runFetcher() ?: return
-        val generation = parent.loadGeneration
-
-        val index = parent.getIndex(loadMoreNode)
-        parent.remove(loadMoreNode)
-        val loadingNode = LoadingNode()
-        parent.insert(loadingNode, index)
-        structureChanged()
+        val list = runs ?: return
+        if (loadMoreNode.parent !== root || list.state.value.loadingMore) return
+        if (loadMoreNode.error != null) {
+            loadMoreNode.error = null
+            structureChanged()
+        }
 
         tracked {
-            val result = authenticated { fetch(loadMoreNode.nextCursor) }
-            // A refresh or reload replaced the list while this page was loading.
-            if (generation != parent.loadGeneration || loadingNode.parent !== parent) return@tracked
-
-            parent.remove(loadingNode)
+            // Null when a refresh or reload replaced the list while this page was loading.
+            val result = list.loadMore() ?: return@tracked
+            if (list !== runs || loadMoreNode.parent !== root) return@tracked
             result.fold(
-                onSuccess = { page ->
-                    page.items.forEach { parent.add(RunNode(it, showProject = isMyRuns())) }
-                    page.nextCursor?.let { parent.add(LoadMoreNode(it)) }
+                onSuccess = { added ->
+                    root.remove(loadMoreNode)
+                    added.forEach { root.add(RunNode(it, showProject = isMyRuns())) }
+                    if (list.state.value.hasMore) root.add(LoadMoreNode())
                 },
                 onFailure = { error ->
-                    logger.error("Failed to load more runs: ${error.message}", error)
-                    parent.add(ErrorNode(error.message ?: "Failed to load more runs"))
+                    logger.warn("Failed to load more runs: ${error.message}")
+                    loadMoreNode.error = error.message ?: "unknown error"
                 },
             )
             structureChanged()
         }
+    }
+
+    /** Load the next page of runs if the list is scrolled near its end. */
+    private fun loadMoreIfNearEnd() {
+        val layout = scroll.layoutInfo
+        val lastVisible = layout.visibleItemsInfo.lastOrNull()?.index ?: return
+        if (lastVisible < layout.totalItemsCount - 1 - PREFETCH_DISTANCE) return
+        (root.lastChildOrNull() as? LoadMoreNode)?.takeIf { it.error == null }?.let(::loadMore)
     }
 
     private fun loadChildren(
@@ -188,17 +210,17 @@ class CircleCITreeModel(
         return { cursor -> runListService.fetchProjectRuns(selected, cursor) }
     }
 
-    /** List the runs at the top of the tree. */
+    /** List the runs at the top of the tree: the first page, or on a [refresh] as many as are listed. */
     private fun loadRuns(refresh: Boolean) {
-        val fetch = runFetcher() ?: return
+        val list = runs ?: return
         val node = root
         val myRuns = isMyRuns()
-        loadInto(node, refresh, "runs", { fetch(null) }) { page, previous ->
+        loadInto(node, refresh, "runs", { if (refresh) list.refresh() else list.reload() }) { items, previous ->
             val existing = existingChildren<RunNode, String>(previous) { it.run.id }
-            if (page.items.isEmpty()) {
+            if (items.isEmpty()) {
                 node.add(EmptyNode(emptyRunsMessage()))
             }
-            page.items.forEach { run ->
+            items.forEach { run ->
                 val reused = existing[run.id]
                 if (reused != null && reused.showProject == myRuns) {
                     // Keep a slug the workflows load resolved, which the listing lacks.
@@ -208,11 +230,11 @@ class CircleCITreeModel(
                     node.add(RunNode(run, showProject = myRuns))
                 }
             }
-            page.nextCursor?.let { node.add(LoadMoreNode(it)) }
+            if (list.state.value.hasMore) node.add(LoadMoreNode())
 
-            page.items.firstNotNullOfOrNull { it.createdAt }?.let { pollingService.updateNewestRunTime(it) }
-            page.items.filter { it.projectSlug != null }.groupBy { it.projectSlug!! }.forEach { (slug, runs) ->
-                stateStore.setRuns(slug, runs, page.nextCursor.takeIf { !myRuns })
+            items.firstNotNullOfOrNull { it.createdAt }?.let { pollingService.updateNewestRunTime(it) }
+            items.filter { it.projectSlug != null }.groupBy { it.projectSlug!! }.forEach { (slug, runs) ->
+                stateStore.setRuns(slug, runs)
             }
         }
     }
@@ -315,6 +337,8 @@ class CircleCITreeModel(
             structureChanged()
             // Nodes rebuilt while open load again.
             loadOpened()
+            // A rebuilt run list may end where a page was loading when it was replaced.
+            if (node === root) loadMoreIfNearEnd()
         }
     }
 
@@ -347,6 +371,9 @@ class CircleCITreeModel(
         nodes.forEach { it.removeAllChildren() }
         structureChanged()
     }
+
+    private fun CircleCITreeNode.lastChildOrNull(): CircleCITreeNode? =
+        if (childCount > 0) lastChild as? CircleCITreeNode else null
 
     private fun structureChanged() {
         _structure.value++
@@ -417,3 +444,6 @@ class CircleCITreeModel(
         return true
     }
 }
+
+/** How many rows from the end of the run list the next page starts loading. */
+private const val PREFETCH_DISTANCE = 5
