@@ -8,6 +8,7 @@ import com.intellij.openapi.fileEditor.FileEditorProvider
 import com.intellij.openapi.fileEditor.FileEditorState
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Iconable
 import com.intellij.openapi.util.UserDataHolderBase
 import com.intellij.openapi.vfs.VirtualFile
@@ -45,6 +46,10 @@ class JobEditor(
 ) : UserDataHolderBase(), FileEditor {
     private val panel = JobPanel(project, file)
 
+    init {
+        Disposer.register(this, panel)
+    }
+
     override fun getComponent(): JComponent = panel
 
     override fun getPreferredFocusedComponent(): JComponent = panel.preferredFocusedComponent
@@ -70,7 +75,7 @@ class JobEditor(
     }
 
     override fun dispose() {
-        panel.dispose()
+        // The panel is disposed as this editor's child.
     }
 }
 

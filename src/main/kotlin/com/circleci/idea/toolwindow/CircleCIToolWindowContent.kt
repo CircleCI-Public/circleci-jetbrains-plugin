@@ -12,7 +12,6 @@ import com.circleci.idea.toolwindow.tree.RunTreeView
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.Disposer
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.components.JBPanel
 import kotlinx.coroutines.CoroutineScope
@@ -78,9 +77,6 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
 
         // Note: Tree will auto-reload via StateFlow listeners in CircleCITreeModel
         // when projects are detected and selectedProject is updated
-
-        // Register for disposal
-        Disposer.register(project, this)
     }
 
     private fun autoDetectProjects() {
@@ -141,7 +137,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
     fun titleActions(): List<AnAction> =
         listOf(
             com.circleci.idea.toolwindow.actions.ProjectChooserAction(),
-            com.circleci.idea.toolwindow.actions.RefreshAction(),
+            com.circleci.idea.toolwindow.actions.RefreshAction(scope),
             com.circleci.idea.toolwindow.actions.ToggleAutoRefreshAction(),
         )
 
