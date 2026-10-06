@@ -138,6 +138,10 @@ class SettingsTreeView(
         settingsAction("Copy Name", AllIcons.Actions.Copy, IdeActions.ACTION_COPY) { it as? SettingsNode.Variable }
             .performing { copy(it.envVar.name) }
 
+    private val copyContextIdAction =
+        settingsAction("Copy Context ID", AllIcons.Actions.Copy, null) { (it as? SettingsNode.EnvVars)?.owner?.context }
+            .performing { copy(it.id) }
+
     private val refreshAction =
         settingsAction("Refresh", AllIcons.Actions.Refresh, IdeActions.ACTION_REFRESH) {
             model.state.value.projectSlug
@@ -288,6 +292,7 @@ class SettingsTreeView(
                 add(deleteAction)
                 addSeparator()
                 add(copyNameAction)
+                if (section == SettingsSection.ORG) add(copyContextIdAction)
                 addSeparator()
                 add(refreshAction)
             }
