@@ -21,11 +21,19 @@ import com.google.gson.JsonObject
 import com.intellij.testFramework.LoggedErrorProcessor
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.sun.net.httpserver.HttpServer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.net.InetSocketAddress
 import java.net.URLDecoder
 import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.system.measureTimeMillis
 
 /**
  * The API clients against a local HTTP server, checking what they send and
@@ -77,267 +85,327 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
 
     private fun json(text: String): JsonObject = gson.fromJson(text, JsonObject::class.java)
 
-    fun testCurrentUserFromV3Users() {
-        responseBody =
-            """
+    fun testCurrentUserFromV3Users() =
+        runBlocking<Unit> {
+            responseBody =
+                """
             {"data": [{"id": "u-1", "attributes": {"name": "Ada", "login": "ada", "avatar_url": "https://a/b.png"}}]}
             """
 
-        val user = ProjectApiClient().getCurrentUser(client).getOrThrow()
+            val user = ProjectApiClient().getCurrentUser(client).getOrThrow()
 
-        assertEquals(
-            "request",
-            "GET /api/v3/users?filter[user_id]=me",
-            requests.single().let { "${it.method} ${it.uri}" },
-        )
-        assertEquals("id", "u-1", user.id)
-        assertEquals("login", "ada", user.login)
-        assertEquals("name", "Ada", user.name)
-        assertEquals("avatar", "https://a/b.png", user.avatarUrl)
-    }
+            assertEquals(
+                "request",
+                "GET /api/v3/users?filter[user_id]=me",
+                requests.single().let { "${it.method} ${it.uri}" },
+            )
+            assertEquals("id", "u-1", user.id)
+            assertEquals("login", "ada", user.login)
+            assertEquals("name", "Ada", user.name)
+            assertEquals("avatar", "https://a/b.png", user.avatarUrl)
+        }
 
-    fun testInitializeWithANewTokenSendsIt() {
-        responseBody = """{"data": [{"id": "u-1", "attributes": {"name": "Ada", "login": "ada"}}]}"""
-        val url = "http://127.0.0.1:${server.address.port}"
-        val service = CircleCIApiService()
+    fun testInitializeWithANewTokenSendsIt() =
+        runBlocking<Unit> {
+            responseBody = """{"data": [{"id": "u-1", "attributes": {"name": "Ada", "login": "ada"}}]}"""
+            val url = "http://127.0.0.1:${server.address.port}"
+            val service = CircleCIApiService()
 
-        service.initialize("one", url)
-        service.getCurrentUser().getOrThrow()
-        service.initialize("one", url)
-        service.getCurrentUser().getOrThrow()
-        service.initialize("two", url)
-        service.getCurrentUser().getOrThrow()
+            service.initialize("one", url)
+            service.getCurrentUser().getOrThrow()
+            service.initialize("one", url)
+            service.getCurrentUser().getOrThrow()
+            service.initialize("two", url)
+            service.getCurrentUser().getOrThrow()
 
-        assertEquals("tokens sent", listOf("one", "one", "two"), tokens.toList())
-    }
+            assertEquals("tokens sent", listOf("one", "one", "two"), tokens.toList())
+        }
 
-    fun testCurrentUserFailsWhenNoneReturned() {
-        responseBody = """{"data": []}"""
+    fun testCancellingARequestCancelsItsCall() =
+        runBlocking<Unit> {
+            val release = CountDownLatch(1)
+            server.createContext("/slow") { exchange ->
+                release.await(10, TimeUnit.SECONDS)
+                exchange.sendResponseHeaders(200, -1)
+                exchange.close()
+            }
+            val request = launch(Dispatchers.IO) { client.get("/slow") }
+            delay(200)
 
-        // The client logs the failure as an error, which fails a platform test unless expected.
-        var result: Result<*>? = null
-        LoggedErrorProcessor.executeAndReturnLoggedError { result = ProjectApiClient().getCurrentUser(client) }
+            val cancelled = measureTimeMillis { request.cancelAndJoin() }
+            release.countDown()
 
-        assertTrue("an empty list is a failure", result!!.isFailure)
-    }
+            assertTrue("cancelled without waiting for the response, in ${cancelled}ms", cancelled < 2_000)
+        }
 
-    fun testRerunSendsV3FieldNames() {
-        responseBody = """{"data": {"id": "w-2"}}"""
+    fun testCurrentUserFailsWhenNoneReturned() =
+        runBlocking<Unit> {
+            responseBody = """{"data": []}"""
 
-        WorkflowApiClient().rerunWorkflow(client, "w-1", fromFailed = true, enableSsh = true, jobs = listOf("j-1"))
+            // The client logs the failure as an error, which fails a platform test unless expected.
+            var result: Result<*>? = null
+            LoggedErrorProcessor.executeAndReturnLoggedError {
+                result =
+                    runBlocking {
+                        ProjectApiClient().getCurrentUser(
+                            client,
+                        )
+                    }
+            }
 
-        val request = requests.single()
-        assertEquals("request", "POST /api/v3/workflows/w-1/rerun", "${request.method} ${request.uri}")
-        assertEquals(
-            "body",
-            json("""{"is_from_failed": true, "is_ssh_enabled": true, "jobs": ["j-1"]}"""),
-            json(request.body),
-        )
-    }
+            assertTrue("an empty list is a failure", result!!.isFailure)
+        }
 
-    fun testCancelUsesV3() {
-        responseBody = """{"data": {"id": "w-1"}}"""
+    fun testRerunSendsV3FieldNames() =
+        runBlocking<Unit> {
+            responseBody = """{"data": {"id": "w-2"}}"""
 
-        assertTrue("cancel succeeds", WorkflowApiClient().cancelWorkflow(client, "w-1").isSuccess)
-        assertEquals("request", "POST /api/v3/workflows/w-1/cancel", requests.single().let { "${it.method} ${it.uri}" })
-    }
+            WorkflowApiClient().rerunWorkflow(client, "w-1", fromFailed = true, enableSsh = true, jobs = listOf("j-1"))
 
-    fun testCompileRequestShape() {
-        responseBody = """{"data": {"attributes": {"outcome": "succeeded"}}}"""
+            val request = requests.single()
+            assertEquals("request", "POST /api/v3/workflows/w-1/rerun", "${request.method} ${request.uri}")
+            assertEquals(
+                "body",
+                json("""{"is_from_failed": true, "is_ssh_enabled": true, "jobs": ["j-1"]}"""),
+                json(request.body),
+            )
+        }
 
-        ConfigApiClient().validateConfig(client, "version: 2.1", "main", "org-1")
+    fun testCancelUsesV3() =
+        runBlocking<Unit> {
+            responseBody = """{"data": {"id": "w-1"}}"""
 
-        val request = requests.single()
-        assertEquals("request", "POST /api/v3/configs/compile", "${request.method} ${request.uri}")
-        assertEquals(
-            "body",
-            json(
-                """
+            assertTrue("cancel succeeds", WorkflowApiClient().cancelWorkflow(client, "w-1").isSuccess)
+            assertEquals(
+                "request",
+                "POST /api/v3/workflows/w-1/cancel",
+                requests.single().let { "${it.method} ${it.uri}" },
+            )
+        }
+
+    fun testCompileRequestShape() =
+        runBlocking<Unit> {
+            responseBody = """{"data": {"attributes": {"outcome": "succeeded"}}}"""
+
+            ConfigApiClient().validateConfig(client, "version: 2.1", "main", "org-1")
+
+            val request = requests.single()
+            assertEquals("request", "POST /api/v3/configs/compile", "${request.method} ${request.uri}")
+            assertEquals(
+                "body",
+                json(
+                    """
                 {"data": {
                   "attributes": {"config": "version: 2.1", "pipeline_values": {"pipeline.git.branch": "main"}},
                   "references": {"org": {"id": "org-1"}}
                 }}
                 """,
-            ),
-            json(request.body),
-        )
-    }
+                ),
+                json(request.body),
+            )
+        }
 
-    fun testCompileRequestWithoutOrg() {
-        responseBody = """{"data": {"attributes": {"outcome": "succeeded"}}}"""
+    fun testCompileRequestWithoutOrg() =
+        runBlocking<Unit> {
+            responseBody = """{"data": {"attributes": {"outcome": "succeeded"}}}"""
 
-        ConfigApiClient().validateConfig(client, "version: 2.1", "main", orgId = null)
+            ConfigApiClient().validateConfig(client, "version: 2.1", "main", orgId = null)
 
-        assertFalse("no references", json(requests.single().body)["data"].asJsonObject.has("references"))
-    }
+            assertFalse("no references", json(requests.single().body)["data"].asJsonObject.has("references"))
+        }
 
-    fun testCompileSucceeded() {
-        val response =
-            gson.fromJson(
-                """
+    fun testCompileSucceeded() =
+        runBlocking<Unit> {
+            val response =
+                gson.fromJson(
+                    """
                 {"data": {"attributes": {"phase": "ended", "outcome": "succeeded", "compiled_config": "jobs: {}"}}}
                 """,
-                ConfigCompileResponse::class.java,
-            )
+                    ConfigCompileResponse::class.java,
+                )
 
-        val result = ConfigValidationResult.from(response)
+            val result = ConfigValidationResult.from(response)
 
-        assertTrue("valid", result.valid)
-        assertTrue("no errors", result.errors.isEmpty())
-        assertEquals("compiled config", "jobs: {}", result.compiledConfig)
-    }
+            assertTrue("valid", result.valid)
+            assertTrue("no errors", result.errors.isEmpty())
+            assertEquals("compiled config", "jobs: {}", result.compiledConfig)
+        }
 
-    fun testCompileFailed() {
-        val response =
-            gson.fromJson(
-                """
+    fun testCompileFailed() =
+        runBlocking<Unit> {
+            val response =
+                gson.fromJson(
+                    """
                 {
                   "data": {"attributes": {"phase": "ended", "outcome": "failed"}},
                   "meta": {"messages": [{"title": "Invalid workflow name"}, {"title": "Unknown job reference"}]}
                 }
                 """,
-                ConfigCompileResponse::class.java,
-            )
+                    ConfigCompileResponse::class.java,
+                )
 
-        val result = ConfigValidationResult.from(response)
+            val result = ConfigValidationResult.from(response)
 
-        assertFalse("invalid", result.valid)
-        assertEquals("errors", listOf("Invalid workflow name", "Unknown job reference"), result.errors)
-        assertNull("no compiled config", result.compiledConfig)
-    }
+            assertFalse("invalid", result.valid)
+            assertEquals("errors", listOf("Invalid workflow name", "Unknown job reference"), result.errors)
+            assertNull("no compiled config", result.compiledConfig)
+        }
 
     private fun requestLines(): List<String> = requests.map { "${it.method} ${it.uri}" }
 
-    fun testProjectEnvVarsFollowPageTokens() {
-        responseQueue +=
-            listOf(
-                """{"items": [{"name": "A", "value": "xxxx1234"}], "next_page_token": "t2"}""",
-                """{"items": [{"name": "B", "value": "xxxx5678"}], "next_page_token": null}""",
+    fun testProjectEnvVarsFollowPageTokens() =
+        runBlocking<Unit> {
+            responseQueue +=
+                listOf(
+                    """{"items": [{"name": "A", "value": "xxxx1234"}], "next_page_token": "t2"}""",
+                    """{"items": [{"name": "B", "value": "xxxx5678"}], "next_page_token": null}""",
+                )
+
+            val vars = SettingsApiClient().listProjectEnvVars(client, "gh/org/repo").getOrThrow()
+
+            assertEquals(
+                "requests",
+                listOf(
+                    "GET /api/v2/project/gh/org/repo/envvar",
+                    "GET /api/v2/project/gh/org/repo/envvar?page-token=t2",
+                ),
+                requestLines(),
+            )
+            assertEquals("variables", listOf(EnvVar("A", "xxxx1234"), EnvVar("B", "xxxx5678")), vars)
+        }
+
+    fun testSetProjectEnvVar() =
+        runBlocking<Unit> {
+            responseBody = """{"name": "A", "value": "xxxx1234"}"""
+
+            assertTrue(
+                "set succeeds",
+                SettingsApiClient().setProjectEnvVar(client, "gh/org/repo", "A", "secret").isSuccess,
             )
 
-        val vars = SettingsApiClient().listProjectEnvVars(client, "gh/org/repo").getOrThrow()
+            val request = requests.single()
+            assertEquals("request", "POST /api/v2/project/gh/org/repo/envvar", "${request.method} ${request.uri}")
+            assertEquals("body", json("""{"name": "A", "value": "secret"}"""), json(request.body))
+        }
 
-        assertEquals(
-            "requests",
-            listOf("GET /api/v2/project/gh/org/repo/envvar", "GET /api/v2/project/gh/org/repo/envvar?page-token=t2"),
-            requestLines(),
-        )
-        assertEquals("variables", listOf(EnvVar("A", "xxxx1234"), EnvVar("B", "xxxx5678")), vars)
-    }
+    fun testDeleteProjectEnvVar() =
+        runBlocking<Unit> {
+            responseBody = """{"message": "Environment variable deleted."}"""
 
-    fun testSetProjectEnvVar() {
-        responseBody = """{"name": "A", "value": "xxxx1234"}"""
+            assertTrue("delete succeeds", SettingsApiClient().deleteProjectEnvVar(client, "gh/org/repo", "A").isSuccess)
+            assertEquals("request", listOf("DELETE /api/v2/project/gh/org/repo/envvar/A"), requestLines())
+        }
 
-        assertTrue("set succeeds", SettingsApiClient().setProjectEnvVar(client, "gh/org/repo", "A", "secret").isSuccess)
+    fun testContextsAPageAtATime() =
+        runBlocking<Unit> {
+            responseBody = """{"data": [{"id": "c-2", "attributes": {"name": "release"}}], "page": {"next": "n3"}}"""
 
-        val request = requests.single()
-        assertEquals("request", "POST /api/v2/project/gh/org/repo/envvar", "${request.method} ${request.uri}")
-        assertEquals("body", json("""{"name": "A", "value": "secret"}"""), json(request.body))
-    }
+            val page = SettingsApiClient().listContexts(client, "o-1", cursor = "n2").getOrThrow()
 
-    fun testDeleteProjectEnvVar() {
-        responseBody = """{"message": "Environment variable deleted."}"""
+            assertEquals(
+                "request",
+                listOf("GET /api/v3/contexts?filter[org_id]=o-1&page[limit]=20&page[cursor]=n2"),
+                requestLines(),
+            )
+            assertEquals("contexts", listOf(Context("c-2", "release")), page.items)
+            assertEquals("next page", "n3", page.nextCursor)
+        }
 
-        assertTrue("delete succeeds", SettingsApiClient().deleteProjectEnvVar(client, "gh/org/repo", "A").isSuccess)
-        assertEquals("request", listOf("DELETE /api/v2/project/gh/org/repo/envvar/A"), requestLines())
-    }
+    fun testLastPageOfContextsHasNoCursor() =
+        runBlocking<Unit> {
+            responseBody = """{"data": [{"id": "c-1", "attributes": {"name": "deploy"}}], "page": {"next": ""}}"""
 
-    fun testContextsAPageAtATime() {
-        responseBody = """{"data": [{"id": "c-2", "attributes": {"name": "release"}}], "page": {"next": "n3"}}"""
+            val page = SettingsApiClient().listContexts(client, "o-1", cursor = null).getOrThrow()
 
-        val page = SettingsApiClient().listContexts(client, "o-1", cursor = "n2").getOrThrow()
+            assertEquals("request", listOf("GET /api/v3/contexts?filter[org_id]=o-1&page[limit]=20"), requestLines())
+            assertNull("no next page", page.nextCursor)
+        }
 
-        assertEquals(
-            "request",
-            listOf("GET /api/v3/contexts?filter[org_id]=o-1&page[limit]=20&page[cursor]=n2"),
-            requestLines(),
-        )
-        assertEquals("contexts", listOf(Context("c-2", "release")), page.items)
-        assertEquals("next page", "n3", page.nextCursor)
-    }
+    fun testCreateContextInAnOrg() =
+        runBlocking<Unit> {
+            responseBody = """{"data": {"id": "c-3", "attributes": {"name": "staging"}}}"""
 
-    fun testLastPageOfContextsHasNoCursor() {
-        responseBody = """{"data": [{"id": "c-1", "attributes": {"name": "deploy"}}], "page": {"next": ""}}"""
+            val context = SettingsApiClient().createContext(client, "o-1", "staging").getOrThrow()
 
-        val page = SettingsApiClient().listContexts(client, "o-1", cursor = null).getOrThrow()
+            val request = requests.single()
+            assertEquals("request", "POST /api/v3/contexts", "${request.method} ${request.uri}")
+            assertEquals(
+                "body",
+                json("""{"data": {"attributes": {"name": "staging"}, "references": {"org": {"id": "o-1"}}}}"""),
+                json(request.body),
+            )
+            assertEquals("created", Context("c-3", "staging"), context)
+        }
 
-        assertEquals("request", listOf("GET /api/v3/contexts?filter[org_id]=o-1&page[limit]=20"), requestLines())
-        assertNull("no next page", page.nextCursor)
-    }
+    fun testDeleteContext() =
+        runBlocking<Unit> {
+            assertTrue("delete succeeds", SettingsApiClient().deleteContext(client, "c-1").isSuccess)
+            assertEquals("request", listOf("DELETE /api/v3/contexts/c-1"), requestLines())
+        }
 
-    fun testCreateContextInAnOrg() {
-        responseBody = """{"data": {"id": "c-3", "attributes": {"name": "staging"}}}"""
+    fun testContextEnvVarsShowTheirLastCharacters() =
+        runBlocking<Unit> {
+            responseBody = """{"data": [{"attributes": {"name": "TOKEN", "truncated_value": "abcd"}}]}"""
 
-        val context = SettingsApiClient().createContext(client, "o-1", "staging").getOrThrow()
+            val vars = SettingsApiClient().listContextEnvVars(client, "c-1").getOrThrow()
 
-        val request = requests.single()
-        assertEquals("request", "POST /api/v3/contexts", "${request.method} ${request.uri}")
-        assertEquals(
-            "body",
-            json("""{"data": {"attributes": {"name": "staging"}, "references": {"org": {"id": "o-1"}}}}"""),
-            json(request.body),
-        )
-        assertEquals("created", Context("c-3", "staging"), context)
-    }
+            assertEquals("request", listOf("GET /api/v3/contexts/c-1/env-vars?page[limit]=100"), requestLines())
+            assertEquals("variables", listOf(EnvVar("TOKEN", "****abcd")), vars)
+        }
 
-    fun testDeleteContext() {
-        assertTrue("delete succeeds", SettingsApiClient().deleteContext(client, "c-1").isSuccess)
-        assertEquals("request", listOf("DELETE /api/v3/contexts/c-1"), requestLines())
-    }
+    fun testSetContextEnvVar() =
+        runBlocking<Unit> {
+            responseBody = """{"data": {"attributes": {"name": "TOKEN"}}}"""
 
-    fun testContextEnvVarsShowTheirLastCharacters() {
-        responseBody = """{"data": [{"attributes": {"name": "TOKEN", "truncated_value": "abcd"}}]}"""
+            assertTrue("set succeeds", SettingsApiClient().setContextEnvVar(client, "c-1", "TOKEN", "secret").isSuccess)
 
-        val vars = SettingsApiClient().listContextEnvVars(client, "c-1").getOrThrow()
+            val request = requests.single()
+            assertEquals("request", "POST /api/v3/contexts/c-1/env-vars/set", "${request.method} ${request.uri}")
+            assertEquals("body", json("""{"name": "TOKEN", "value": "secret"}"""), json(request.body))
+        }
 
-        assertEquals("request", listOf("GET /api/v3/contexts/c-1/env-vars?page[limit]=100"), requestLines())
-        assertEquals("variables", listOf(EnvVar("TOKEN", "****abcd")), vars)
-    }
+    fun testDeleteContextEnvVarNamesItInAFilter() =
+        runBlocking<Unit> {
+            assertTrue("delete succeeds", SettingsApiClient().deleteContextEnvVar(client, "c-1", "TOKEN").isSuccess)
+            assertEquals("request", listOf("DELETE /api/v3/contexts/c-1/env-vars?filter[name]=TOKEN"), requestLines())
+        }
 
-    fun testSetContextEnvVar() {
-        responseBody = """{"data": {"attributes": {"name": "TOKEN"}}}"""
-
-        assertTrue("set succeeds", SettingsApiClient().setContextEnvVar(client, "c-1", "TOKEN", "secret").isSuccess)
-
-        val request = requests.single()
-        assertEquals("request", "POST /api/v3/contexts/c-1/env-vars/set", "${request.method} ${request.uri}")
-        assertEquals("body", json("""{"name": "TOKEN", "value": "secret"}"""), json(request.body))
-    }
-
-    fun testDeleteContextEnvVarNamesItInAFilter() {
-        assertTrue("delete succeeds", SettingsApiClient().deleteContextEnvVar(client, "c-1", "TOKEN").isSuccess)
-        assertEquals("request", listOf("DELETE /api/v3/contexts/c-1/env-vars?filter[name]=TOKEN"), requestLines())
-    }
-
-    fun testContextWithItsOrganization() {
-        responseBody =
-            """
+    fun testContextWithItsOrganization() =
+        runBlocking<Unit> {
+            responseBody =
+                """
             {"data": {"id": "c-1", "attributes": {"name": "deploy", "created_at": "2026-01-02T03:04:05Z"},
                       "references": {"org": {"id": "o-1"}}}}
             """
 
-        val context = ContextApiClient().getContext(client, "c-1").getOrThrow()
+            val context = ContextApiClient().getContext(client, "c-1").getOrThrow()
 
-        assertEquals("request", listOf("GET /api/v3/contexts/c-1"), requestLines())
-        assertEquals("context", ContextDetail("c-1", "deploy", "o-1", Instant.parse("2026-01-02T03:04:05Z")), context)
-    }
+            assertEquals("request", listOf("GET /api/v3/contexts/c-1"), requestLines())
+            assertEquals(
+                "context",
+                ContextDetail("c-1", "deploy", "o-1", Instant.parse("2026-01-02T03:04:05Z")),
+                context,
+            )
+        }
 
-    fun testContextEnvVarsWithTheirDates() {
-        responseBody =
-            """
+    fun testContextEnvVarsWithTheirDates() =
+        runBlocking<Unit> {
+            responseBody =
+                """
             {"data": [{"attributes": {"name": "TOKEN", "truncated_value": "abcd",
                                       "created_at": "2026-01-02T03:04:05Z", "updated_at": "2026-02-03T04:05:06Z"}}]}
             """
 
-        val envVar = SettingsApiClient().listContextEnvVars(client, "c-1").getOrThrow().single()
+            val envVar = SettingsApiClient().listContextEnvVars(client, "c-1").getOrThrow().single()
 
-        assertEquals("created", Instant.parse("2026-01-02T03:04:05Z"), envVar.createdAt)
-        assertEquals("updated", Instant.parse("2026-02-03T04:05:06Z"), envVar.updatedAt)
-    }
+            assertEquals("created", Instant.parse("2026-01-02T03:04:05Z"), envVar.createdAt)
+            assertEquals("updated", Instant.parse("2026-02-03T04:05:06Z"), envVar.updatedAt)
+        }
 
-    fun testRestrictionsOfTheTypesKnown() {
-        responseBody =
-            """
+    fun testRestrictionsOfTheTypesKnown() =
+        runBlocking<Unit> {
+            responseBody =
+                """
             {"data": [
               {"id": "r-1", "attributes": {"restriction_type": "project", "match_pattern": "p-1", "name": "app"}},
               {"id": "r-2", "attributes": {"restriction_type": "expression", "match_pattern": "pipeline.git.branch == \"main\""}},
@@ -346,155 +414,173 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
             ]}
             """
 
-        val restrictions = ContextApiClient().listContextRestrictions(client, "c-1").getOrThrow()
+            val restrictions = ContextApiClient().listContextRestrictions(client, "c-1").getOrThrow()
 
-        assertEquals("request", listOf("GET /api/v3/context-restrictions?filter[context_id]=c-1"), requestLines())
-        assertEquals(
-            "restrictions, without the unknown type, and with no name where it's empty",
-            listOf(
-                ContextRestriction("r-1", RestrictionType.PROJECT, "p-1", "app"),
-                ContextRestriction("r-2", RestrictionType.EXPRESSION, "pipeline.git.branch == \"main\"", null),
-                ContextRestriction("r-3", RestrictionType.GROUP, "g-1", null),
-            ),
-            restrictions,
-        )
-    }
+            assertEquals("request", listOf("GET /api/v3/context-restrictions?filter[context_id]=c-1"), requestLines())
+            assertEquals(
+                "restrictions, without the unknown type, and with no name where it's empty",
+                listOf(
+                    ContextRestriction("r-1", RestrictionType.PROJECT, "p-1", "app"),
+                    ContextRestriction("r-2", RestrictionType.EXPRESSION, "pipeline.git.branch == \"main\"", null),
+                    ContextRestriction("r-3", RestrictionType.GROUP, "g-1", null),
+                ),
+                restrictions,
+            )
+        }
 
-    fun testCreateRestrictionOnTheContext() {
-        responseBody = """{"data": {"id": "r-1"}}"""
+    fun testCreateRestrictionOnTheContext() =
+        runBlocking<Unit> {
+            responseBody = """{"data": {"id": "r-1"}}"""
 
-        val result = ContextApiClient().createContextRestriction(client, "c-1", RestrictionType.EXPRESSION, "true")
+            val result = ContextApiClient().createContextRestriction(client, "c-1", RestrictionType.EXPRESSION, "true")
 
-        assertTrue("create succeeds", result.isSuccess)
-        val request = requests.single()
-        assertEquals("request", "POST /api/v3/context-restrictions", "${request.method} ${request.uri}")
-        assertEquals(
-            "body",
-            json(
-                """
+            assertTrue("create succeeds", result.isSuccess)
+            val request = requests.single()
+            assertEquals("request", "POST /api/v3/context-restrictions", "${request.method} ${request.uri}")
+            assertEquals(
+                "body",
+                json(
+                    """
                 {"data": {"attributes": {"restriction_type": "expression", "match_pattern": "true"},
                           "references": {"context": {"id": "c-1"}}}}
                 """,
-            ),
-            json(request.body),
-        )
-    }
-
-    fun testRejectedRestrictionSaysWhy() {
-        responseStatus = 400
-        responseBody = """{"error": {"title": "Invalid restriction.", "detail": "Unexpected character '&'"}}"""
-
-        // The client logs the failure as errors, which fail a platform test unless they're let through.
-        var result: Result<*>? = null
-        val ignoreErrors =
-            object : LoggedErrorProcessor() {
-                override fun processError(
-                    category: String,
-                    message: String,
-                    details: Array<String>,
-                    t: Throwable?,
-                ): Set<Action> = Action.NONE
-            }
-        LoggedErrorProcessor.executeWith<RuntimeException>(ignoreErrors) {
-            result = ContextApiClient().createContextRestriction(client, "c-1", RestrictionType.EXPRESSION, "a && b")
+                ),
+                json(request.body),
+            )
         }
 
-        assertEquals("message", "Invalid restriction: Unexpected character '&'", result!!.exceptionOrNull()?.message)
-    }
+    fun testRejectedRestrictionSaysWhy() =
+        runBlocking<Unit> {
+            responseStatus = 400
+            responseBody = """{"error": {"title": "Invalid restriction.", "detail": "Unexpected character '&'"}}"""
 
-    fun testDeleteRestrictionNamesItsContext() {
-        assertTrue("delete succeeds", ContextApiClient().deleteContextRestriction(client, "c-1", "r-1").isSuccess)
-        assertEquals(
-            "request",
-            listOf("DELETE /api/v3/context-restrictions/r-1?filter[context_id]=c-1"),
-            requestLines(),
-        )
-    }
+            // The client logs the failure as errors, which fail a platform test unless they're let through.
+            var result: Result<*>? = null
+            val ignoreErrors =
+                object : LoggedErrorProcessor() {
+                    override fun processError(
+                        category: String,
+                        message: String,
+                        details: Array<String>,
+                        t: Throwable?,
+                    ): Set<Action> = Action.NONE
+                }
+            LoggedErrorProcessor.executeWith<RuntimeException>(ignoreErrors) {
+                result =
+                    runBlocking {
+                        ContextApiClient().createContextRestriction(
+                            client,
+                            "c-1",
+                            RestrictionType.EXPRESSION,
+                            "a && b",
+                        )
+                    }
+            }
 
-    fun testGroupsOfAnOrg() {
-        responseBody = """{"data": [{"id": "g-1", "attributes": {"name": "admins"}}, {"id": "g-2"}]}"""
+            assertEquals(
+                "message",
+                "Invalid restriction: Unexpected character '&'",
+                result!!.exceptionOrNull()?.message,
+            )
+        }
 
-        val groups = ContextApiClient().listGroups(client, "o-1").getOrThrow()
+    fun testDeleteRestrictionNamesItsContext() =
+        runBlocking<Unit> {
+            assertTrue("delete succeeds", ContextApiClient().deleteContextRestriction(client, "c-1", "r-1").isSuccess)
+            assertEquals(
+                "request",
+                listOf("DELETE /api/v3/context-restrictions/r-1?filter[context_id]=c-1"),
+                requestLines(),
+            )
+        }
 
-        assertEquals("request", listOf("GET /api/v3/groups?filter[org_id]=o-1"), requestLines())
-        assertEquals(
-            "groups, by ID where unnamed",
-            listOf(NamedEntity("g-1", "admins"), NamedEntity("g-2", "g-2")),
-            groups,
-        )
-    }
+    fun testGroupsOfAnOrg() =
+        runBlocking<Unit> {
+            responseBody = """{"data": [{"id": "g-1", "attributes": {"name": "admins"}}, {"id": "g-2"}]}"""
 
-    fun testProjectsSearchedByName() {
-        responseBody = """{"data": [{"id": "p-1", "attributes": {"name": "app"}}], "page": {"next": "n-1"}}"""
+            val groups = ContextApiClient().listGroups(client, "o-1").getOrThrow()
 
-        val page = ContextApiClient().searchProjects(client, "o-1", " ap ", "c-0").getOrThrow()
+            assertEquals("request", listOf("GET /api/v3/groups?filter[org_id]=o-1"), requestLines())
+            assertEquals(
+                "groups, by ID where unnamed",
+                listOf(NamedEntity("g-1", "admins"), NamedEntity("g-2", "g-2")),
+                groups,
+            )
+        }
 
-        val uri = requests.single().uri
-        assertTrue("projects", uri.startsWith("/api/v3/projects?"))
-        assertEquals(
-            "params",
-            setOf("filter[org_id]=o-1", "filter[name]=ap", "order_by=name", "page[limit]=50", "page[cursor]=c-0"),
-            uri.substringAfter('?').split('&').toSet(),
-        )
-        assertEquals("projects", listOf(NamedEntity("p-1", "app")), page.items)
-        assertEquals("next", "n-1", page.nextCursor)
-    }
+    fun testProjectsSearchedByName() =
+        runBlocking<Unit> {
+            responseBody = """{"data": [{"id": "p-1", "attributes": {"name": "app"}}], "page": {"next": "n-1"}}"""
 
-    fun testProjectsUnfilteredWithoutAName() {
-        responseBody = """{"data": []}"""
+            val page = ContextApiClient().searchProjects(client, "o-1", " ap ", "c-0").getOrThrow()
 
-        ContextApiClient().searchProjects(client, "o-1", "", null).getOrThrow()
+            val uri = requests.single().uri
+            assertTrue("projects", uri.startsWith("/api/v3/projects?"))
+            assertEquals(
+                "params",
+                setOf("filter[org_id]=o-1", "filter[name]=ap", "order_by=name", "page[limit]=50", "page[cursor]=c-0"),
+                uri.substringAfter('?').split('&').toSet(),
+            )
+            assertEquals("projects", listOf(NamedEntity("p-1", "app")), page.items)
+            assertEquals("next", "n-1", page.nextCursor)
+        }
 
-        assertFalse("no name filter", requests.single().uri.contains("filter[name]"))
-    }
+    fun testProjectsUnfilteredWithoutAName() =
+        runBlocking<Unit> {
+            responseBody = """{"data": []}"""
 
-    fun testProjectBySlugWithItsOrganization() {
-        responseBody =
-            """
+            ContextApiClient().searchProjects(client, "o-1", "", null).getOrThrow()
+
+            assertFalse("no name filter", requests.single().uri.contains("filter[name]"))
+        }
+
+    fun testProjectBySlugWithItsOrganization() =
+        runBlocking<Unit> {
+            responseBody =
+                """
             {"data": [{"id": "p-1", "attributes": {"name": "app"},
                        "references": {"org": {"id": "o-1", "attributes": {"name": "acme"}}}}]}
             """
 
-        val info = RunApiClient().getProjectBySlug(client, "gh/acme/app").getOrThrow()
+            val info = RunApiClient().getProjectBySlug(client, "gh/acme/app").getOrThrow()
 
-        assertEquals("request", listOf("GET /api/v3/projects?filter[slug]=gh/acme/app"), requestLines())
-        assertEquals("project", ProjectInfo("p-1", "gh/acme/app", "app", Organization("o-1", "acme")), info)
-    }
-
-    fun testProjectNamedAfterItsSlugWhereUnnamed() {
-        responseBody = """{"data": [{"id": "p-1", "references": {"org": {"id": "o-1"}}}]}"""
-
-        val info = RunApiClient().getProjectBySlug(client, "gh/acme/app").getOrThrow()
-
-        assertEquals("project", ProjectInfo("p-1", "gh/acme/app", "app", Organization("o-1", "acme")), info)
-    }
-
-    fun testNoProjectForASlug() {
-        responseBody = """{"data": []}"""
-
-        // The client logs the failure as an error, which fails a platform test unless expected.
-        var result: Result<*>? = null
-        LoggedErrorProcessor.executeAndReturnLoggedError {
-            result =
-                RunApiClient().getProjectBySlug(
-                    client,
-                    "gh/acme/app",
-                )
+            assertEquals("request", listOf("GET /api/v3/projects?filter[slug]=gh/acme/app"), requestLines())
+            assertEquals("project", ProjectInfo("p-1", "gh/acme/app", "app", Organization("o-1", "acme")), info)
         }
 
-        assertTrue("fails", result!!.isFailure)
-    }
+    fun testProjectNamedAfterItsSlugWhereUnnamed() =
+        runBlocking<Unit> {
+            responseBody = """{"data": [{"id": "p-1", "references": {"org": {"id": "o-1"}}}]}"""
 
-    fun testProjectByIdHasAStandaloneSlug() {
-        responseBody =
-            """
+            val info = RunApiClient().getProjectBySlug(client, "gh/acme/app").getOrThrow()
+
+            assertEquals("project", ProjectInfo("p-1", "gh/acme/app", "app", Organization("o-1", "acme")), info)
+        }
+
+    fun testNoProjectForASlug() =
+        runBlocking<Unit> {
+            responseBody = """{"data": []}"""
+
+            // The client logs the failure as an error, which fails a platform test unless expected.
+            var result: Result<*>? = null
+            LoggedErrorProcessor.executeAndReturnLoggedError {
+                result = runBlocking { RunApiClient().getProjectBySlug(client, "gh/acme/app") }
+            }
+
+            assertTrue("fails", result!!.isFailure)
+        }
+
+    fun testProjectByIdHasAStandaloneSlug() =
+        runBlocking<Unit> {
+            responseBody =
+                """
             {"data": {"id": "p-1", "attributes": {"name": "app"},
                       "references": {"org": {"id": "o-1", "attributes": {"name": "acme"}}}}}
             """
 
-        val info = RunApiClient().getProjectById(client, "p-1").getOrThrow()
+            val info = RunApiClient().getProjectById(client, "p-1").getOrThrow()
 
-        assertEquals("request", listOf("GET /api/v3/projects/p-1"), requestLines())
-        assertEquals("project", ProjectInfo("p-1", "circleci/o-1/p-1", "app", Organization("o-1", "acme")), info)
-    }
+            assertEquals("request", listOf("GET /api/v3/projects/p-1"), requestLines())
+            assertEquals("project", ProjectInfo("p-1", "circleci/o-1/p-1", "app", Organization("o-1", "acme")), info)
+        }
 }

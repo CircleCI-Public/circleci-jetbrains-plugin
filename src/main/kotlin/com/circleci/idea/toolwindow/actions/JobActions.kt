@@ -49,7 +49,7 @@ abstract class JobAction(
         e: AnActionEvent,
         confirmMessage: String?,
         progressTitle: String,
-        action: () -> Result<Unit>,
+        action: suspend () -> Result<Unit>,
     ) {
         val project = e.project ?: return
 

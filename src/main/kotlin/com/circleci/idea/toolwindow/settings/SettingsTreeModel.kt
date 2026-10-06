@@ -179,7 +179,7 @@ class SettingsTreeModel(
     private suspend fun changeEnvVars(
         owner: EnvVarOwner,
         title: String,
-        change: CircleCIApiService.() -> Result<Unit>,
+        change: suspend CircleCIApiService.() -> Result<Unit>,
     ): Result<Unit> {
         val result = withChangeProgress(project, title) { api.call(change) }
         // Listed again whether or not it worked: a failure may still have changed something.

@@ -4,6 +4,7 @@ import com.circleci.idea.settings.CircleCISettings
 import com.circleci.idea.state.User
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.runBlockingCancellable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
@@ -62,7 +63,7 @@ class CircleCILoginDialog(
         // Checking the token is an API call: run it with a progress bar rather than on the EDT.
         val result =
             ProgressManager.getInstance().runProcessWithProgressSynchronously<Result<User>, Exception>(
-                { authService.login(token, hostUrl) },
+                { runBlockingCancellable { authService.login(token, hostUrl) } },
                 "Logging In to CircleCI",
                 true,
                 project,

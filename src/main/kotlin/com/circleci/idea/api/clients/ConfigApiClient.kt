@@ -24,7 +24,7 @@ class ConfigApiClient : CircleCIApiClientBase() {
      * @param orgId The org to resolve private orbs in; null for public orbs only
      * @return Whether it's valid, with its errors or compiled config
      */
-    fun validateConfig(
+    suspend fun validateConfig(
         client: CircleCIApiClient,
         configYaml: String,
         branch: String,

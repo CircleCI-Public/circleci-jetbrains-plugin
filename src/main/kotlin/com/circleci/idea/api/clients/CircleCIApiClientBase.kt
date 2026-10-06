@@ -29,7 +29,7 @@ abstract class CircleCIApiClientBase {
      * @param parser Function to parse JSON response into domain type
      * @return Result with parsed data or error
      */
-    protected fun <T> executeRequest(
+    protected suspend fun <T> executeRequest(
         client: CircleCIApiClient,
         path: String,
         params: Map<String, String> = emptyMap(),
@@ -64,7 +64,7 @@ abstract class CircleCIApiClientBase {
      * @param body Request body, or none for an empty JSON object
      * @return Result with Unit or error
      */
-    protected fun executePostRequest(
+    protected suspend fun executePostRequest(
         client: CircleCIApiClient,
         path: String,
         body: Any? = null,
@@ -73,7 +73,7 @@ abstract class CircleCIApiClientBase {
     /**
      * Execute a DELETE request with no response body expected.
      */
-    protected fun executeDeleteRequest(
+    protected suspend fun executeDeleteRequest(
         client: CircleCIApiClient,
         path: String,
         params: Map<String, String> = emptyMap(),
@@ -104,7 +104,7 @@ abstract class CircleCIApiClientBase {
      * Every item of a paged list: [fetch] gets each page from the previous
      * page's cursor (null for the first).
      */
-    protected fun <T> fetchAllPages(fetch: (String?) -> Result<V3Page<T>>): Result<List<T>> {
+    protected suspend fun <T> fetchAllPages(fetch: suspend (String?) -> Result<V3Page<T>>): Result<List<T>> {
         val items = mutableListOf<T>()
         var cursor: String? = null
         repeat(MAX_PAGES) {

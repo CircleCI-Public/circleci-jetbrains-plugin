@@ -18,7 +18,7 @@ import com.google.gson.reflect.TypeToken
  */
 class ContextApiClient : CircleCIApiClientBase() {
     /** A context, with the organization it's in. */
-    fun getContext(
+    suspend fun getContext(
         client: CircleCIApiClient,
         contextId: String,
     ): Result<ContextDetail> {
@@ -35,7 +35,7 @@ class ContextApiClient : CircleCIApiClientBase() {
     }
 
     /** A context's restrictions, of the types known here. The list isn't paged. */
-    fun listContextRestrictions(
+    suspend fun listContextRestrictions(
         client: CircleCIApiClient,
         contextId: String,
     ): Result<List<ContextRestriction>> {
@@ -56,7 +56,7 @@ class ContextApiClient : CircleCIApiClientBase() {
     }
 
     /** Restrict a context to a group, a project or an expression, by [value] (see [ContextRestriction.value]). */
-    fun createContextRestriction(
+    suspend fun createContextRestriction(
         client: CircleCIApiClient,
         contextId: String,
         type: RestrictionType,
@@ -74,7 +74,7 @@ class ContextApiClient : CircleCIApiClientBase() {
     }
 
     /** Remove one of a context's restrictions; its ID is only unique within the context. */
-    fun deleteContextRestriction(
+    suspend fun deleteContextRestriction(
         client: CircleCIApiClient,
         contextId: String,
         restrictionId: String,
@@ -87,7 +87,7 @@ class ContextApiClient : CircleCIApiClientBase() {
     }
 
     /** An organization's groups: its VCS's teams, or a standalone organization's own. The list isn't paged. */
-    fun listGroups(
+    suspend fun listGroups(
         client: CircleCIApiClient,
         orgId: String,
     ): Result<List<NamedEntity>> {
@@ -97,7 +97,7 @@ class ContextApiClient : CircleCIApiClientBase() {
     }
 
     /** A page of an organization's projects whose names contain [name], by name, from [cursor]. */
-    fun searchProjects(
+    suspend fun searchProjects(
         client: CircleCIApiClient,
         orgId: String,
         name: String,

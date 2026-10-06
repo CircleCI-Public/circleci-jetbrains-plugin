@@ -122,9 +122,9 @@ class JobDetailsService(private val project: Project) {
     }
 
     /**
-     * Download an artifact to [target]. Blocks; call it off the EDT.
+     * Download an artifact to [target], on whatever thread calls it: call it off the EDT.
      */
-    fun downloadArtifact(
+    suspend fun downloadArtifact(
         artifact: Artifact,
         target: Path,
     ): Result<Long> {

@@ -14,12 +14,12 @@ import com.intellij.openapi.project.Project
 internal class SettingsApi(private val project: Project) {
     private val projects = ProjectInfoService.getInstance(project)
 
-    suspend fun <T> call(request: CircleCIApiService.() -> Result<T>): Result<T> = callApi(project, request)
+    suspend fun <T> call(request: suspend CircleCIApiService.() -> Result<T>): Result<T> = callApi(project, request)
 
     /** [request] with the ID of [slug]'s organization. */
     suspend fun <T> inOrg(
         slug: String,
-        request: CircleCIApiService.(orgId: String) -> Result<T>,
+        request: suspend CircleCIApiService.(orgId: String) -> Result<T>,
     ): Result<T> {
         val orgId = projects.bySlug(slug).getOrElse { return Result.failure(it) }.org.id
         return call { request(orgId) }

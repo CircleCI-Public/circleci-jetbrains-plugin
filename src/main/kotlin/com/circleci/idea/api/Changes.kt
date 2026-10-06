@@ -30,7 +30,7 @@ class ChangeService(private val project: Project, private val scope: CoroutineSc
     /** [change], made on IO with [withChangeProgress]; [then] gets its result on the EDT. */
     fun <T> launch(
         title: @ProgressTitle String,
-        change: () -> Result<T>,
+        change: suspend () -> Result<T>,
         then: (Result<T>) -> Unit,
     ) {
         scope.launch {

@@ -44,7 +44,7 @@ abstract class WorkflowAction(
         e: AnActionEvent,
         confirmMessage: String?,
         progressTitle: String,
-        action: (String) -> Result<Unit>,
+        action: suspend (String) -> Result<Unit>,
     ) {
         val project = e.project ?: return
         val workflowNode = getWorkflowNode(e) ?: return
@@ -60,7 +60,7 @@ abstract class WorkflowAction(
         workflowNode: WorkflowNode,
         confirmMessage: String?,
         progressTitle: String,
-        action: (String) -> Result<Unit>,
+        action: suspend (String) -> Result<Unit>,
     ) {
         val workflowId = workflowNode.workflow.id
 

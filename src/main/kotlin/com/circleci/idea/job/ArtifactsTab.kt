@@ -36,6 +36,7 @@ import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
+import com.intellij.openapi.progress.runBlockingCancellable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.testFramework.BinaryLightVirtualFile
@@ -273,7 +274,7 @@ class ArtifactsTab(
                     indicator.fraction = index.toDouble() / artifacts.size
                     val target = ArtifactTree.downloadTarget(dir, artifact, parallel)
                     val result =
-                        target?.let { service.downloadArtifact(artifact, it) }
+                        target?.let { runBlockingCancellable { service.downloadArtifact(artifact, it) } }
                             ?: Result.failure(IllegalArgumentException("its path leaves the download folder"))
                     result.exceptionOrNull()?.let { failures.add("${artifact.path}: ${it.message}") }
                 }

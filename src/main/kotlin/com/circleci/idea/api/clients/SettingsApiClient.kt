@@ -20,7 +20,7 @@ import com.google.gson.reflect.TypeToken
  */
 class SettingsApiClient : CircleCIApiClientBase() {
     /** All of a project's environment variables. */
-    fun listProjectEnvVars(
+    suspend fun listProjectEnvVars(
         client: CircleCIApiClient,
         projectSlug: String,
     ): Result<List<EnvVar>> {
@@ -35,7 +35,7 @@ class SettingsApiClient : CircleCIApiClientBase() {
     }
 
     /** Add a project environment variable, or replace its value. */
-    fun setProjectEnvVar(
+    suspend fun setProjectEnvVar(
         client: CircleCIApiClient,
         projectSlug: String,
         name: String,
@@ -44,7 +44,7 @@ class SettingsApiClient : CircleCIApiClientBase() {
         return executePostRequest(client, "/api/v2/project/$projectSlug/envvar", EnvVarRequest(name, value))
     }
 
-    fun deleteProjectEnvVar(
+    suspend fun deleteProjectEnvVar(
         client: CircleCIApiClient,
         projectSlug: String,
         name: String,
@@ -53,7 +53,7 @@ class SettingsApiClient : CircleCIApiClientBase() {
     }
 
     /** A page of an organization's contexts, from [cursor] (the first page at null). */
-    fun listContexts(
+    suspend fun listContexts(
         client: CircleCIApiClient,
         orgId: String,
         cursor: String?,
@@ -66,7 +66,7 @@ class SettingsApiClient : CircleCIApiClientBase() {
     }
 
     /** Create a context in an organization. */
-    fun createContext(
+    suspend fun createContext(
         client: CircleCIApiClient,
         orgId: String,
         name: String,
@@ -86,7 +86,7 @@ class SettingsApiClient : CircleCIApiClientBase() {
     }
 
     /** Delete a context, with its environment variables and restrictions. */
-    fun deleteContext(
+    suspend fun deleteContext(
         client: CircleCIApiClient,
         contextId: String,
     ): Result<Unit> {
@@ -94,7 +94,7 @@ class SettingsApiClient : CircleCIApiClientBase() {
     }
 
     /** All of a context's environment variables. */
-    fun listContextEnvVars(
+    suspend fun listContextEnvVars(
         client: CircleCIApiClient,
         contextId: String,
     ): Result<List<EnvVar>> {
@@ -123,7 +123,7 @@ class SettingsApiClient : CircleCIApiClientBase() {
     }
 
     /** Add a context environment variable, or replace its value. */
-    fun setContextEnvVar(
+    suspend fun setContextEnvVar(
         client: CircleCIApiClient,
         contextId: String,
         name: String,
@@ -133,7 +133,7 @@ class SettingsApiClient : CircleCIApiClientBase() {
     }
 
     /** Delete a context environment variable; it's named by a filter, not in the path. */
-    fun deleteContextEnvVar(
+    suspend fun deleteContextEnvVar(
         client: CircleCIApiClient,
         contextId: String,
         name: String,

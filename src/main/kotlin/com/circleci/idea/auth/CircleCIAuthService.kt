@@ -8,19 +8,21 @@ import com.circleci.idea.state.User
 import com.intellij.credentialStore.CredentialAttributes
 import com.intellij.credentialStore.Credentials
 import com.intellij.ide.passwordSafe.PasswordSafe
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Service for managing CircleCI authentication.
  * Handles token storage, validation, and user authentication state.
  */
 @Service(Service.Level.PROJECT)
-class CircleCIAuthService(private val project: Project) {
+class CircleCIAuthService(private val project: Project, private val scope: CoroutineScope) {
     private val log = logger<CircleCIAuthService>()
     private val passwordSafe = PasswordSafe.instance
     private val apiService = CircleCIApiService.getInstance()
@@ -55,9 +57,9 @@ class CircleCIAuthService(private val project: Project) {
 
         /**
          * After logging in in one project, have every other open project pick
-         * up the token. Validates it with the API, so call it off the EDT.
+         * up the token, validating it with the API.
          */
-        fun restoreEverywhere(except: Project) {
+        suspend fun restoreEverywhere(except: Project) {
             ProjectManager.getInstance().openProjects.filter { it != except && !it.isDisposed }
                 .forEach { getInstance(it).restoreAuthentication() }
         }
@@ -95,7 +97,7 @@ class CircleCIAuthService(private val project: Project) {
      * Authenticate with a token, got by [method].
      * Validates the token and stores it securely if valid.
      */
-    fun login(
+    suspend fun login(
         token: String,
         hostUrl: String? = null,
         method: AuthMethod = AuthMethod.TOKEN,
@@ -138,7 +140,7 @@ class CircleCIAuthService(private val project: Project) {
 
                 log.info("Successfully authenticated as ${user.login}")
                 // The token is shared: have the other open projects' tool windows pick it up.
-                ApplicationManager.getApplication().executeOnPooledThread { restoreEverywhere(except = project) }
+                scope.launch(Dispatchers.IO) { restoreEverywhere(except = project) }
                 Result.success(user)
             },
             onFailure = { error ->
@@ -184,7 +186,7 @@ class CircleCIAuthService(private val project: Project) {
      * Validate the current token.
      * Should be called periodically or on API 401 errors.
      */
-    fun validateToken(): Result<User> {
+    suspend fun validateToken(): Result<User> {
         val token = getToken()
         if (token == null || token.isEmpty()) {
             return Result.failure(IllegalStateException("No token stored"))
@@ -283,7 +285,7 @@ class CircleCIAuthService(private val project: Project) {
      * Try to restore authentication on service initialization.
      * Should be called when the project is opened.
      */
-    fun restoreAuthentication() {
+    suspend fun restoreAuthentication() {
         val token = getToken()
         if (token != null && token.isNotEmpty()) {
             log.info("Found stored token, validating...")

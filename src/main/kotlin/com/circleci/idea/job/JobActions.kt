@@ -62,7 +62,7 @@ private abstract class JobPageAction(
         confirmMessage: String,
         progressTitle: String,
         successMessage: String,
-        call: () -> Result<Unit>,
+        call: suspend () -> Result<Unit>,
     ) {
         val project = e.project ?: return
         if (Messages.showYesNoDialog(project, confirmMessage, "Confirm", Messages.getQuestionIcon()) != Messages.YES) {

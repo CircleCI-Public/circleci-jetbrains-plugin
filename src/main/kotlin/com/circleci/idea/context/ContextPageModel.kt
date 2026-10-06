@@ -128,7 +128,7 @@ class ContextPageModel(
 
     private suspend fun changeEnvVars(
         title: String,
-        request: CircleCIApiService.() -> Result<Unit>,
+        request: suspend CircleCIApiService.() -> Result<Unit>,
     ): Result<Unit> =
         api.change(project, title, request) {
             loadEnvVars()
@@ -191,7 +191,7 @@ private class Requests {
 private suspend fun SettingsApi.change(
     project: Project,
     title: String,
-    request: CircleCIApiService.() -> Result<Unit>,
+    request: suspend CircleCIApiService.() -> Result<Unit>,
     reload: () -> Unit,
 ): Result<Unit> = withChangeProgress(project, title) { call(request) }.also { reload() }
 
