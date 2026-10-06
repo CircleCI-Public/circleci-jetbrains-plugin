@@ -13,6 +13,7 @@ import com.intellij.openapi.application.ApplicationActivationListener
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.wm.IdeFrame
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowManager
@@ -194,13 +195,30 @@ class RunPollingService(private val project: Project) : Disposable {
         scope.cancel()
     }
 
-    private companion object {
-        const val TOOL_WINDOW_ID = "CircleCI"
-        const val MS_PER_SECOND = 1000L
-        const val MAX_BACKOFF_MS = 15 * 60 * 1000L
+    companion object {
+        /**
+         * Start or stop polling in every open project, as auto-refresh, an
+         * app-wide setting, now says; with [restart], restart it where it's
+         * running, for new intervals.
+         */
+        fun applySettingsEverywhere(restart: Boolean = false) {
+            val enabled = CircleCISettings.getInstance().autoRefreshEnabled
+            for (project in ProjectManager.getInstance().openProjects.filterNot { it.isDisposed }) {
+                val service = project.getService(RunPollingService::class.java)
+                when {
+                    !enabled -> service.stopPolling()
+                    restart -> service.restartPolling()
+                    else -> service.startPolling()
+                }
+            }
+        }
+
+        private const val TOOL_WINDOW_ID = "CircleCI"
+        private const val MS_PER_SECOND = 1000L
+        private const val MAX_BACKOFF_MS = 15 * 60 * 1000L
 
         // Enough to reach the cap from any slow interval, without overflowing the shift.
-        const val MAX_BACKOFF_DOUBLINGS = 10
+        private const val MAX_BACKOFF_DOUBLINGS = 10
     }
 }
 

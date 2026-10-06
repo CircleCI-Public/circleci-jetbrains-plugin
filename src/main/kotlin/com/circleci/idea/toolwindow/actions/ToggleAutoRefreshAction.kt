@@ -28,16 +28,9 @@ class ToggleAutoRefreshAction :
         e: AnActionEvent,
         state: Boolean,
     ) {
+        // The setting is the IDE's, not the project's: every open project follows it.
         settings.autoRefreshEnabled = state
-
-        val project = e.project ?: return
-        val pollingService = project.getService(RunPollingService::class.java)
-
-        if (state) {
-            pollingService.startPolling()
-        } else {
-            pollingService.stopPolling()
-        }
+        RunPollingService.applySettingsEverywhere()
     }
 
     override fun update(e: AnActionEvent) {
