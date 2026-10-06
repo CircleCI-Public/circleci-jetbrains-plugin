@@ -137,6 +137,15 @@ tasks {
         }
     }
 
+    processResources {
+        // Gives the plugin its own version, to read at runtime.
+        val version = project.version.toString()
+        inputs.property("version", version)
+        filesMatching("com/circleci/idea/plugin.properties") {
+            expand("version" to version)
+        }
+    }
+
     test {
         // Exclude E2E tests that require running IDE with robot-server
         // Run these separately with: task ui:test

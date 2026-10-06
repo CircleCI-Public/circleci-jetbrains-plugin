@@ -16,6 +16,11 @@ class PluginDescriptorTest : BasePlatformTestCase() {
         assertTrue("plugin loaded", PluginManagerCore.isLoaded(PluginId.getId("com.circleci.idea")))
     }
 
+    fun testVersionIsTheDescriptors() {
+        val descriptor = PluginManagerCore.getPlugin(PluginId.getId("com.circleci.idea"))
+        assertEquals("plugin version", descriptor?.version, CircleCIPlugin.version)
+    }
+
     fun testSshConnectorRegisteredWithSshAndTerminal() {
         assertTrue("SSH plugin present", PluginManagerCore.isLoaded(PluginId.getId("intellij.ssh.plugin")))
         assertTrue("Terminal present", PluginManagerCore.isLoaded(PluginId.getId("org.jetbrains.plugins.terminal")))
