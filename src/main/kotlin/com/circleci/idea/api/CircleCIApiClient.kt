@@ -4,8 +4,11 @@ import com.circleci.idea.logging.CircleCILogger
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.future.await
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.IOException
@@ -85,7 +88,7 @@ class CircleCIApiClient(
         rateLimiter.acquire()
 
         return try {
-            respond(request).use { response ->
+            respond(request).read { response ->
                 if (response.statusCode() == 401) {
                     Result.failure(Exception("Unauthorized: Invalid or expired token"))
                 } else {
@@ -94,6 +97,7 @@ class CircleCIApiClient(
                 }
             }
         } catch (e: IOException) {
+            currentCoroutineContext().ensureActive()
             logger.logApiError(request.method(), request.uri().toString(), 0, e.message ?: "Network error")
             Result.failure(e)
         }
@@ -113,7 +117,7 @@ class CircleCIApiClient(
         rateLimiter.acquire()
 
         return try {
-            respond(request).use { response ->
+            respond(request).read { response ->
                 if (response.statusCode() == 401) {
                     Result.failure(Exception("Unauthorized: Invalid or expired token"))
                 } else {
@@ -121,6 +125,7 @@ class CircleCIApiClient(
                 }
             }
         } catch (e: IOException) {
+            currentCoroutineContext().ensureActive()
             logger.logApiError(request.method(), request.uri().toString(), 0, e.message ?: "Network error")
             Result.failure(e)
         }
@@ -129,6 +134,7 @@ class CircleCIApiClient(
     /**
      * Download [url] (an absolute URL the API handed out) to [target],
      * streaming rather than holding it in memory. Returns the bytes written.
+     * A download that fails or is cancelled part way leaves no file.
      */
     suspend fun download(
         url: String,
@@ -139,14 +145,21 @@ class CircleCIApiClient(
         rateLimiter.acquire()
 
         return try {
-            respond(request).use { response ->
+            respond(request).read { response ->
                 if (response.statusCode() !in HTTP_SUCCESS) {
-                    return Result.failure(IOException("HTTP ${response.statusCode()} downloading $url"))
+                    Result.failure(IOException("HTTP ${response.statusCode()} downloading $url"))
+                } else {
+                    Files.createDirectories(target.parent)
+                    try {
+                        Files.newOutputStream(target).use { out -> Result.success(response.body().copyTo(out)) }
+                    } catch (e: IOException) {
+                        Files.deleteIfExists(target)
+                        throw e
+                    }
                 }
-                Files.createDirectories(target.parent)
-                Files.newOutputStream(target).use { out -> Result.success(response.body().copyTo(out)) }
             }
         } catch (e: IOException) {
+            currentCoroutineContext().ensureActive()
             logger.logApiError(request.method(), request.uri().toString(), 0, e.message ?: "Network error")
             Result.failure(e)
         }
@@ -240,8 +253,9 @@ class CircleCIApiClient(
         rateLimiter.acquire()
 
         return try {
-            respond(request).use { response -> parseResponse(response, request, startTime) }
+            respond(request).read { response -> parseResponse(response, request, startTime) }
         } catch (e: IOException) {
+            currentCoroutineContext().ensureActive()
             logger.logApiError(request.method(), request.uri().toString(), 0, e.message ?: "Network error")
             ApiResponse.Error(e.message ?: "Network error", 0)
         }
@@ -364,6 +378,14 @@ class CircleCIApiClient(
 /** [block]'s result with the response, its body closed after (which frees the connection). */
 private inline fun <T> HttpResponse<InputStream>.use(block: (HttpResponse<InputStream>) -> T): T =
     body().use { block(this) }
+
+/**
+ * [use], for a [block] that reads the body: cancelling the coroutine
+ * interrupts a read waiting on the network, which closes the body, ending
+ * the exchange, rather than reading on to its end.
+ */
+private suspend fun <T> HttpResponse<InputStream>.read(block: (HttpResponse<InputStream>) -> T): T =
+    use { runInterruptible { block(it) } }
 
 private fun HttpResponse<*>.header(name: String): String? = headers().firstValue(name).orElse(null)
 
