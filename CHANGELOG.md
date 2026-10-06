@@ -5,6 +5,37 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-10-06
+
+### What's Changed
+* Reuse the API client while the token and host stay the same by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/30
+* Keep the token in memory once it's read by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/31
+* Check the stored token and find projects off the EDT by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/33
+* Keep an ended workflow's jobs on refreshing the run tree by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/34
+* Poll the run list quickly only while a run is in progress by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/35
+* Read a step's log in pieces, and decode it off the EDT by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/36
+* Remove the unused project service and response cache by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/37
+* Cancel API requests with the coroutines that made them by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/38
+* Wait as long as Retry-After asks before retrying a rate-limited request by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/39
+* Stop polling a job page while it isn't on screen by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/40
+* Load the run list once when the selected project changes by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/41
+* Recompose only the crosshair and card as the pointer moves over a chart by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/42
+* Show an open artifact's editor again rather than reading it again by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/43
+* Parse API responses as they're read, rather than whole by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/44
+* Format log timestamps with a formatter that's safe across threads by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/45
+* Buffer the plugin's log file rather than flush it every line by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/46
+* Close the plugin's log file as the IDE exits by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/47
+* Log failed API requests as warnings, not IDE errors by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/48
+* Validate a new login once, rather than once for each open project by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/49
+* Update the Log Out action off the EDT by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/50
+* Filter a job's tests once typing pauses, and sort them in one pass by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/51
+* Measure the run tree's branch names only when they change by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/52
+* Check a changed file's name before its path for a project link by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/53
+* Let go of the run tree when its tool window content goes by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/54
+
+
+**Full Changelog**: https://github.com/CircleCI-Public/circleci-jetbrains-plugin/compare/v1.6.0...v1.7.0
+
 ## [1.6.0] - 2026-10-05
 
 ### What's Changed
