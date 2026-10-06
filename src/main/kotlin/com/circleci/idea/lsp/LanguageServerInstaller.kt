@@ -1,5 +1,6 @@
 package com.circleci.idea.lsp
 
+import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.util.io.NioFiles
 import com.intellij.util.io.Decompressor
 import java.io.IOException
@@ -9,14 +10,16 @@ import java.nio.file.StandardCopyOption
 import java.util.concurrent.TimeUnit
 
 /**
- * Where language server releases come from.
+ * Where language server releases come from. Each call blocks on the network,
+ * until it's done or [ProgressIndicator.isCanceled] says to stop.
  */
 interface LanguageServerReleaseSource {
-    fun latestRelease(): LanguageServerRelease
+    fun latestRelease(indicator: ProgressIndicator?): LanguageServerRelease
 
     fun download(
         url: String,
         target: Path,
+        indicator: ProgressIndicator?,
     )
 }
 
@@ -46,9 +49,13 @@ class LanguageServerInstaller(
 
     /**
      * Downloads, verifies and installs [release].
+     * @param indicator Cancels the download
      * @throws IOException if the release can't be downloaded or fails verification
      */
-    fun install(release: LanguageServerRelease): InstalledLanguageServer {
+    fun install(
+        release: LanguageServerRelease,
+        indicator: ProgressIndicator? = null,
+    ): InstalledLanguageServer {
         if (!isValidVersion(release.version)) {
             throw IOException("Unexpected language server version: ${release.version}")
         }
@@ -64,8 +71,8 @@ class LanguageServerInstaller(
         try {
             val checksums = work.resolve(CHECKSUMS_ASSET)
             val archive = work.resolve(archiveAsset.name)
-            source.download(checksumsAsset.downloadUrl, checksums)
-            source.download(archiveAsset.downloadUrl, archive)
+            source.download(checksumsAsset.downloadUrl, checksums, indicator)
+            source.download(archiveAsset.downloadUrl, archive, indicator)
             verifyChecksum(archive, checksums)
 
             val staging = work.resolve("extracted")

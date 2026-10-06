@@ -9,10 +9,15 @@ import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
+import com.intellij.openapi.progress.ProcessCanceledException
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.coroutineToIndicator
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.platform.lsp.api.LspClientManager
 import com.intellij.util.io.HttpRequests
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -43,7 +48,8 @@ class CircleCILanguageServerManager(private val scope: CoroutineScope) {
 
     /**
      * Returns the installed language server, downloading the latest release if none is
-     * installed yet. Blocks on the network in that case, so call it off the EDT.
+     * installed yet. Blocks on the network in that case, so call it off the EDT; the
+     * calling thread's progress indicator, if it has one, cancels the download.
      */
     fun getLanguageServer(): InstalledLanguageServer {
         val installer =
@@ -57,15 +63,21 @@ class CircleCILanguageServerManager(private val scope: CoroutineScope) {
         }
 
         logger.info("CircleCI language server not installed, downloading the latest release")
-        return try {
-            val installed = synchronized(installer) { installer.install(source.latestRelease()) }
+        return installLatest(installer)
+    }
+
+    private fun installLatest(installer: LanguageServerInstaller): InstalledLanguageServer =
+        try {
+            val indicator = ProgressManager.getGlobalProgressIndicator()
+            val installed = synchronized(installer) { installer.install(source.latestRelease(indicator), indicator) }
             lastUpdateCheck.set(System.currentTimeMillis())
             logger.info("Installed CircleCI language server ${installed.version}")
             installed
+        } catch (e: ProcessCanceledException) {
+            throw e
         } catch (e: Exception) {
             throw ExecutionException("Couldn't download the CircleCI language server: ${e.message}", e)
         }
-    }
 
     /**
      * Installs a newer release in the background, at most once per [UPDATE_CHECK_INTERVAL_MS],
@@ -80,17 +92,24 @@ class CircleCILanguageServerManager(private val scope: CoroutineScope) {
         val last = lastUpdateCheck.get()
         if (now - last < UPDATE_CHECK_INTERVAL_MS || !lastUpdateCheck.compareAndSet(last, now)) return
 
+        // Cancelled with the scope, e.g. as the plugin unloads, which the indicator passes on to the downloads.
         scope.launch(Dispatchers.IO) {
             try {
                 installer.removeAllExcept(current.version)
-                val latest = source.latestRelease()
-                if (!isValidVersion(latest.version) || compareVersions(latest.version, current.version) <= 0) {
-                    return@launch
-                }
-                val updated = synchronized(installer) { installer.install(latest) }
+                val updated =
+                    coroutineToIndicator { indicator ->
+                        val latest = source.latestRelease(indicator)
+                        if (isValidVersion(latest.version) && compareVersions(latest.version, current.version) > 0) {
+                            synchronized(installer) { installer.install(latest, indicator) }
+                        } else {
+                            null
+                        }
+                    } ?: return@launch
                 logger.info("Updated CircleCI language server from ${current.version} to ${updated.version}")
                 restartRunningServers()
                 installer.removeAllExcept(updated.version)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 logger.warn("Couldn't update the CircleCI language server", e)
             }
@@ -115,14 +134,14 @@ class CircleCILanguageServerManager(private val scope: CoroutineScope) {
 private class GitHubReleaseSource : LanguageServerReleaseSource {
     private val gson = Gson()
 
-    override fun latestRelease(): LanguageServerRelease {
+    override fun latestRelease(indicator: ProgressIndicator?): LanguageServerRelease {
         val body =
             HttpRequests.request(LATEST_RELEASE_URL)
                 .accept("application/vnd.github+json")
                 .productNameAsUserAgent()
                 .connectTimeout(TIMEOUT_MS)
                 .readTimeout(TIMEOUT_MS)
-                .readString()
+                .readString(indicator)
         val json = gson.fromJson(body, JsonObject::class.java)
         val assets =
             json.getAsJsonArray("assets").map {
@@ -135,12 +154,13 @@ private class GitHubReleaseSource : LanguageServerReleaseSource {
     override fun download(
         url: String,
         target: Path,
+        indicator: ProgressIndicator?,
     ) {
         HttpRequests.request(url)
             .productNameAsUserAgent()
             .connectTimeout(TIMEOUT_MS)
             .readTimeout(TIMEOUT_MS)
-            .saveToFile(target, null)
+            .saveToFile(target, indicator)
     }
 
     private companion object {

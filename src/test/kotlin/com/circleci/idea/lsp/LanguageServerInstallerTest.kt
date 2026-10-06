@@ -1,5 +1,6 @@
 package com.circleci.idea.lsp
 
+import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.util.SystemInfo
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
@@ -175,11 +176,13 @@ class LanguageServerInstallerTest {
     }
 
     private class FakeReleaseSource : LanguageServerReleaseSource {
-        override fun latestRelease(): LanguageServerRelease = throw UnsupportedOperationException()
+        override fun latestRelease(indicator: ProgressIndicator?): LanguageServerRelease =
+            throw UnsupportedOperationException()
 
         override fun download(
             url: String,
             target: Path,
+            indicator: ProgressIndicator?,
         ) {
             Files.copy(Path.of(java.net.URI(url)), target, StandardCopyOption.REPLACE_EXISTING)
         }
