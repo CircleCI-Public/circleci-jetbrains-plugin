@@ -33,6 +33,9 @@ class FileLogger(
     private var currentSize = 0L
     private var flushScheduled = false
 
+    // Once closed, as the IDE exits, there may be no time left for a flush later.
+    private var closed = false
+
     init {
         // Ensure log directory exists
         Files.createDirectories(logDirectory)
@@ -61,7 +64,7 @@ class FileLogger(
                 writer.write(message)
                 writer.newLine()
                 currentSize += message.length + 1
-                if (flush) writer.flush() else scheduleFlush()
+                if (flush || closed) writer.flush() else scheduleFlush()
 
                 if (currentSize >= maxFileSizeBytes) {
                     rotate()
@@ -133,10 +136,12 @@ class FileLogger(
     }
 
     /**
-     * Close the logger and release resources.
+     * Close the logger and release resources. Anything written after is
+     * written at once.
      */
     fun close() {
         lock.withLock {
+            closed = true
             currentWriter?.close()
             currentWriter = null
         }
