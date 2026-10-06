@@ -5,6 +5,16 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] - 2026-10-06
+
+### What's Changed
+* Keep refreshing workflows and jobs until they've ended too by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/91
+* Test the run tree's loads and refreshes by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/92
+* Keep refreshing the jobs of an open run that has ended by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/93
+
+
+**Full Changelog**: https://github.com/CircleCI-Public/circleci-jetbrains-plugin/compare/v1.11.0...v1.12.0
+
 ## [1.11.0] - 2026-10-06
 
 ### What's Changed
