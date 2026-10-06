@@ -70,7 +70,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         scope.launch(Dispatchers.IO) { authService.restoreAuthentication() }
 
         // Auto-detect projects if authenticated
-        autoDetectProjects()
+        autoDetectProjects(reload = false)
 
         observeAuth()
 
@@ -78,13 +78,13 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
         // when projects are detected and selectedProject is updated
     }
 
-    private fun autoDetectProjects() {
+    /** Find the workspace's projects, which lists the selected one's runs, or with [reload] lists them again. */
+    private fun autoDetectProjects(reload: Boolean) {
         scope.launch {
             // Auto-detect projects from git repositories (doesn't require auth)
             projectService.detectProjects()
 
-            // Explicitly reload tree after detection
-            treeModel.reloadRoot()
+            if (reload) treeModel.reloadRoot()
 
             // Start polling for run updates
             pollingService.startPolling()
@@ -108,7 +108,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
                 signedIn = nowSignedIn
                 cards.show(root, if (nowSignedIn) RUNS_CARD else SIGNED_OUT_CARD)
                 if (nowSignedIn && wasSignedOut) {
-                    autoDetectProjects()
+                    autoDetectProjects(reload = true)
                     settingsModel.refresh()
                 }
             }

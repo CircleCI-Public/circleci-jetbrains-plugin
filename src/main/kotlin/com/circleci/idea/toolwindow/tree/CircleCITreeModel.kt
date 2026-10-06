@@ -18,9 +18,12 @@ import com.circleci.idea.toolwindow.scrolledOrResized
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.jewel.foundation.lazy.SelectableLazyListState
@@ -78,19 +81,16 @@ class CircleCITreeModel(
     // The runs listed, a page at a time; replaced as the project or filters change.
     private var runs: PagedList<Run, String>? = null
 
-    init {
-        // Listen to project changes and reload root
-        scope.launch {
-            projectService.selectedProject.collect { slug ->
-                logger.info("StateFlow: selectedProject changed to $slug")
-                reloadRoot()
-            }
-        }
+    // The run list's load in flight, cancelled when a newer one replaces it.
+    private var runsLoad: Job? = null
 
-        // Also listen to projects being populated (in case selection was persisted before detection)
+    init {
+        // Reload as the selected project changes, or is found (a persisted selection is listed once detected).
         scope.launch {
-            projectService.projects.collect { allProjects ->
-                logger.info("StateFlow: projects changed, size=${allProjects.size}")
+            combine(projectService.selectedProject, projectService.projects) { _, _ ->
+                projectService.getSelectedProject()
+            }.distinctUntilChanged().collect { selected ->
+                logger.info("Listing runs of ${selected?.slug}")
                 reloadRoot()
             }
         }
@@ -218,7 +218,8 @@ class CircleCITreeModel(
         val list = runs ?: return
         val generation = startLoad(root, refresh)
         val myRuns = isMyRuns()
-        tracked { fillRuns(list, generation, refresh, myRuns) }
+        runsLoad?.cancel()
+        runsLoad = tracked { fillRuns(list, generation, refresh, myRuns) }
     }
 
     private suspend fun fillRuns(
@@ -417,9 +418,9 @@ class CircleCITreeModel(
     }
 
     /** Launch [block] on the EDT, counted as a load in flight until it ends, however it ends. */
-    private fun tracked(block: suspend CoroutineScope.() -> Unit) {
+    private fun tracked(block: suspend CoroutineScope.() -> Unit): Job {
         loadStarted()
-        scope.launch {
+        return scope.launch {
             try {
                 block()
             } finally {
