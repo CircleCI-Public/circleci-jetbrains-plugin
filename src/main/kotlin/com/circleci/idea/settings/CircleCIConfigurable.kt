@@ -5,6 +5,7 @@ import com.circleci.idea.auth.CircleCILoginDialog
 import com.circleci.idea.auth.CircleCIOAuthLoginDialog
 import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.lsp.LanguageServerAuth
+import com.circleci.idea.polling.RunPollingService
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.ComboBox
@@ -145,6 +146,8 @@ class CircleCIConfigurable : Configurable {
         val settings = CircleCISettings.getInstance()
 
         val hostChanged = hostUrlField.text != settings.hostUrl
+        val autoRefreshBefore =
+            Triple(settings.autoRefreshEnabled, settings.fastPollIntervalSeconds, settings.slowPollIntervalSeconds)
         settings.hostUrl = hostUrlField.text
         settings.autoRefreshEnabled = autoRefreshEnabledCheck.isSelected
         settings.fastPollIntervalSeconds = fastPollIntervalField.text.toIntOrNull() ?: 30
@@ -157,14 +160,10 @@ class CircleCIConfigurable : Configurable {
                 .forEach { LanguageServerAuth.getInstance(it).hostChanged() }
         }
 
-        // Restart polling with the new settings, in every open project
-        for (pollingService in getPollingServices()) {
-            if (settings.autoRefreshEnabled) {
-                pollingService.restartPolling()
-            } else {
-                pollingService.stopPolling()
-            }
-        }
+        // Restart polling with the new settings, in every open project, if they changed: a restart polls at once.
+        val autoRefresh =
+            Triple(settings.autoRefreshEnabled, settings.fastPollIntervalSeconds, settings.slowPollIntervalSeconds)
+        if (autoRefresh != autoRefreshBefore) RunPollingService.applySettingsEverywhere(restart = true)
     }
 
     override fun reset() {
@@ -263,14 +262,5 @@ class CircleCIConfigurable : Configurable {
             logger.warn("Failed to get auth service from default project", e)
             null
         }
-    }
-
-    /**
-     * The polling services of the open projects.
-     */
-    private fun getPollingServices(): List<com.circleci.idea.polling.RunPollingService> {
-        return ProjectManager.getInstance().openProjects
-            .filterNot { it.isDisposed }
-            .map { it.getService(com.circleci.idea.polling.RunPollingService::class.java) }
     }
 }
