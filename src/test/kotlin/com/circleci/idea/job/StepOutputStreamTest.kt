@@ -61,6 +61,33 @@ class StepOutputStreamTest {
         }
 
     @Test
+    fun testReadAtItsLimitIsFollowedByTheRest() =
+        runBlocking {
+            // Terminal from the first read, as the step had finished, but that read stopped at its limit.
+            val reads =
+                listOf(
+                    StepOutputChunk("one\n".toByteArray(), true, more = true),
+                    StepOutputChunk("two\n".toByteArray(), true),
+                )
+            val offsets = mutableListOf<Long>()
+            val stream =
+                StepOutputStream(
+                    fetchStdout = { offset -> Result.success(reads[offsets.size].also { offsets.add(offset) }) },
+                    fetchStderr = { Result.success(ByteArray(0)) },
+                    isStepActive = { false },
+                    pollIntervalMs = 0,
+                )
+            val events = stream.events().toList()
+
+            assertEquals("reads on from the limit", listOf(0L, 4L), offsets)
+            assertEquals(
+                "both reads' lines",
+                listOf(StepOutputEvent.Stdout("one\n"), StepOutputEvent.Stdout("two\n")),
+                events,
+            )
+        }
+
+    @Test
     fun testFailedReadEndsStream() =
         runBlocking {
             val stream =
