@@ -50,6 +50,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.lazy.tree.buildTree
@@ -131,14 +132,17 @@ class StepsTab(
         console.print("Select a step to see its output.\n", ConsoleViewContentType.SYSTEM_OUTPUT)
     }
 
-    /** Show the job's steps as last read. */
+    /** Show the job's steps as last read, and load the selected step's output again if it failed to load. */
     fun show(executions: List<JobExecution>) {
         _executions.value = executions
-        if (_selected.value == null && !autoSelected) {
+        val selected = _selected.value
+        if (selected == null && !autoSelected) {
             stepToShow(executions)?.let {
                 autoSelected = true
                 select(it)
             }
+        } else if (selected != null && streamingStep == null) {
+            streamStep(selected)
         }
     }
 
@@ -231,8 +235,10 @@ class StepsTab(
         streamJob =
             scope.launch {
                 var printedAny = false
+                var failed = false
                 val awaitShowing: suspend () -> Unit = { showing.first { it } }
                 service.stepOutput(ref.jobId, key.execution, key.num, { findStep(key) }, awaitShowing).events()
+                    .onEach { if (it is StepOutputEvent.Failed) failed = true }
                     .map { decode(decoder, it) }
                     .flowOn(Dispatchers.IO)
                     .collect { pieces ->
@@ -242,6 +248,8 @@ class StepsTab(
                 if (!printedAny) {
                     console.print("This step has no output.\n", ConsoleViewContentType.SYSTEM_OUTPUT)
                 }
+                // So the job's next read, or a refresh, tries again.
+                if (failed && streamingStep == key) streamingStep = null
             }
     }
 

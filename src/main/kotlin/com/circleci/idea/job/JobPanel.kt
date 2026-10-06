@@ -52,6 +52,7 @@ import org.jetbrains.jewel.ui.typography
 import java.awt.BorderLayout
 import java.awt.event.HierarchyEvent
 import javax.swing.JComponent
+import kotlin.math.min
 
 /**
  * A job's page, in tabs: its steps beside the selected step's output, its
@@ -60,7 +61,8 @@ import javax.swing.JComponent
  *
  * The job is re-read every few seconds until it ends, so new steps appear
  * and statuses change as it runs; and the selected step's output, while
- * the steps show. Both wait while the page isn't on screen.
+ * the steps show. Both wait while the page isn't on screen. A read that
+ * fails is tried again, backing off.
  */
 class JobPanel(
     private val project: Project,
@@ -124,14 +126,19 @@ class JobPanel(
         pollJob =
             scope.launch {
                 var wasActive: Boolean? = null
+                var failures = 0
                 while (isActive) {
                     val result = service.fetchJob(ref.jobId)
                     val job = result.getOrNull()
                     if (job == null) {
                         logger.warn("Failed to load job ${ref.jobId}: ${result.exceptionOrNull()?.message}")
                         loadErrorState.value = "Failed to load job: ${result.exceptionOrNull()?.message}"
-                        return@launch
+                        failures++
+                        delay(min(JOB_POLL_INTERVAL_MS shl min(failures, MAX_BACKOFF_DOUBLINGS), MAX_RETRY_MS))
+                        showing.first { it }
+                        continue
                     }
+                    failures = 0
                     show(job)
 
                     // Tests, artifacts and resource usage are only complete once the job ends.
@@ -237,6 +244,10 @@ class JobPanel(
     private companion object {
         /** How often a running job is re-read for new steps and statuses. */
         const val JOB_POLL_INTERVAL_MS = 5_000L
+
+        /** The longest a failed read waits to be tried again, and the doublings of the interval that reach it. */
+        const val MAX_RETRY_MS = 2 * 60_000L
+        const val MAX_BACKOFF_DOUBLINGS = 5
     }
 }
 
