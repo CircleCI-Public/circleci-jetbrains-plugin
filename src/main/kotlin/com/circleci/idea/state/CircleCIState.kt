@@ -124,7 +124,19 @@ data class Job(
     val endedAt: Instant?,
     val workflowId: String,
     val projectSlug: String?,
-)
+) {
+    /**
+     * True for a job that runs steps on an executor. The other types
+     * (approval, no-op, the lock and unlock around a serial group, release)
+     * have no steps, output, tests, artifacts or resource usage to show.
+     */
+    val isBuild: Boolean
+        get() = type == null || type == "build"
+
+    /** True for an approval job waiting on someone to approve it. */
+    val awaitsApproval: Boolean
+        get() = type == "approval" && status == RunStatus.ON_HOLD
+}
 
 /**
  * Configuration state - parsed CircleCI config for workspace.

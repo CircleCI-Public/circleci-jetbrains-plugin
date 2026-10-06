@@ -106,6 +106,28 @@ class OpenJobDetailsAction : JobAction(
         val jobNode = getJobNode(e) ?: return
         JobDetailsService.getInstance(project).openJob(JobRef.of(jobNode.job, getWorkflowNode(jobNode)?.workflow))
     }
+
+    override fun isEnabledForJob(job: JobNode): Boolean = job.job.isBuild
+}
+
+/**
+ * Action to approve an approval job, so its workflow carries on.
+ */
+class ApproveJobAction : JobAction(
+    "Approve",
+    "Approve this job, so its workflow carries on",
+    AllIcons.Actions.Checked,
+) {
+    override fun actionPerformed(e: AnActionEvent) {
+        val jobNode = getJobNode(e) ?: return
+        val job = jobNode.job
+        executeAction(e, "Approve '${job.name}'?", "Approving '${job.name}'") {
+            // An approval job's ID is its approval request's.
+            CircleCIApiService.getInstance().approveWorkflow(job.workflowId, job.id)
+        }
+    }
+
+    override fun isEnabledForJob(job: JobNode): Boolean = job.job.awaitsApproval
 }
 
 /**
@@ -140,8 +162,7 @@ class RerunJobWithSshAction : JobAction(
     }
 
     override fun isEnabledForJob(job: JobNode): Boolean {
-        // Can only rerun jobs that have completed (not currently running)
-        return !job.job.status.isActive
+        return job.job.isBuild && !job.job.status.isActive
     }
 }
 
@@ -241,8 +262,8 @@ class OpenJobInBrowserAction : JobAction(
     }
 
     override fun isEnabledForJob(job: JobNode): Boolean {
-        // Only enable if job has a number
-        return job.job.number != null
+        // The web app has a page for build jobs, by number
+        return job.job.isBuild && job.job.number != null
     }
 }
 

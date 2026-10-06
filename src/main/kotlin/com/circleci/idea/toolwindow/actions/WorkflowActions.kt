@@ -2,7 +2,6 @@ package com.circleci.idea.toolwindow.actions
 
 import com.circleci.idea.api.ChangeService
 import com.circleci.idea.api.CircleCIApiService
-import com.circleci.idea.run.RunStatus
 import com.circleci.idea.run.RunWebUrls
 import com.circleci.idea.state.Job
 import com.circleci.idea.toolwindow.CircleCIToolWindowService
@@ -104,6 +103,10 @@ abstract class WorkflowAction(
     protected open fun isEnabledForWorkflow(workflow: WorkflowNode): Boolean = true
 }
 
+/** The workflow's jobs, as far as they've loaded in the tree. */
+private fun loadedJobs(workflow: WorkflowNode): List<Job> =
+    workflow.children().asSequence().filterIsInstance<JobNode>().map { it.job }.toList()
+
 /**
  * Action to rerun a workflow from the start.
  */
@@ -166,7 +169,8 @@ class RerunWorkflowWithSshAction : WorkflowAction(
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val workflowNode = getWorkflowNode(e) ?: return
-        val jobs = workflowNode.children().asSequence().filterIsInstance<JobNode>().map { it.job }.toList()
+        // Only build jobs run on an executor to SSH into.
+        val jobs = loadedJobs(workflowNode).filter { it.isBuild }
         if (jobs.isEmpty()) {
             Messages.showErrorDialog(
                 project,
@@ -241,44 +245,51 @@ class CancelWorkflowAction : WorkflowAction(
 }
 
 /**
- * Action to approve a workflow (for workflows waiting on manual approval).
+ * Action to approve a workflow's job waiting on approval, so the workflow
+ * carries on. With more than one waiting, it asks which.
  */
 class ApproveWorkflowAction : WorkflowAction(
-    "Approve Workflow",
-    "Approve this workflow to continue",
+    "Approve",
+    "Approve this workflow's job waiting on approval",
     AllIcons.Actions.Checked,
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val workflowNode = getWorkflowNode(e) ?: return
-
-        // Get approval request ID from user
-        val approvalRequestId =
-            Messages.showInputDialog(
-                project,
-                "Enter the approval request ID:",
-                "Approve Workflow",
-                Messages.getQuestionIcon(),
-            )
-
-        if (approvalRequestId.isNullOrBlank()) {
+        val jobs = awaitingApproval(workflowNode)
+        if (jobs.size == 1) {
+            approve(project, workflowNode, jobs.single())
             return
         }
+        JBPopupFactory.getInstance()
+            .createPopupChooserBuilder(jobs)
+            .setTitle("Approve Job")
+            .setRenderer(textListCellRenderer { it?.name })
+            .setItemChosenCallback { job -> approve(project, workflowNode, job) }
+            .createPopup()
+            .showInBestPositionFor(e.dataContext)
+    }
 
+    private fun approve(
+        project: Project,
+        workflowNode: WorkflowNode,
+        job: Job,
+    ) {
         executeAction(
-            e,
-            "Approve workflow '${workflowNode.workflow.name}'?",
-            "Approving workflow '${workflowNode.workflow.name}'",
-            { workflowId ->
-                CircleCIApiService.getInstance().approveWorkflow(workflowId, approvalRequestId)
-            },
-        )
+            project,
+            workflowNode,
+            "Approve '${job.name}' in workflow '${workflowNode.workflow.name}'?",
+            "Approving '${job.name}'",
+        ) { workflowId ->
+            // An approval job's ID is its approval request's.
+            CircleCIApiService.getInstance().approveWorkflow(workflowId, job.id)
+        }
     }
 
-    override fun isEnabledForWorkflow(workflow: WorkflowNode): Boolean {
-        // Can only approve workflows that are on_hold
-        return workflow.workflow.status == RunStatus.ON_HOLD
-    }
+    /** Its loaded jobs waiting on approval, whose IDs the approvals need. */
+    private fun awaitingApproval(workflow: WorkflowNode): List<Job> = loadedJobs(workflow).filter { it.awaitsApproval }
+
+    override fun isEnabledForWorkflow(workflow: WorkflowNode): Boolean = awaitingApproval(workflow).isNotEmpty()
 }
 
 /**

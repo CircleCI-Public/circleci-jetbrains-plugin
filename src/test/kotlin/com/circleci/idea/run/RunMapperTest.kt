@@ -9,8 +9,10 @@ import com.circleci.idea.api.models.WorkflowWire
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 
@@ -99,7 +101,10 @@ class RunMapperTest {
               {"id": "j2", "attributes": {"number": 23727, "name": "test-windows", "type": "build", "phase": "started",
                 "started_at": "2026-10-01T14:33:49.633Z"}},
               {"id": "j3", "attributes": {"number": 23733, "name": "smoke", "type": "build", "phase": "started"}},
-              {"id": "j4", "attributes": {"number": 23740, "name": "hold", "type": "approval", "phase": "created"}}
+              {"id": "j4", "attributes": {"name": "hold", "type": "approval", "phase": "started"}},
+              {"id": "j5", "attributes": {"name": "hold-deploy", "type": "approval", "phase": "queued"}},
+              {"id": "j6", "attributes": {"number": 23741, "name": "all-tests", "type": "no-op", "phase": "ended", "outcome": "succeeded",
+                "started_at": "2026-10-01T14:36:00.010Z", "ended_at": "2026-10-01T14:36:00.020Z"}}
             ]}
             """.trimIndent()
         val jobs: V3List<JobWire> = gson.fromJson(jobsJson, object : TypeToken<V3List<JobWire>>() {}.type)
@@ -109,7 +114,14 @@ class RunMapperTest {
         assertEquals("ended job", RunStatus.SUCCESS, mapped[0].status)
         assertEquals("started job", RunStatus.RUNNING, mapped[1].status)
         assertEquals("started job with no start time is queued", RunStatus.QUEUED, mapped[2].status)
-        assertEquals("waiting approval job is on hold", RunStatus.ON_HOLD, mapped[3].status)
+        assertEquals("reachable approval job is on hold", RunStatus.ON_HOLD, mapped[3].status)
+        assertTrue("reachable approval job awaits approval", mapped[3].awaitsApproval)
+        assertEquals("blocked approval job is queued", RunStatus.QUEUED, mapped[4].status)
+        assertFalse("blocked approval job doesn't await approval yet", mapped[4].awaitsApproval)
+        assertEquals("no-op job", RunStatus.SUCCESS, mapped[5].status)
+        assertTrue("build job is a build", mapped[0].isBuild)
+        assertFalse("approval job isn't a build", mapped[3].isBuild)
+        assertFalse("no-op job isn't a build", mapped[5].isBuild)
         assertEquals("job slug", run.projectSlug, mapped[0].projectSlug)
         assertEquals("job workflow", workflow.id, mapped[0].workflowId)
     }
