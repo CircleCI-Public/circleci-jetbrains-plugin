@@ -1,5 +1,6 @@
 package com.circleci.idea.toolwindow.tree
 
+import com.circleci.idea.run.RunStatus
 import org.jetbrains.jewel.foundation.lazy.tree.Tree
 import org.jetbrains.jewel.foundation.lazy.tree.TreeGeneratorScope
 import org.jetbrains.jewel.foundation.lazy.tree.buildTree
@@ -70,6 +71,17 @@ internal fun nodesToLoad(
             else -> nodesToLoad(child, open)
         }
     }
+
+/**
+ * Whether children just fetched won't change, so a refresh can keep them:
+ * their parent had ended before they were fetched, and they've all ended
+ * too. The parent's status comes from a different listing, which can say it
+ * ended before its children do.
+ */
+internal fun childrenFinal(
+    parentEnded: Boolean,
+    children: List<RunStatus>,
+): Boolean = parentEnded && children.none { it.isActive }
 
 internal fun children(node: CircleCITreeNode): List<CircleCITreeNode> =
     node.children().toList().filterIsInstance<CircleCITreeNode>()

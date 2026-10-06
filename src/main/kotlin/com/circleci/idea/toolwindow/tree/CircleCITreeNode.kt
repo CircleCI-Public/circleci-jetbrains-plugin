@@ -60,8 +60,8 @@ class RunNode(run: Run, val showProject: Boolean = false) : CircleCITreeNode(run
         }
 
     /**
-     * Its workflows loaded after it ended. They won't change while it stays
-     * ended: rerunning a workflow starts the run again.
+     * Its workflows loaded after it ended, and had all ended too. They won't
+     * change while it stays ended: rerunning a workflow starts the run again.
      */
     var workflowsFinal: Boolean = false
 
@@ -113,7 +113,7 @@ class WorkflowNode(workflow: Workflow) : CircleCITreeNode(workflow) {
             userObject = value
         }
 
-    /** Its jobs loaded after it ended, so they won't change: a rerun is a new workflow. */
+    /** Its jobs loaded after it ended, and had all ended too, so they won't change: a rerun is a new workflow. */
     var jobsFinal: Boolean = false
 
     override fun getDisplayText(): String = workflow.name

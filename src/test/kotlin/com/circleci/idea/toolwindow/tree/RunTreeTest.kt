@@ -5,8 +5,10 @@ import com.circleci.idea.state.Run
 import com.circleci.idea.state.Workflow
 import org.jetbrains.jewel.foundation.lazy.tree.Tree
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RunTreeTest {
@@ -131,5 +133,25 @@ class RunTreeTest {
         val subject = "feat: " + "a long commit subject ".repeat(6).trim()
         val node = RunNode(run("a").copy(commitSubject = subject))
         assertEquals("the whole subject, for the label to fit to the room", "#3102 $subject", node.getDisplayText())
+    }
+
+    @Test
+    fun testChildrenOfAnEndedParentThatHaveAllEndedAreFinal() {
+        assertTrue("all ended", childrenFinal(true, listOf(RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.NOT_RUN)))
+        assertTrue("none at all", childrenFinal(true, emptyList()))
+    }
+
+    @Test
+    fun testChildrenStillActiveAreNotFinalThoughTheirParentEnded() {
+        // The run listing can say a run ended while its workflows still say running.
+        assertFalse("one still running", childrenFinal(true, listOf(RunStatus.SUCCESS, RunStatus.RUNNING)))
+        assertFalse("one on hold", childrenFinal(true, listOf(RunStatus.ON_HOLD)))
+        assertFalse("one queued", childrenFinal(true, listOf(RunStatus.QUEUED)))
+    }
+
+    @Test
+    fun testChildrenOfAParentStillActiveAreNotFinal() {
+        // A run still going can start another workflow, as a setup workflow does.
+        assertFalse("all ended so far", childrenFinal(false, listOf(RunStatus.SUCCESS)))
     }
 }
