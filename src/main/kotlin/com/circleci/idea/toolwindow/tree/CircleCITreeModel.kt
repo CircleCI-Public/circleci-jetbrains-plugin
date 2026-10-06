@@ -256,7 +256,12 @@ class CircleCITreeModel(
                     node.add(RunNode(run, showProject = myRuns))
                 }
             }
-            if (list.state.value.hasMore) node.add(LoadMoreNode())
+            if (list.state.value.hasMore) {
+                // Kept, so the tree's row for it still loads the next page.
+                node.add(
+                    previous.firstNotNullOfOrNull { it as? LoadMoreNode }?.also { it.error = null } ?: LoadMoreNode(),
+                )
+            }
 
             items.filter { it.projectSlug != null }.groupBy { it.projectSlug!! }.forEach { (slug, runs) ->
                 stateStore.setRuns(slug, runs)
@@ -305,12 +310,13 @@ class CircleCITreeModel(
     ) {
         // The workflow as it was listed before its jobs were fetched.
         val ended = !node.workflow.status.isActive
-        loadInto(node, refresh, "jobs", { runListService.fetchJobs(node.workflow) }) { jobs, _ ->
+        loadInto(node, refresh, "jobs", { runListService.fetchJobs(node.workflow) }) { jobs, previous ->
             node.jobsFinal = ended
             if (jobs.isEmpty()) {
                 node.add(EmptyNode("No jobs"))
             }
-            jobs.forEach { node.add(JobNode(it)) }
+            val existing = existingChildren<JobNode, String>(previous) { it.job.id }
+            jobs.forEach { job -> node.add(existing[job.id]?.takeIf { it.job == job } ?: JobNode(job)) }
         }
     }
 
@@ -370,6 +376,7 @@ class CircleCITreeModel(
 
         // Taken before clearing, so populate can keep the nodes still listed (and so their expansion).
         val previous = node.children().toList().filterIsInstance<CircleCITreeNode>()
+        val shown = previous.map(::shownAs)
         node.removeAllChildren()
         result.fold(
             onSuccess = {
@@ -382,10 +389,9 @@ class CircleCITreeModel(
                 node.childrenLoaded = false
             },
         )
-        if (refresh) {
-            refreshLoadedChildren(node)
-        }
-        structureChanged()
+        val dropped = refresh && refreshLoadedChildren(node)
+        // A refresh that found nothing new leaves the tree as it was.
+        if (!refresh || dropped || children(node).map(::shownAs) != shown) structureChanged()
         // Nodes rebuilt while open load again.
         loadOpened()
         // A rebuilt run list may end where a page was loading when it was replaced.
@@ -398,9 +404,12 @@ class CircleCITreeModel(
      * open, and drop the rest so they load fresh when next opened. An ended
      * workflow's jobs, and the workflows of a run still ended, are kept as
      * they are.
+     *
+     * @return Whether it dropped any
      */
-    private fun refreshLoadedChildren(node: CircleCITreeNode) {
+    private fun refreshLoadedChildren(node: CircleCITreeNode): Boolean {
         val open = treeState.openNodes
+        var dropped = false
         for (child in children(node)) {
             if (!child.childrenLoaded || isFinal(child)) continue
             if (keyOf(child) in open) {
@@ -408,9 +417,25 @@ class CircleCITreeModel(
             } else {
                 child.childrenLoaded = false
                 child.removeAllChildren()
+                dropped = true
             }
         }
+        return dropped
     }
+
+    /**
+     * What the tree shows of [node], to tell whether a refresh changed it:
+     * what it was made from, and the node itself where the tree's rows act
+     * on it; a message just by its text.
+     */
+    private fun shownAs(node: CircleCITreeNode): Pair<Any, Any> =
+        when (node) {
+            is RunNode -> node to node.run
+            is WorkflowNode -> node to node.workflow
+            is JobNode -> node to node.job
+            is LoadMoreNode -> node to node.getDisplayText()
+            else -> node.javaClass to node.getDisplayText()
+        }
 
     /** Whether [node]'s children loaded after it ended, and it's still ended. */
     private fun isFinal(node: CircleCITreeNode): Boolean =
