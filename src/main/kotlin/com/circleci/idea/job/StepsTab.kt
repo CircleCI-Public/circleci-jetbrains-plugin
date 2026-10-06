@@ -46,6 +46,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -91,12 +92,15 @@ sealed interface StepsItem {
  * A job's steps (by parallel execution, when there's more than one) beside
  * the selected step's output, streamed while it runs.
  */
+@Suppress("LongParameterList")
 class StepsTab(
     project: Project,
     private val ref: JobRef,
     private val scope: CoroutineScope,
     private val service: JobDetailsService,
     parent: Disposable,
+    // Whether the steps are on screen, for a running step's output to wait while they're not.
+    private val showing: StateFlow<Boolean>,
     private val detail: () -> JobDetail?,
 ) {
     /** The job's executions as last read, or null until the first read. */
@@ -227,7 +231,8 @@ class StepsTab(
             scope.launch {
                 var printedAny = false
                 val isStepActive = { findStep(key)?.status?.isActive ?: false }
-                service.stepOutput(ref.jobId, key.execution, key.num, isStepActive).events()
+                val awaitShowing: suspend () -> Unit = { showing.first { it } }
+                service.stepOutput(ref.jobId, key.execution, key.num, isStepActive, awaitShowing).events()
                     .map { decode(decoder, it) }
                     .flowOn(Dispatchers.IO)
                     .collect { pieces ->

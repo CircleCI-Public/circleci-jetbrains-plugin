@@ -36,6 +36,8 @@ class StepOutputStream(
     private val fetchStdout: suspend (offset: Long) -> Result<StepOutputChunk>,
     private val fetchStderr: suspend () -> Result<ByteArray>,
     private val isStepActive: () -> Boolean,
+    // Returns once the output is on screen, for a running step's to wait while it's not.
+    private val awaitShowing: suspend () -> Unit = {},
     private val pollIntervalMs: Long = POLL_INTERVAL_MS,
 ) {
     fun events(): Flow<StepOutputEvent> =
@@ -56,6 +58,7 @@ class StepOutputStream(
                 if (chunk.more) continue
                 if (chunk.terminal || (chunk.data.isEmpty() && !isStepActive())) break
                 delay(pollIntervalMs)
+                awaitShowing()
             }
             lines.flush()?.let { emit(StepOutputEvent.Stdout(it)) }
 

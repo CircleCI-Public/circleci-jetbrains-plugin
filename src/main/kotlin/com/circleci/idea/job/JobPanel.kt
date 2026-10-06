@@ -30,8 +30,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.bridge.JewelComposePanel
@@ -45,6 +49,7 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.theme.defaultTabStyle
 import org.jetbrains.jewel.ui.typography
 import java.awt.BorderLayout
+import java.awt.event.HierarchyEvent
 import javax.swing.JComponent
 
 /**
@@ -53,7 +58,8 @@ import javax.swing.JComponent
  * actions sits above a Compose view of the rest.
  *
  * The job is re-read every few seconds until it ends, so new steps appear
- * and statuses change as it runs.
+ * and statuses change as it runs; and the selected step's output, while
+ * the steps show. Both wait while the page isn't on screen.
  */
 class JobPanel(
     private val project: Project,
@@ -75,7 +81,13 @@ class JobPanel(
     private val _tab = MutableStateFlow(JobTab.STEPS)
     val tab: StateFlow<JobTab> = _tab.asStateFlow()
 
-    private val stepsTab = StepsTab(project, ref, scope, service, this) { detail }
+    // Whether the page is on screen: its editor tab selected, in a window that's showing.
+    private val showing = MutableStateFlow(false)
+    private val stepsShowing =
+        combine(showing, tab) { shown, tab -> shown && tab == JobTab.STEPS }
+            .stateIn(scope, SharingStarted.Eagerly, false)
+
+    private val stepsTab = StepsTab(project, ref, scope, service, this, stepsShowing) { detail }
     private val testsTab = TestsTab(project, this)
     private val artifactsTab = ArtifactsTab(project, ref, scope)
     private val resourceUsageTab = ResourceUsageTab(ref, scope, service)
@@ -97,11 +109,14 @@ class JobPanel(
         toolbar.targetComponent = this
         add(toolbar.component, BorderLayout.NORTH)
         add(page, BorderLayout.CENTER)
+        addHierarchyListener {
+            if (it.changeFlags and HierarchyEvent.SHOWING_CHANGED.toLong() != 0L) showing.value = isShowing
+        }
         refresh()
     }
 
     /**
-     * Re-read the job, and keep re-reading it until it ends.
+     * Re-read the job, and keep re-reading it until it ends, while the page is on screen.
      */
     fun refresh() {
         pollJob?.cancel()
@@ -125,6 +140,7 @@ class JobPanel(
                     if (!job.status.isActive) return@launch
                     wasActive = true
                     delay(JOB_POLL_INTERVAL_MS)
+                    showing.first { it }
                 }
             }
     }
