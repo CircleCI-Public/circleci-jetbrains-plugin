@@ -59,6 +59,12 @@ class RunNode(run: Run, val showProject: Boolean = false) : CircleCITreeNode(run
             userObject = value
         }
 
+    /**
+     * Its workflows loaded after it ended. They won't change while it stays
+     * ended: rerunning a workflow starts the run again.
+     */
+    var workflowsFinal: Boolean = false
+
     override fun getDisplayText(): String {
         val number = run.number?.let { "#$it " }.orEmpty()
         val description =

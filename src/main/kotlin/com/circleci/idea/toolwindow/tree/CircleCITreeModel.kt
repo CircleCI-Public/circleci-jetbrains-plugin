@@ -268,6 +268,8 @@ class CircleCITreeModel(
         node: RunNode,
         refresh: Boolean,
     ) {
+        // The run as it was listed before its workflows were fetched.
+        val ended = !node.run.status.isActive
         loadInto(
             node,
             refresh,
@@ -275,6 +277,7 @@ class CircleCITreeModel(
             { runListService.fetchWorkflows(node.run) },
         ) { (run, workflows), previous ->
             node.run = run
+            node.workflowsFinal = ended
             val existing = existingChildren<WorkflowNode, String>(previous) { it.workflow.id }
             if (workflows.isEmpty()) {
                 node.add(
@@ -393,12 +396,13 @@ class CircleCITreeModel(
     /**
      * After a refresh kept some loaded children: re-fetch those still
      * open, and drop the rest so they load fresh when next opened. An ended
-     * workflow's jobs are kept as they are.
+     * workflow's jobs, and the workflows of a run still ended, are kept as
+     * they are.
      */
     private fun refreshLoadedChildren(node: CircleCITreeNode) {
         val open = treeState.openNodes
         for (child in children(node)) {
-            if (!child.childrenLoaded || (child is WorkflowNode && child.jobsFinal)) continue
+            if (!child.childrenLoaded || isFinal(child)) continue
             if (keyOf(child) in open) {
                 loadChildren(child, refresh = true)
             } else {
@@ -407,6 +411,14 @@ class CircleCITreeModel(
             }
         }
     }
+
+    /** Whether [node]'s children loaded after it ended, and it's still ended. */
+    private fun isFinal(node: CircleCITreeNode): Boolean =
+        when (node) {
+            is RunNode -> node.workflowsFinal && !node.run.status.isActive
+            is WorkflowNode -> node.jobsFinal
+            else -> false
+        }
 
     /** Load the children of the open nodes that have none yet. */
     private fun loadOpened() {
