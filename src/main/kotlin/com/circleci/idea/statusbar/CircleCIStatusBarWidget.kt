@@ -12,6 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.time.Instant
 
 /**
  * Status bar widget for CircleCI.
@@ -74,13 +75,12 @@ class CircleCIStatusBarWidget(private val project: Project) : StatusBarWidget {
      * Find the latest workflow status across all projects.
      */
     private fun findLatestWorkflowStatus(projectsDataState: com.circleci.idea.state.ProjectsDataState): RunStatus? {
-        val allWorkflows =
-            projectsDataState.data.values
-                .flatMap { it.runs }
-                .flatMap { it.workflows }
-                .sortedByDescending { it.createdAt }
-
-        return allWorkflows.firstOrNull()?.status
+        return projectsDataState.data.values
+            .asSequence()
+            .flatMap { it.runs }
+            .flatMap { it.workflows }
+            .maxByOrNull { it.createdAt ?: Instant.MIN }
+            ?.status
     }
 
     /**

@@ -44,7 +44,7 @@ class CircleCIStateStoreTest : BasePlatformTestCase() {
 
     fun testSetRuns() =
         runBlocking {
-            stateStore.setRuns("gh/test/repo", listOf(run("test-id")))
+            stateStore.setRuns(mapOf("gh/test/repo" to listOf(run("test-id"))))
 
             val projectData = stateStore.projectsData.first().data["gh/test/repo"]
             assertNotNull(projectData)
@@ -55,7 +55,7 @@ class CircleCIStateStoreTest : BasePlatformTestCase() {
     fun testUpdateWorkflows() =
         runBlocking {
             val run = run("run-1")
-            stateStore.setRuns("gh/test/repo", listOf(run))
+            stateStore.setRuns(mapOf("gh/test/repo" to listOf(run)))
 
             val workflow =
                 Workflow(
@@ -71,7 +71,7 @@ class CircleCIStateStoreTest : BasePlatformTestCase() {
 
             stateStore.updateWorkflows("gh/test/repo", "run-1", listOf(workflow))
             // A refresh of the run list keeps the workflows already loaded.
-            stateStore.setRuns("gh/test/repo", listOf(run))
+            stateStore.setRuns(mapOf("gh/test/repo" to listOf(run)))
 
             val projectData = stateStore.projectsData.first().data["gh/test/repo"]
             assertEquals(1, projectData?.runs?.first()?.workflows?.size)
@@ -80,7 +80,7 @@ class CircleCIStateStoreTest : BasePlatformTestCase() {
 
     fun testClearAllData() =
         runBlocking {
-            stateStore.setRuns("gh/test/repo", listOf(run("test-id")))
+            stateStore.setRuns(mapOf("gh/test/repo" to listOf(run("test-id"))))
             stateStore.clearAllData()
 
             val projectsData = stateStore.projectsData.first()
