@@ -13,9 +13,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Service for managing CircleCI projects in the workspace.
@@ -38,7 +43,12 @@ class CircleCIProjectService(
     val selectedProject: StateFlow<String?> = _selectedProject.asStateFlow()
 
     // The projects added by slug, rather than found in the workspace.
-    private val manualSlugs = mutableSetOf<String>()
+    private val manualSlugs: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    // One scan at a time. Scans asked for while one runs share the next.
+    private val detection = Mutex()
+    private val detectionsRequested = AtomicInteger()
+    private var detectionsCovered = 0
 
     // The projects .circleci/info.yml files linked to at the last scan, and whether there's been one.
     private var linkedSlugs = emptySet<String>()
@@ -53,9 +63,20 @@ class CircleCIProjectService(
     }
 
     /**
-     * Auto-detect projects in the workspace.
+     * Auto-detect projects in the workspace, after any scan in progress. A
+     * scan that starts after this was called covers it, so callers at once
+     * share one.
      */
     suspend fun detectProjects() {
+        val requested = detectionsRequested.incrementAndGet()
+        detection.withLock {
+            if (detectionsCovered >= requested) return
+            detectionsCovered = detectionsRequested.get()
+            scanForProjects()
+        }
+    }
+
+    private suspend fun scanForProjects() {
         logger.info("Starting project auto-detection")
         _isLoading.value = true
 
@@ -63,18 +84,15 @@ class CircleCIProjectService(
             val detectedProjects = withContext(Dispatchers.IO) { scanner.scanForProjects() }
 
             // Preserve manually added projects that aren't in git scan
-            val existingManualProjects =
-                _projects.value.filter { existing ->
-                    existing.slug in manualSlugs && detectedProjects.none { detected -> detected.slug == existing.slug }
-                }
-
             // Merge detected and manual projects
-            _projects.value = detectedProjects + existingManualProjects
+            _projects.update { current ->
+                detectedProjects +
+                    current.filter { existing ->
+                        existing.slug in manualSlugs && detectedProjects.none { it.slug == existing.slug }
+                    }
+            }
 
-            logger.info(
-                "Auto-detected ${detectedProjects.size} projects " +
-                    "(${existingManualProjects.size} manual projects preserved)",
-            )
+            logger.info("Auto-detected ${detectedProjects.size} projects (${_projects.value.size} in all)")
 
             // Select the first detected project if none is, or the selected one is gone. A
             // link that's new since the last scan, e.g. from `circleci project link`, wins.
@@ -128,10 +146,8 @@ class CircleCIProjectService(
         }
 
         manualSlugs += slug
-        if (_projects.value.none { it.slug == slug }) {
-            _projects.value = _projects.value + project
-            logger.info("Added project: $slug")
-        }
+        _projects.update { current -> if (current.any { it.slug == slug }) current else current + project }
+        logger.info("Added project: $slug")
         selectProject(slug)
         return true
     }
