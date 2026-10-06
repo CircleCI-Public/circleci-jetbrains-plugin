@@ -41,6 +41,7 @@ import com.circleci.idea.job.JobRef
 import com.circleci.idea.job.Placeholder
 import com.circleci.idea.run.RunStatus
 import com.circleci.idea.run.elapsedSince
+import com.circleci.idea.toolwindow.actions.ApproveJobAction
 import com.circleci.idea.toolwindow.actions.ApproveWorkflowAction
 import com.circleci.idea.toolwindow.actions.CancelJobAction
 import com.circleci.idea.toolwindow.actions.CancelWorkflowAction
@@ -144,7 +145,9 @@ class RunTreeView(
         }
     }
 
+    /** Only build jobs have steps, output and the rest to open. */
     private fun openJob(node: JobNode) {
+        if (!node.job.isBuild) return
         jobDetailsService.openJob(JobRef.of(node.job, (node.parent as? WorkflowNode)?.workflow))
     }
 
@@ -182,6 +185,7 @@ class RunTreeView(
             is JobNode ->
                 DefaultActionGroup().apply {
                     add(OpenJobDetailsAction())
+                    add(ApproveJobAction())
                     addSeparator()
                     add(RerunWorkflowFromJobAction())
                     add(RerunJobWithSshAction())
@@ -334,14 +338,11 @@ private fun lineDetail(node: CircleCITreeNode): String? =
     when (node) {
         is WorkflowNode -> node.workflow.createdAt?.let(::formatTimeAgo)
         // Queued jobs have no start time yet; running ones count up to now.
+        // Approval and no-op jobs take no time worth showing, so they show their type.
         is JobNode ->
-            if (node.job.type == "approval") {
-                "(approval)"
-            } else {
-                elapsedSince(
-                    node.job.startedAt,
-                    node.job.endedAt,
-                )
+            when (node.job.type) {
+                "approval", "no-op" -> "(${node.job.type})"
+                else -> elapsedSince(node.job.startedAt, node.job.endedAt)
             }
         else -> null
     }

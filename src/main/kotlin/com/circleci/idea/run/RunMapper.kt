@@ -131,7 +131,8 @@ object RunMapper {
      * it reports "started" as soon as the workflow dispatches a job, while the
      * job is still waiting for an executor. Only started_at says it really
      * began, so a started job without one is shown as queued. An approval job
-     * that hasn't ended is waiting on someone to approve it.
+     * never has a started_at: a started one is waiting on someone to approve
+     * it, and a queued one is still waiting on the jobs it requires.
      */
     internal fun jobStatus(
         type: String?,
@@ -140,7 +141,7 @@ object RunMapper {
         currentOutcome: String?,
         startedAt: Instant?,
     ): RunStatus {
-        if (type == "approval" && phase != "ended") {
+        if (type == "approval" && phase == "started") {
             return RunStatus.ON_HOLD
         }
         if (phase == "started" && startedAt == null) {
