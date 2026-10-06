@@ -273,6 +273,31 @@ class CircleCITreeModelTest : BasePlatformTestCase() {
             assertEquals("the running run's workflows still are", 4, workflowFetches("r-1"))
         }
 
+    fun testJobsStillRunningUnderAnEndedRunAreFetchedAgainUntilTheyHaveEnded() =
+        runBlocking<Unit> {
+            // The run and its workflow say they ended before the jobs endpoint says the job did.
+            runs = listOf(run("r-1", "ended", "succeeded"))
+            workflows["r-1"] = listOf(workflow("w-1", "ended", "succeeded"))
+            jobs["w-1"] = listOf(job("j-1", "started"))
+            load()
+            open("run:r-1")
+            open("workflow:w-1")
+
+            poll()
+            assertEquals("the jobs fetched again while one's running", 2, jobFetches("w-1"))
+
+            jobs["w-1"] = listOf(job("j-1", "ended", "succeeded"))
+            poll()
+            assertShown(
+                "the job ended",
+                listOf("run:r-1 SUCCESS", "  workflow:w-1 SUCCESS", "    job:j-1 SUCCESS"),
+            )
+
+            poll()
+            assertEquals("the jobs not fetched once they've ended", 3, jobFetches("w-1"))
+            assertEquals("the ended workflows never fetched again", 1, workflowFetches("r-1"))
+        }
+
     fun testRunningRunsOpenWorkflowsAreFetchedOnEachPoll() =
         runBlocking<Unit> {
             runs = listOf(run("r-1", "started"))

@@ -401,7 +401,8 @@ class CircleCITreeModel(
      * After a refresh kept some loaded children: re-fetch those still
      * open, and drop the rest so they load fresh when next opened. An ended
      * workflow's jobs, and the workflows of a run still ended, are kept as
-     * they are.
+     * they are; while such a run is open, its workflows' jobs still refresh
+     * until they've ended.
      *
      * @return Whether it dropped any
      */
@@ -409,8 +410,11 @@ class CircleCITreeModel(
         val open = treeState.openNodes
         var dropped = false
         for (child in children(node)) {
-            if (!child.childrenLoaded || isFinal(child)) continue
-            if (keyOf(child) in open) {
+            if (!child.childrenLoaded) continue
+            val isOpen = keyOf(child) in open
+            if (isFinal(child)) {
+                if (isOpen) dropped = refreshLoadedChildren(child) || dropped
+            } else if (isOpen) {
                 loadChildren(child, refresh = true)
             } else {
                 child.childrenLoaded = false
