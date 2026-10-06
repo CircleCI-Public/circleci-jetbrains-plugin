@@ -363,7 +363,7 @@ class CircleCITreeModel(
                 node.childrenLoaded = true
             },
             onFailure = { error ->
-                logger.error("Failed to load $what: ${error.message}", error)
+                logger.warn("Failed to load $what: ${error.message}", error)
                 node.add(ErrorNode(error.message ?: "Failed to load $what"))
                 node.childrenLoaded = false
             },

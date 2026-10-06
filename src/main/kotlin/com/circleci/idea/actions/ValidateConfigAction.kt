@@ -107,7 +107,7 @@ class ValidateConfigAction : AnAction("Validate CircleCI Config") {
                                 }
                             },
                             onFailure = { error ->
-                                logger.error("Config validation failed", error)
+                                logger.warn("Config validation failed", error)
                                 showErrorNotification(project, "Validation failed: ${error.message}")
                             },
                         )

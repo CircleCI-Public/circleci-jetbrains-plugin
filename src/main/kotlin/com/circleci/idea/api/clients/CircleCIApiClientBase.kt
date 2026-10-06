@@ -86,11 +86,11 @@ abstract class CircleCIApiClientBase {
         return when (response) {
             is ApiResponse.Success -> error("Not a failure")
             is ApiResponse.Error -> {
-                logger.error("API error: ${response.message}")
+                logger.warn("API error: ${response.message}")
                 Result.failure(Exception(response.message))
             }
             is ApiResponse.Unauthorized -> {
-                logger.error("API unauthorized: ${response.message}")
+                logger.warn("API unauthorized: ${response.message}")
                 Result.failure(Exception("Unauthorized: ${response.message}"))
             }
             is ApiResponse.RateLimited -> {

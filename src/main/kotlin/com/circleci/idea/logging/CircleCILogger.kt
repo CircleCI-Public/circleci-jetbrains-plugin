@@ -179,7 +179,8 @@ class CircleCILogger private constructor() {
     }
 
     /**
-     * Log API error.
+     * Log a failed API request: a warning, since a network or server failure
+     * is no bug to report from the IDE.
      */
     fun logApiError(
         method: String,
@@ -188,7 +189,7 @@ class CircleCILogger private constructor() {
         errorMessage: String,
     ) {
         val message = "${LogFormatter.formatApiRequest(method, url, statusCode)}: $errorMessage"
-        error(message)
+        warn(message)
     }
 
     /**
