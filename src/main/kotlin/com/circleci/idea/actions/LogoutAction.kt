@@ -1,6 +1,7 @@
 package com.circleci.idea.actions
 
 import com.circleci.idea.auth.CircleCIAuthService
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.ui.Messages
@@ -50,4 +51,7 @@ class LogoutAction : AnAction() {
         val authService = CircleCIAuthService.getInstance(project)
         e.presentation.isEnabled = authService.isAuthenticated()
     }
+
+    // Asking whether there's a login may read the password safe.
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 }
