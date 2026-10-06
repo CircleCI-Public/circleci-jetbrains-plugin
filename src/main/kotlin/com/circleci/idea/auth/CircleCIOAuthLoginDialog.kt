@@ -2,6 +2,7 @@ package com.circleci.idea.auth
 
 import com.circleci.idea.auth.oauth.CircleCIOAuthService
 import com.circleci.idea.settings.CircleCISettings
+import com.intellij.collaboration.auth.credentials.Credentials
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.EDT
@@ -27,9 +28,11 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.future.asDeferred
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.awt.Component
+import java.util.concurrent.CompletableFuture
 import javax.swing.Action
 import javax.swing.JComponent
 import kotlin.time.Duration.Companion.minutes
@@ -83,13 +86,16 @@ class CircleCIOAuthLoginDialog(
         scope.launch {
             try {
                 withTimeout(TIMEOUT) {
-                    val future = withContext(Dispatchers.IO) { oauthService.authorize(hostUrl) }
+                    // Kept as soon as it's started, so a cancel straight after still abandons it.
+                    var future: CompletableFuture<Credentials>? = null
                     val token =
                         try {
-                            future.asDeferred().await().accessToken
+                            // Interruptible, as authorize blocks on the network, so cancelling stops it.
+                            runInterruptible(Dispatchers.IO) { oauthService.authorize(hostUrl).also { future = it } }
+                                .asDeferred().await().accessToken
                         } catch (e: CancellationException) {
                             // Cancel, closing the dialog, or the timeout: abandon the login, so the next starts afresh.
-                            future.completeExceptionally(ProcessCanceledException(e))
+                            future?.completeExceptionally(ProcessCanceledException(e))
                             throw e
                         }
                     withContext(Dispatchers.IO) { authService.login(token, hostUrl, AuthMethod.OAUTH) }.getOrThrow()
