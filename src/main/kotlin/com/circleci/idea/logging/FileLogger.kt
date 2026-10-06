@@ -64,7 +64,15 @@ class FileLogger(
                 writer.write(message)
                 writer.newLine()
                 currentSize += message.length + 1
-                if (flush || closed) writer.flush() else scheduleFlush()
+                when {
+                    // Nothing's left to close it again: write the line through, and let the file go.
+                    closed -> {
+                        writer.close()
+                        currentWriter = null
+                    }
+                    flush -> writer.flush()
+                    else -> scheduleFlush()
+                }
 
                 if (currentSize >= maxFileSizeBytes) {
                     rotate()
@@ -137,7 +145,7 @@ class FileLogger(
 
     /**
      * Close the logger and release resources. Anything written after is
-     * written at once.
+     * written at once, opening the file for it and closing it again.
      */
     fun close() {
         lock.withLock {
