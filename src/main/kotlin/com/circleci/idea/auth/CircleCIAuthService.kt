@@ -13,6 +13,8 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
+import com.intellij.util.concurrency.AppExecutorUtil
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Service for managing CircleCI authentication.
@@ -29,8 +31,10 @@ class CircleCIAuthService(private val project: Project) {
         private const val CREDENTIAL_USER_NAME = "api-token"
 
         // The stored token, kept once read: every project shares it.
-        @Volatile
-        private var storedToken: StoredToken? = null
+        private val storedToken = AtomicReference<StoredToken?>()
+
+        // Writes to the password safe, which can be slow, off the caller's thread, in the order they're made.
+        private val passwordSafeWrites = AppExecutorUtil.createBoundedApplicationPoolExecutor("CircleCI token", 1)
 
         fun getInstance(project: Project): CircleCIAuthService {
             return project.service()
@@ -47,10 +51,27 @@ class CircleCIAuthService(private val project: Project) {
             return (projects.openProjects.toList() + projects.defaultProject).filterNot { it.isDisposed }.distinct()
         }
 
-        /** Log out of CircleCI in every project. */
+        /**
+         * Log out of CircleCI in every project: forget the token, which they
+         * share, and clear each one's state.
+         */
         fun logOutEverywhere() {
-            allProjects().forEach { getInstance(it).logout() }
+            storeToken(null)
+            CircleCISettings.getInstance().authMethod = ""
+            CircleCIApiService.getInstance().reset()
+            allProjects().forEach { getInstance(it).loggedOut() }
+            logger<CircleCIAuthService>().info("User logged out")
         }
+
+        /** Keep [token] (none, to forget it), and store it in the password safe in the background. */
+        private fun storeToken(token: String?) {
+            storedToken.set(StoredToken(token))
+            val credentials = token?.let { Credentials(CREDENTIAL_USER_NAME, it) }
+            passwordSafeWrites.execute { PasswordSafe.instance.set(createCredentialAttributes(), credentials) }
+        }
+
+        private fun createCredentialAttributes(): CredentialAttributes =
+            CredentialAttributes(serviceName = CREDENTIAL_SERVICE_NAME, userName = CREDENTIAL_USER_NAME)
 
         /** After logging in in one project as [user], log every other open project in too. */
         private fun shareLogin(
@@ -65,13 +86,14 @@ class CircleCIAuthService(private val project: Project) {
     }
 
     /**
-     * Get the current authentication token.
+     * Get the current authentication token. The first call reads the password
+     * safe, which can be slow, so make it off the EDT.
      */
     fun getToken(): String? {
-        storedToken?.let { return it.value }
-        val token = passwordSafe.get(createCredentialAttributes())?.getPasswordAsString()
-        storedToken = StoredToken(token)
-        return token
+        storedToken.get()?.let { return it.value }
+        val read = StoredToken(passwordSafe.get(createCredentialAttributes())?.getPasswordAsString())
+        // A login or logout while this read keeps the token it stored.
+        return (if (storedToken.compareAndSet(null, read)) read else storedToken.get())?.value
     }
 
     /** How the stored token was got, or null if there's none. */
@@ -168,23 +190,16 @@ class CircleCIAuthService(private val project: Project) {
     }
 
     /**
-     * Logout and clear stored token.
+     * Logout and clear stored token. The token is shared, so this logs out
+     * of every project.
      */
-    fun logout() {
-        // Clear token from secure storage
-        passwordSafe.set(createCredentialAttributes(), null)
-        storedToken = StoredToken(null)
-        CircleCISettings.getInstance().authMethod = ""
+    fun logout() = logOutEverywhere()
 
-        // Update state
+    private fun loggedOut() {
         updateAuthState {
             AuthState(hostUrl = CircleCISettings.getInstance().hostUrl)
         }
-
-        // Clear all project data
         project.service<CircleCIStateStore>().clearAllData()
-
-        log.info("User logged out")
     }
 
     /**
@@ -247,25 +262,6 @@ class CircleCIAuthService(private val project: Project) {
                 error = error,
             )
         }
-    }
-
-    /**
-     * Store token securely using PasswordSafe.
-     */
-    private fun storeToken(token: String) {
-        val credentials = Credentials(CREDENTIAL_USER_NAME, token)
-        passwordSafe.set(createCredentialAttributes(), credentials)
-        storedToken = StoredToken(token)
-    }
-
-    /**
-     * Create credential attributes for PasswordSafe.
-     */
-    private fun createCredentialAttributes(): CredentialAttributes {
-        return CredentialAttributes(
-            serviceName = CREDENTIAL_SERVICE_NAME,
-            userName = CREDENTIAL_USER_NAME,
-        )
     }
 
     /**

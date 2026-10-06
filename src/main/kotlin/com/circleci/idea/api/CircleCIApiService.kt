@@ -68,6 +68,12 @@ class CircleCIApiService {
         client = CircleCIApiClient(baseUrl = hostUrl, token = token)
     }
 
+    /** Forget the client, and the token it sends, e.g. on logging out. */
+    @Synchronized
+    fun reset() {
+        client = null
+    }
+
     /**
      * Check if client is initialized.
      */
@@ -386,8 +392,9 @@ class CircleCIApiService {
         return if (apiClient != null) {
             operation(apiClient)
         } else {
-            logger.error("API client not initialized")
-            Result.failure(IllegalStateException("API client not initialized"))
+            // Not logged in, or logged out since: not a fault of the plugin's, to report.
+            logger.warn("API client not initialized")
+            Result.failure(IllegalStateException("Not logged in to CircleCI"))
         }
     }
 
