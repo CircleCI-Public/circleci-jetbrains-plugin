@@ -98,22 +98,22 @@ class CircleCIStateStore(private val project: Project) : CircleCIState {
     }
 
     /**
-     * Replace the runs listed for a project (e.g., after a refresh), keeping the
-     * workflows already loaded for runs that are still listed.
+     * Replace the runs listed (e.g., after a refresh), by project slug, keeping
+     * the workflows already loaded for runs that are still listed. Projects no
+     * longer listed are dropped.
      */
-    fun setRuns(
-        projectSlug: String,
-        runs: List<Run>,
-        nextCursor: String? = null,
-    ) {
-        updateProjectData(projectSlug) { currentData ->
-            val existing = currentData ?: ProjectData(projectSlug)
-            val loadedWorkflows = existing.runs.associate { it.id to it.workflows }
-            existing.copy(
-                runs = runs.map { run -> run.copy(workflows = loadedWorkflows[run.id] ?: run.workflows) },
-                nextCursor = nextCursor,
-                isLoading = false,
-            )
+    fun setRuns(runsBySlug: Map<String, List<Run>>) {
+        updateProjectsData { state ->
+            val data =
+                runsBySlug.mapValues { (slug, runs) ->
+                    val existing = state.data[slug] ?: ProjectData(slug)
+                    val loadedWorkflows = existing.runs.associate { it.id to it.workflows }
+                    existing.copy(
+                        runs = runs.map { run -> run.copy(workflows = loadedWorkflows[run.id] ?: run.workflows) },
+                        isLoading = false,
+                    )
+                }
+            state.copy(data = data)
         }
     }
 

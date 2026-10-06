@@ -263,9 +263,7 @@ class CircleCITreeModel(
                 )
             }
 
-            items.filter { it.projectSlug != null }.groupBy { it.projectSlug!! }.forEach { (slug, runs) ->
-                stateStore.setRuns(slug, runs)
-            }
+            stateStore.setRuns(items.filter { it.projectSlug != null }.groupBy { it.projectSlug!! })
         }
     }
 
