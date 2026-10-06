@@ -1,5 +1,6 @@
 package com.circleci.idea.api
 
+import com.circleci.idea.CircleCIPlugin
 import com.circleci.idea.logging.CircleCILogger
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -45,7 +46,7 @@ import kotlin.math.min
 class CircleCIApiClient(
     val baseUrl: String = "https://circleci.com",
     val token: String,
-    private val userAgent: String = "CircleCI-IntelliJ-Plugin/1.0.0",
+    private val userAgent: String = "CircleCI-IntelliJ-Plugin/${CircleCIPlugin.version}",
     // One connection pool, shared with every other client
     private val http: HttpClient = CircleCIHttpClient.getInstance().client,
 ) {

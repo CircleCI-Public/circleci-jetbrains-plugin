@@ -1,5 +1,6 @@
 package com.circleci.idea.logging
 
+import com.circleci.idea.CircleCIPlugin
 import com.intellij.openapi.application.ApplicationInfo
 
 /**
@@ -12,7 +13,7 @@ data class LogContext(
     val timestamp: Long = System.currentTimeMillis(),
 ) {
     companion object {
-        fun create(extensionVersion: String = "1.0.0"): LogContext {
+        fun create(extensionVersion: String = CircleCIPlugin.version): LogContext {
             val appInfo = ApplicationInfo.getInstance()
             val ideVersion = "${appInfo.versionName} ${appInfo.fullVersion}"
             val platform =
