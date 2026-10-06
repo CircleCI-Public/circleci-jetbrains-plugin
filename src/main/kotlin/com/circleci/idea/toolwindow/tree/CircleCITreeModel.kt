@@ -37,8 +37,8 @@ import javax.swing.SwingUtilities
  * Children load asynchronously when a node is first opened. The run list
  * loads a page at a time, the next as the tree scrolls near its end. A
  * refresh re-fetches every loaded level in place (as many pages of runs as
- * are listed), keeping the nodes of runs and workflows that are still
- * listed. What's open and selected is kept by key in [treeState], so it
+ * are listed, or just the first for a poll), keeping the nodes of runs and
+ * workflows that are still listed. What's open and selected is kept by key in [treeState], so it
  * carries over to the nodes a reload rebuilds, which load again if they're
  * open.
  *
@@ -123,14 +123,24 @@ class CircleCITreeModel(
     }
 
     /**
-     * [refreshRuns], waiting for the run list (the levels below it refresh
-     * after): the runs listed, or why they couldn't be; null with no run list.
+     * Like [refreshRuns], but fetching only the first page of runs again,
+     * merged into those listed, and waiting for it (the levels below it
+     * refresh after): the runs listed, or why they couldn't be; null with no
+     * run list. With a load of the run list in flight already, it waits for
+     * that instead.
      */
     suspend fun pollRuns(): Result<List<Run>>? =
         withContext(Dispatchers.Main) {
             val list = runs ?: return@withContext null
-            val generation = startLoad(root, refresh = true)
-            counted { fillRuns(list, generation, refresh = true, myRuns = isMyRuns()) }
+            if (runsLoad?.isActive != true) {
+                val generation = startLoad(root, refresh = true)
+                val myRuns = isMyRuns()
+                runsLoad = tracked { fillRuns(list, generation, refresh = true, myRuns) { list.poll() } }
+            }
+            runsLoad?.join()
+            if (list !== runs) return@withContext null
+            val state = list.state.value
+            state.error?.let { Result.failure(it) } ?: Result.success(state.items)
         }
 
     /**
@@ -219,7 +229,8 @@ class CircleCITreeModel(
         val generation = startLoad(root, refresh)
         val myRuns = isMyRuns()
         runsLoad?.cancel()
-        runsLoad = tracked { fillRuns(list, generation, refresh, myRuns) }
+        val fetch = suspend { if (refresh) list.refresh() else list.reload() }
+        runsLoad = tracked { fillRuns(list, generation, refresh, myRuns, fetch) }
     }
 
     private suspend fun fillRuns(
@@ -227,9 +238,9 @@ class CircleCITreeModel(
         generation: Int,
         refresh: Boolean,
         myRuns: Boolean,
+        fetch: suspend () -> Result<List<Run>>,
     ): Result<List<Run>> {
         val node = root
-        val fetch = suspend { if (refresh) list.refresh() else list.reload() }
         return fill(node, generation, refresh, "runs", fetch) { items, previous ->
             val existing = existingChildren<RunNode, String>(previous) { it.run.id }
             if (items.isEmpty()) {
@@ -426,16 +437,6 @@ class CircleCITreeModel(
             } finally {
                 loadEnded()
             }
-        }
-    }
-
-    /** Run [block], counted as a load in flight until it ends. Call it on the EDT. */
-    private suspend fun <R> counted(block: suspend () -> R): R {
-        loadStarted()
-        try {
-            return block()
-        } finally {
-            loadEnded()
         }
     }
 

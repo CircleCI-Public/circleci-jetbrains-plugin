@@ -11,7 +11,8 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * [reload] lists the first page afresh; [loadMore] adds the next; [refresh]
  * fetches as many pages as are listed again, so what's been scrolled to
- * stays. Items a page shares with those listed (as newer ones push the list
+ * stays; [poll] fetches only the first again, merging it into what's
+ * listed. Items a page shares with those listed (as newer ones push the list
  * along) are listed once.
  *
  * A [reload] or [refresh] supersedes a [loadMore] in flight, whose page is
@@ -50,6 +51,61 @@ class PagedList<T, K>(
 
     /** Fetch as many pages as are listed again, or the first if none are. A failure keeps what's listed. */
     suspend fun refresh(): Result<List<T>> = replace(maxOf(pages, 1), keepOnFailure = true)
+
+    /**
+     * Fetch the first page again and merge it into what's listed, for keeping
+     * a list up to date without fetching every page scrolled to. Its items
+     * replace the listed ones they share a key with, at the top. Listed items
+     * above where its last item was, and missing from it, have left the list;
+     * those after it stay as they were, as does the cursor after them. With
+     * one page listed, the same as [refresh]. A failure keeps what's listed.
+     *
+     * @return The items listed, or a failure; the items listed as they were
+     *   if a reload or refresh superseded it
+     */
+    suspend fun poll(): Result<List<T>> {
+        if (pages <= 1) return refresh()
+        val started = generation
+        val result = fetch(null)
+        if (started != generation) return Result.success(_state.value.items)
+        return result.fold(
+            onSuccess = { page ->
+                val fresh = page.items.distinctBy(key)
+                val items =
+                    if (page.nextCursor == null) {
+                        // The whole list fits on the first page now: list just that, as a refresh would.
+                        cursor = null
+                        pages = 1
+                        generation++
+                        loadingMoreIn = null
+                        fresh
+                    } else {
+                        fresh + listedBelow(fresh)
+                    }
+                _state.value =
+                    _state.value.copy(
+                        items = items,
+                        hasMore = cursor != null,
+                        loadingMore = _state.value.loadingMore && cursor != null,
+                        error = null,
+                    )
+                Result.success(items)
+            },
+            onFailure = { error ->
+                _state.value = _state.value.copy(error = error)
+                Result.failure(error)
+            },
+        )
+    }
+
+    /** The listed items to keep after a first page of [fresh] ones: those after where its last was. */
+    private fun listedBelow(fresh: List<T>): List<T> {
+        val listed = _state.value.items
+        val freshKeys = fresh.mapTo(mutableSetOf(), key)
+        // When its last item wasn't listed, they were all pushed down.
+        val lastIndex = fresh.lastOrNull()?.let(key)?.let { last -> listed.indexOfFirst { key(it) == last } } ?: -1
+        return listed.filterIndexed { i, item -> i > lastIndex && key(item) !in freshKeys }
+    }
 
     /**
      * Load the next page, adding its items to the list.

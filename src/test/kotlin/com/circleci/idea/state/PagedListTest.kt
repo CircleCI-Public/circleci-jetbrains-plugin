@@ -73,6 +73,63 @@ class PagedListTest {
         }
 
     @Test
+    fun testPollFetchesOnlyTheFirstPage() =
+        runBlocking {
+            val pages = threePages()
+            val list = list(pages)
+            list.reload()
+            list.loadMore()
+            pages.requested.clear()
+
+            // A newer run pushed "b" onto the second page; "a" changed.
+            pages.pages = pages.pages + (null to V3Page(listOf("new", "a"), "q2"))
+            assertEquals("merged", listOf("new", "a", "b", "c", "d"), list.poll().getOrThrow())
+            assertEquals("the first page only", listOf<String?>(null), pages.requested)
+            assertTrue("the cursor after what's listed stays", list.state.value.hasMore)
+            assertEquals("which loads the next page", listOf("e"), list.loadMore()!!.getOrThrow())
+        }
+
+    @Test
+    fun testPollDropsWhatLeftTheFirstPage() =
+        runBlocking {
+            val pages = threePages()
+            val list = list(pages)
+            list.reload()
+            list.loadMore()
+
+            // "a" no longer matches; "c" moved up.
+            pages.pages = pages.pages + (null to V3Page(listOf("b", "c"), "p2"))
+            assertEquals("a gone", listOf("b", "c", "d"), list.poll().getOrThrow())
+        }
+
+    @Test
+    fun testPollOfAListNowOnOnePageListsJustThat() =
+        runBlocking {
+            val pages = threePages()
+            val list = list(pages)
+            list.reload()
+            list.loadMore()
+
+            pages.pages = mapOf(null to V3Page(listOf("a"), null))
+            assertEquals("just the page", listOf("a"), list.poll().getOrThrow())
+            assertFalse("nothing more", list.state.value.hasMore)
+        }
+
+    @Test
+    fun testAFailedPollKeepsTheList() =
+        runBlocking {
+            val pages = threePages()
+            val list = list(pages)
+            list.reload()
+            list.loadMore()
+            pages.failing = null
+
+            assertTrue("fails", list.poll().isFailure)
+            assertEquals("kept", listOf("a", "b", "c", "d"), list.state.value.items)
+            assertEquals("says why", "boom", list.state.value.error?.message)
+        }
+
+    @Test
     fun testListsItemsAPageSharesOnce() =
         runBlocking {
             val pages =
