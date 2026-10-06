@@ -1,7 +1,11 @@
 package com.circleci.idea.ssh
 
 import com.circleci.idea.logging.CircleCILogger
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.components.Service
+import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.ssh.ConnectionBuilder
 import com.intellij.ssh.SshException
 import com.intellij.ssh.interaction.PlatformSshPasswordProvider
@@ -29,7 +33,26 @@ class IdeSshConnector : SshConnector {
         target: SshTarget,
     ) {
         val tab = TerminalTabState().apply { myTabName = target.title }
+        service<SshTabCloser>()
         TerminalToolWindowManager.getInstance(project).createNewSession(SshTerminalRunner(project, target), tab)
+    }
+}
+
+/**
+ * Closes the Terminal's SSH tabs as the plugin unloads, ending their
+ * sessions: a tab holds its runner and connection, which would keep the
+ * plugin's classes loaded, and the unload would need a restart. Created
+ * with the first tab, so it's disposed with the plugin.
+ */
+@Service(Service.Level.APP)
+internal class SshTabCloser : Disposable {
+    override fun dispose() {
+        for (project in ProjectManager.getInstance().openProjects) {
+            val manager = TerminalToolWindowManager.getInstance(project)
+            val contents = manager.toolWindow?.contentManager?.contents ?: continue
+            contents.filter { TerminalToolWindowManager.getRunnerByContent(it) is SshTerminalRunner }
+                .forEach(manager::closeTab)
+        }
     }
 }
 
