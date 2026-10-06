@@ -1,7 +1,8 @@
 package com.circleci.idea.statusbar
 
+import com.circleci.idea.icons.BadgedIcon
 import com.circleci.idea.icons.CircleCIIcons
-import com.circleci.idea.icons.statusIcon
+import com.circleci.idea.icons.statusColor
 import com.circleci.idea.run.RunStatus
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.StatusBarWidget
@@ -12,7 +13,7 @@ import javax.swing.Icon
 
 /**
  * Presentation for the CircleCI status bar widget.
- * Shows the latest workflow's status as a dot in its colour.
+ * Shows the latest run's status as a dot in its colour.
  */
 class CircleCIStatusBarPresentation(private val project: Project) : StatusBarWidget.IconPresentation {
     private var isAuthenticated: Boolean = false
@@ -42,14 +43,21 @@ class CircleCIStatusBarPresentation(private val project: Project) : StatusBarWid
             !isAuthenticated -> "CircleCI: Not logged in. Click to open CircleCI panel and log in."
             latestStatus == null && isLoading -> "CircleCI: Loading runs..."
             latestStatus == null -> "CircleCI: No runs found. Click to open CircleCI panel."
-            else -> "CircleCI: Latest workflow ${latestStatus!!.label}. Click to open CircleCI panel."
+            else -> "CircleCI: Latest run ${latestStatus!!.label}. Click to open CircleCI panel."
         }
     }
 
-    /** The latest workflow's status dot, kept while a refresh is under way. */
+    /**
+     * CircleCI's icon, with a badge in the latest run's status colour, as the
+     * IDE badges its own; kept while a refresh is under way.
+     */
     override fun getIcon(): Icon {
         val status = latestStatus
-        return if (isAuthenticated && status != null) statusIcon(status) else CircleCIIcons.PLUGIN_ICON
+        return if (isAuthenticated && status != null) {
+            BadgedIcon(CircleCIIcons.PLUGIN_ICON, statusColor(status))
+        } else {
+            CircleCIIcons.PLUGIN_ICON
+        }
     }
 
     override fun getClickConsumer(): Consumer<MouseEvent>? {
