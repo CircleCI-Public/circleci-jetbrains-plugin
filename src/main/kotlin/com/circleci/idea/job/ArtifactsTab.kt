@@ -32,6 +32,7 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.progress.ProgressIndicator
@@ -96,6 +97,21 @@ class ArtifactsTab(
     private val opened = mutableMapOf<String, VirtualFile>()
 
     private val fileIcons = FileIcons()
+
+    init {
+        // Let an artifact's file go as its editor tab closes, rather than hold what was read of it.
+        project.messageBus.connect(scope).subscribe(
+            FileEditorManagerListener.FILE_EDITOR_MANAGER,
+            object : FileEditorManagerListener {
+                override fun fileClosed(
+                    source: FileEditorManager,
+                    file: VirtualFile,
+                ) {
+                    if (!source.isFileOpen(file)) opened.values.remove(file)
+                }
+            },
+        )
+    }
 
     /** List the job's artifacts. Call on the EDT. */
     fun load() {
@@ -248,7 +264,6 @@ class ArtifactsTab(
      */
     private fun open(artifact: Artifact) {
         val editors = FileEditorManager.getInstance(project)
-        opened.values.removeIf { !editors.isFileOpen(it) }
         opened[artifact.url]?.let {
             editors.openFile(it, true)
             return
