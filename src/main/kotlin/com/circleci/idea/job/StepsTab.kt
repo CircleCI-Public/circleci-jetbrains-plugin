@@ -40,6 +40,7 @@ import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Key
+import com.intellij.openapi.util.text.StringUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -230,9 +231,8 @@ class StepsTab(
         streamJob =
             scope.launch {
                 var printedAny = false
-                val isStepActive = { findStep(key)?.status?.isActive ?: false }
                 val awaitShowing: suspend () -> Unit = { showing.first { it } }
-                service.stepOutput(ref.jobId, key.execution, key.num, isStepActive, awaitShowing).events()
+                service.stepOutput(ref.jobId, key.execution, key.num, { findStep(key) }, awaitShowing).events()
                     .map { decode(decoder, it) }
                     .flowOn(Dispatchers.IO)
                     .collect { pieces ->
@@ -278,6 +278,13 @@ class StepsTab(
             when (event) {
                 is StepOutputEvent.Stdout -> decodeAnsi(decoder, event.text, ProcessOutputTypes.STDOUT)
                 is StepOutputEvent.Stderr -> decodeAnsi(decoder, event.text, ProcessOutputTypes.STDERR)
+                is StepOutputEvent.Skipped ->
+                    listOf(
+                        Piece(
+                            StringBuilder("… ${StringUtil.formatFileSize(event.bytes)} of earlier output not shown\n"),
+                            ConsoleViewContentType.SYSTEM_OUTPUT,
+                        ),
+                    )
                 is StepOutputEvent.Failed ->
                     listOf(
                         Piece(

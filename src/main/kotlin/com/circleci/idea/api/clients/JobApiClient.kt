@@ -123,17 +123,23 @@ class JobApiClient : CircleCIApiClientBase() {
         }
     }
 
-    /** A step's whole stderr; a step without any reads as empty. */
+    /**
+     * A step's stderr from byte [offset] on, up to [STDERR_READ_BYTES] of it;
+     * a step without any reads as empty.
+     */
     suspend fun getStepStderr(
         client: CircleCIApiClient,
         jobId: String,
         execution: Int,
         stepNum: Int,
+        offset: Long,
     ): Result<ByteArray> {
-        return client.getBytes("/api/v3/jobs/$jobId/stderr", stepParams(execution, stepNum)).mapCatching {
+        val headers = if (offset > 0) mapOf("Range" to "bytes=$offset-") else emptyMap()
+        val params = stepParams(execution, stepNum)
+        return client.getBytes("/api/v3/jobs/$jobId/stderr", params, headers, STDERR_READ_BYTES).mapCatching {
             when {
                 it.isSuccessful -> it.body
-                it.code == HTTP_NOT_FOUND -> ByteArray(0)
+                it.code == HTTP_NOT_FOUND || it.code == HTTP_RANGE_NOT_SATISFIABLE -> ByteArray(0)
                 else -> error("Failed to read step errors: HTTP ${it.code}")
             }
         }
@@ -174,6 +180,9 @@ class JobApiClient : CircleCIApiClientBase() {
 
         // A long log reads in pieces this size, so none of it is held, or printed, all at once.
         const val STDOUT_READ_BYTES = 512 * 1024L
+
+        /** The most of a step's stderr one read takes, should it have grown past the size the step reported. */
+        const val STDERR_READ_BYTES = 1024 * 1024L
     }
 }
 
