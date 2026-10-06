@@ -1,6 +1,6 @@
 package com.circleci.idea.ssh
 
-import com.circleci.idea.api.CircleCIApiService
+import com.circleci.idea.api.callApi
 import com.circleci.idea.job.JobDetailsService
 import com.circleci.idea.state.Step
 import com.intellij.notification.NotificationGroupManager
@@ -12,7 +12,6 @@ import com.intellij.openapi.ui.Messages
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.awt.datatransfer.StringSelection
 
 /**
@@ -79,10 +78,7 @@ class SshSessionService(
     private suspend fun findEndpoint(job: Job): Result<SshEndpoint> =
         runCatching {
             val step = findEnableSshStep(job)
-            val output =
-                withContext(Dispatchers.IO) {
-                    CircleCIApiService.getInstance().getStepStdout(job.jobId, job.execution, step.num, 0)
-                }.getOrThrow()
+            val output = callApi(project) { getStepStdout(job.jobId, job.execution, step.num, 0) }.getOrThrow()
             SshEndpoint.parse(String(output.data, Charsets.UTF_8))
                 ?: error(
                     if (step.status.isActive) {
