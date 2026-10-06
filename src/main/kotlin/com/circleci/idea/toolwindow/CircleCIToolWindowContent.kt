@@ -146,6 +146,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
 
     override fun dispose() {
         pollingService.stopPolling()
+        project.getService(CircleCIToolWindowService::class.java).clearTreeModel(treeModel)
         scope.cancel()
     }
 
