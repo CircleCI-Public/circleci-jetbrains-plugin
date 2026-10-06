@@ -24,8 +24,8 @@ import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resumeWithException
+import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.pow
 
 /**
  * HTTP client for the CircleCI API (v3, and v2 where v3 has no equivalent yet).
@@ -57,7 +57,6 @@ class CircleCIApiClient(
     private val client =
         sharedHttpClient.newBuilder()
             .addInterceptor(AuthInterceptor(token, userAgent))
-            .addInterceptor(RetryInterceptor(maxRetries = 3))
             .build()
 
     /**
@@ -103,7 +102,7 @@ class CircleCIApiClient(
         rateLimiter.acquire()
 
         return try {
-            client.newCall(request).await().use { response ->
+            respond(request).use { response ->
                 if (response.code == 401) {
                     Result.failure(Exception("Unauthorized: Invalid or expired token"))
                 } else {
@@ -130,7 +129,7 @@ class CircleCIApiClient(
         rateLimiter.acquire()
 
         return try {
-            client.newCall(request).await().use { response ->
+            respond(request).use { response ->
                 if (!response.isSuccessful) {
                     return Result.failure(IOException("HTTP ${response.code} downloading $url"))
                 }
@@ -141,6 +140,27 @@ class CircleCIApiClient(
         } catch (e: IOException) {
             logger.logApiError(request.method, request.url.toString(), 0, e.message ?: "Network error")
             Result.failure(e)
+        }
+    }
+
+    /**
+     * [request]'s response, sent again while it's rate limited (429), up to
+     * [MAX_RETRIES] times, after the longer of an exponential backoff and
+     * the server's Retry-After. A wait longer than [MAX_RETRY_WAIT_SECONDS]
+     * gives up instead.
+     */
+    private suspend fun respond(request: Request): Response {
+        var retries = 0
+        while (true) {
+            val response = client.newCall(request).await()
+            if (response.code != HTTP_TOO_MANY_REQUESTS || retries == MAX_RETRIES) return response
+            val retryAfter = response.header("Retry-After")?.toLongOrNull() ?: 1
+            val wait = max(1L shl retries, retryAfter)
+            if (wait > MAX_RETRY_WAIT_SECONDS) return response
+            response.close()
+            logger.debug("Rate limited, retrying in ${wait}s: ${request.method} ${request.url}")
+            delay(wait * MS_PER_SECOND)
+            retries++
         }
     }
 
@@ -256,7 +276,7 @@ class CircleCIApiClient(
         rateLimiter.acquire()
 
         return try {
-            client.newCall(request).await().use { response -> parseResponse(response, request, startTime) }
+            respond(request).use { response -> parseResponse(response, request, startTime) }
         } catch (e: IOException) {
             logger.logApiError(request.method, request.url.toString(), 0, e.message ?: "Network error")
             ApiResponse.Error(e.message ?: "Network error", 0)
@@ -338,6 +358,11 @@ class CircleCIApiClient(
     }
 
     private companion object {
+        const val HTTP_TOO_MANY_REQUESTS = 429
+        const val MAX_RETRIES = 3
+        const val MAX_RETRY_WAIT_SECONDS = 60L
+        const val MS_PER_SECOND = 1000L
+
         val sharedHttpClient: OkHttpClient =
             OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
@@ -386,31 +411,6 @@ private class AuthInterceptor(
                 .build()
 
         return chain.proceed(request)
-    }
-}
-
-/**
- * Retry interceptor with exponential backoff for 429 errors.
- */
-private class RetryInterceptor(private val maxRetries: Int = 3) : Interceptor {
-    override fun intercept(chain: Interceptor.Chain): Response {
-        var request = chain.request()
-        var response = chain.proceed(request)
-        var retryCount = 0
-
-        while (response.code == 429 && retryCount < maxRetries) {
-            val retryAfter = response.header("Retry-After")?.toIntOrNull() ?: 1
-            val backoffDelay = min(2.0.pow(retryCount).toLong(), retryAfter.toLong())
-
-            response.close()
-            Thread.sleep(backoffDelay * 1000)
-
-            request = chain.request()
-            response = chain.proceed(request)
-            retryCount++
-        }
-
-        return response
     }
 }
 

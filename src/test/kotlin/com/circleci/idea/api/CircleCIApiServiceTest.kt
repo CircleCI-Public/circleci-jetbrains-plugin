@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.system.measureTimeMillis
 
 /**
@@ -119,6 +120,38 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
             service.getCurrentUser().getOrThrow()
 
             assertEquals("tokens sent", listOf("one", "one", "two"), tokens.toList())
+        }
+
+    fun testRateLimitedRequestIsSentAgainAfterRetryAfter() =
+        runBlocking<Unit> {
+            val sent = AtomicInteger()
+            server.createContext("/limited") { exchange ->
+                val limited = sent.incrementAndGet() == 1
+                exchange.responseHeaders.add("Retry-After", "0")
+                exchange.sendResponseHeaders(if (limited) 429 else 200, 2)
+                exchange.responseBody.use { it.write("{}".toByteArray()) }
+            }
+
+            val response = client.get("/limited")
+
+            assertEquals("sent twice", 2, sent.get())
+            assertTrue("the second succeeded: $response", response is ApiResponse.Success)
+        }
+
+    fun testRateLimitedRequestGivesUpOnALongRetryAfter() =
+        runBlocking<Unit> {
+            val sent = AtomicInteger()
+            server.createContext("/limited") { exchange ->
+                sent.incrementAndGet()
+                exchange.responseHeaders.add("Retry-After", "3600")
+                exchange.sendResponseHeaders(429, -1)
+                exchange.close()
+            }
+
+            val response = client.get("/limited")
+
+            assertEquals("sent once", 1, sent.get())
+            assertEquals("rate limited", ApiResponse.RateLimited(3600), response)
         }
 
     fun testCancellingARequestCancelsItsCall() =
