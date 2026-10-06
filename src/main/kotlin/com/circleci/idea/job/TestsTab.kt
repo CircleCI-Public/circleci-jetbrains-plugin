@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -36,11 +37,13 @@ import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.withContext
 import org.jetbrains.jewel.foundation.lazy.SingleSelectionLazyColumn
 import org.jetbrains.jewel.foundation.lazy.items
 import org.jetbrains.jewel.foundation.lazy.rememberSingleSelectionLazyListState
@@ -199,13 +202,17 @@ class TestsTab(
     ) {
         val sort by sort.collectAsState()
         val selected by selected.collectAsState()
-        val rows =
-            remember(tests, filter, sort) {
-                sort.apply(tests.withIndex().filter { filter.matches(it.value) }) { it.value }
-            }
+        // Filtered and sorted off the EDT, as a job can have tens of thousands; the last rows show meanwhile.
+        val filtered by produceState<List<IndexedValue<TestResult>>?>(null, tests, filter, sort) {
+            value =
+                withContext(Dispatchers.Default) {
+                    sort.apply(tests.withIndex().filter { filter.matches(it.value) }) { it.value }
+                }
+        }
         Column(Modifier.fillMaxSize()) {
             HeaderRow(sort)
             Divider(Orientation.Horizontal, Modifier.fillMaxWidth())
+            val rows = filtered ?: return@Column
             if (rows.isEmpty()) {
                 Placeholder(if (tests.isEmpty()) "No tests recorded" else "No tests match the filter")
                 return@Column
