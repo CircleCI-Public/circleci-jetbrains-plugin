@@ -5,6 +5,7 @@ import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.run.RunMapper
 import com.circleci.idea.state.Artifact
 import com.circleci.idea.state.JobDetail
+import com.circleci.idea.state.Step
 import com.circleci.idea.state.TestOutcome
 import com.circleci.idea.state.TestResult
 import com.intellij.openapi.components.Service
@@ -46,19 +47,21 @@ class JobDetailsService(private val project: Project) {
 
     /**
      * Stream a step's output. The flow blocks on API calls, so collect it off the EDT.
+     *
+     * @param step The step as last fetched, for its status and output sizes
      */
     fun stepOutput(
         jobId: String,
         execution: Int,
         stepNum: Int,
-        isStepActive: () -> Boolean,
+        step: () -> Step?,
         awaitShowing: suspend () -> Unit,
     ): StepOutputStream {
         return StepOutputStream(
             awaitShowing = awaitShowing,
             fetchStdout = { offset -> apiService.getStepStdout(jobId, execution, stepNum, offset) },
-            fetchStderr = { apiService.getStepStderr(jobId, execution, stepNum) },
-            isStepActive = isStepActive,
+            fetchStderr = { offset -> apiService.getStepStderr(jobId, execution, stepNum, offset) },
+            step = step,
         )
     }
 

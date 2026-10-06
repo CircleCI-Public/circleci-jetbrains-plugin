@@ -139,14 +139,15 @@ class CircleCIApiService {
     }
 
     /**
-     * Read a step's whole stderr.
+     * Read a step's stderr from a byte offset.
      */
     suspend fun getStepStderr(
         jobId: String,
         execution: Int,
         stepNum: Int,
+        offset: Long,
     ): Result<ByteArray> {
-        return withClient { jobClient.getStepStderr(it, jobId, execution, stepNum) }
+        return withClient { jobClient.getStepStderr(it, jobId, execution, stepNum, offset) }
     }
 
     /**
