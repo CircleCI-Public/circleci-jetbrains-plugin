@@ -8,6 +8,7 @@ import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.asContextElement
+import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.colors.CodeInsightColors
 import com.intellij.openapi.editor.ex.EditorEx
 import com.intellij.openapi.editor.markup.HighlighterLayer
@@ -261,8 +262,15 @@ class ExpressionRestrictionDialog(
     override fun getPreferredFocusedComponent(): JComponent = field
 
     override fun doValidate(): ValidationInfo? {
-        val problems = ExpressionCheck.check(field.text)
-        underline(problems)
+        // Validation runs every few hundred milliseconds the dialog is open: check and underline only what's changed.
+        val text = field.text
+        val editor = field.editor
+        val problems =
+            checked?.takeIf { it.text == text && it.editor === editor }?.problems
+                ?: ExpressionCheck.check(text).also {
+                    underline(it)
+                    checked = Checked(text, editor, it)
+                }
         if (field.text.isBlank()) return ValidationInfo("Enter an expression", field).withOKEnabled()
         val problem = problems.firstOrNull { it.isError } ?: problems.firstOrNull() ?: return null
         val info = ValidationInfo(problem.message, field)
@@ -285,6 +293,11 @@ class ExpressionRestrictionDialog(
                 markup.addRangeHighlighter(key, start, end, HighlighterLayer.ERROR, HighlighterTargetArea.EXACT_RANGE)
             }
     }
+
+    /** What [doValidate] last checked, in the editor it underlined it in. */
+    private class Checked(val text: String, val editor: Editor?, val problems: List<ExpressionProblem>)
+
+    private var checked: Checked? = null
 
     private companion object {
         const val EXPRESSION_HEIGHT = 90
