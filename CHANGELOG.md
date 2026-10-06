@@ -5,6 +5,43 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-10-06
+
+### What's Changed
+* Poll fast only while a run listed is running by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/59
+* Poll only the first page of runs, merging it into the list by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/60
+* Keep an ended run's workflows on a refresh by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/62
+* Rebuild the run tree only when a refresh changed it by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/63
+* Update the plugin's state atomically by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/64
+* Fix grammar in settings text by @sarahhodne in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/65
+* Store the runs listed in one go, for the status bar by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/66
+* Scan for projects one at a time, sharing scans asked for at once by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/67
+* Read only the end of a long step log by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/68
+* Stop reading a response's body when its request is cancelled by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/69
+* Read polled responses straight into their models by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/71
+* Make the language server's downloads cancellable by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/72
+* Close the SSH tabs into jobs as the plugin unloads by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/73
+* Abandon a browser login cancelled while it starts by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/74
+* Log out once, off the EDT, and stop sending the old token by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/75
+* Find a job's SSH details through the logged-in API client by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/76
+* Don't leave the log file open for lines logged after it's closed by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/77
+* Turn auto-refresh on or off in every open project at once by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/78
+* Restart polling from Settings only when its settings change by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/79
+* Recompose only a job page's header as the job is re-read by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/81
+* Keep re-reading a job after a read of it fails by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/82
+* Filter and sort a job's tests off the EDT by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/83
+* Add entity IDs to tool window actions by @liamclarkedev in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/80
+* Keep artifact file icons with the job's page, not for the session by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/84
+* Let an artifact's file go as its editor tab closes by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/85
+* Check a restriction's expression again only when it changes by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/86
+* Draw the plugin's icon as the CircleCI logo by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/87
+
+### New Contributors
+* @sarahhodne made their first contribution in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/65
+* @liamclarkedev made their first contribution in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/80
+
+**Full Changelog**: https://github.com/CircleCI-Public/circleci-jetbrains-plugin/compare/v1.9.0...v1.10.0
+
 ## [1.9.0] - 2026-10-06
 
 ### What's Changed
