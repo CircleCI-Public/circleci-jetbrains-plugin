@@ -3,8 +3,10 @@ package com.circleci.idea.polling
 import com.circleci.idea.logging.CircleCILogger
 import com.circleci.idea.project.CircleCIProjectService
 import com.circleci.idea.run.RunScope
+import com.circleci.idea.run.RunStatus
 import com.circleci.idea.settings.CircleCISettings
 import com.circleci.idea.state.CircleCIStateStore
+import com.circleci.idea.state.Run
 import com.circleci.idea.toolwindow.CircleCIToolWindowService
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationActivationListener
@@ -25,13 +27,16 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import java.time.Duration
+import java.time.Instant
 import kotlin.math.min
 
 /**
  * Service for polling run updates while the tool window is showing.
  *
- * It polls at the fast interval while a run listed is in progress, and at
- * the slow one otherwise, or while the IDE isn't the active app. Failed polls
+ * It polls at the fast interval while a run listed is in progress (see
+ * [isInProgress]), and at the slow one otherwise, or while the IDE isn't the
+ * active app. Failed polls
  * back off, doubling the slow interval each time up to [MAX_BACKOFF_MS].
  * Showing the tool window, or switching back to the IDE, polls straight away
  * once the fast interval has passed since the last poll.
@@ -146,7 +151,7 @@ class RunPollingService(private val project: Project) : Disposable {
         return result.fold(
             onSuccess = { runs ->
                 failures = 0
-                val inProgress = runs.any { it.status.isActive }
+                val inProgress = isInProgress(runs, Instant.now())
                 if (inProgress && ApplicationManager.getApplication().isActive) {
                     fastIntervalMs()
                 } else {
@@ -198,3 +203,27 @@ class RunPollingService(private val project: Project) : Disposable {
         const val MAX_BACKOFF_DOUBLINGS = 10
     }
 }
+
+// Started runs, whose status can change any moment.
+private val RUNNING = setOf(RunStatus.RUNNING, RunStatus.FAILING, RunStatus.ERRORING, RunStatus.CANCELING)
+
+// Created or queued runs count as in progress for this long; one stuck longer waits on something else.
+private val WAITING_TO_START = Duration.ofHours(1)
+
+/**
+ * Whether [runs] are worth polling for at the fast interval: one has
+ * started, or was created recently and is waiting to start. A run on hold
+ * (for an approval, often for days) or queued for long doesn't count.
+ */
+internal fun isInProgress(
+    runs: List<Run>,
+    now: Instant,
+): Boolean =
+    runs.any { run ->
+        when (run.status) {
+            in RUNNING -> true
+            RunStatus.CREATED, RunStatus.QUEUED ->
+                run.createdAt == null || Duration.between(run.createdAt, now) < WAITING_TO_START
+            else -> false
+        }
+    }
