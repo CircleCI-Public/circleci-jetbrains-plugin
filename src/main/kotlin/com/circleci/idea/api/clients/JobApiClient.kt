@@ -72,14 +72,12 @@ class JobApiClient : CircleCIApiClientBase() {
         client: CircleCIApiClient,
         jobId: String,
     ): Result<ResourceUsageWire?> {
-        return client.getBytes("/api/v3/jobs/$jobId/resource-usage").mapCatching { response ->
-            when {
-                response.isSuccessful -> {
-                    val type = object : TypeToken<V3Entity<ResourceUsageWire>>() {}.type
-                    gson.fromJson<V3Entity<ResourceUsageWire>>(String(response.body, Charsets.UTF_8), type).data
-                }
-                response.code == HTTP_NOT_FOUND -> null
-                else -> error("Failed to read resource usage: HTTP ${response.code}")
+        val type = typeOf<V3Entity<ResourceUsageWire>>()
+        return client.getStreaming("/api/v3/jobs/$jobId/resource-usage") { code, body ->
+            when (code) {
+                in HTTP_SUCCESS -> gson.fromJson<V3Entity<ResourceUsageWire>?>(body, type)?.data
+                HTTP_NOT_FOUND -> null
+                else -> error("Failed to read resource usage: HTTP $code")
             }
         }
     }
@@ -89,9 +87,9 @@ class JobApiClient : CircleCIApiClientBase() {
         client: CircleCIApiClient,
         jobId: String,
     ): Result<JobDetailWire> {
-        return executeRequest(client, "/api/v3/jobs/$jobId") { data ->
-            gson.fromJson<V3Entity<JobDetailWire>>(data, object : TypeToken<V3Entity<JobDetailWire>>() {}.type).data
-                ?: error("No job found for $jobId")
+        val type = typeOf<V3Entity<JobDetailWire>>()
+        return getAs(client, "/api/v3/jobs/$jobId", emptyMap(), type) { entity: V3Entity<JobDetailWire>? ->
+            entity?.data ?: error("No job found for $jobId")
         }
     }
 

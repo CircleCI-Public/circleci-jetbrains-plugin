@@ -49,7 +49,9 @@ class RunApiClient : CircleCIApiClientBase() {
                 filter = filter,
                 page = RunSearchPage(cursor.orEmpty(), limit),
             )
-        return executeRequest(client, "/api/v3/runs/search", body = body) { parsePage<RunWire>(it) }
+        return postAs(client, "/api/v3/runs/search", body, typeOf<V3List<RunWire>>()) { list: V3List<RunWire>? ->
+            page(list)
+        }
     }
 
     /**
@@ -76,7 +78,9 @@ class RunApiClient : CircleCIApiClientBase() {
                 put("page[limit]", limit.toString())
                 cursor?.let { put("page[cursor]", it) }
             }
-        return executeRequest(client, "/api/v3/runs", params) { parsePage<RunWire>(it) }
+        return getAs(client, "/api/v3/runs", params, typeOf<V3List<RunWire>>()) { list: V3List<RunWire>? ->
+            page(list)
+        }
     }
 
     /** All workflows of a run. */
@@ -85,8 +89,9 @@ class RunApiClient : CircleCIApiClientBase() {
         runId: String,
     ): Result<List<WorkflowWire>> {
         return fetchAllPages { cursor ->
-            executeRequest(client, "/api/v3/workflows", pageParams("filter[run_id]" to runId, cursor)) {
-                parsePage<WorkflowWire>(it)
+            val params = pageParams("filter[run_id]" to runId, cursor)
+            getAs(client, "/api/v3/workflows", params, typeOf<V3List<WorkflowWire>>()) { list: V3List<WorkflowWire>? ->
+                page(list)
             }
         }
     }
@@ -97,8 +102,9 @@ class RunApiClient : CircleCIApiClientBase() {
         workflowId: String,
     ): Result<List<JobWire>> {
         return fetchAllPages { cursor ->
-            executeRequest(client, "/api/v3/jobs", pageParams("filter[workflow_id]" to workflowId, cursor)) {
-                parsePage<JobWire>(it)
+            val params = pageParams("filter[workflow_id]" to workflowId, cursor)
+            getAs(client, "/api/v3/jobs", params, typeOf<V3List<JobWire>>()) { list: V3List<JobWire>? ->
+                page(list)
             }
         }
     }

@@ -157,6 +157,52 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
             assertEquals("rate limited", ApiResponse.RateLimited(3600), response)
         }
 
+    fun testMyRunsAPageAtATime() =
+        runBlocking<Unit> {
+            responseBody = """{"data": [{"id": "r-1", "attributes": {"number": 7}}], "page": {"next": "c2"}}"""
+
+            val page = RunApiClient().listMyRuns(client, null, null, null, null, limit = 20).getOrThrow()
+
+            assertEquals("runs", listOf("r-1" to 7L), page.items.map { it.id to it.attributes?.number })
+            assertEquals("next page", "c2", page.nextCursor)
+        }
+
+    fun testRunWorkflowsFollowTheirPages() =
+        runBlocking<Unit> {
+            responseQueue += """{"data": [{"id": "w-1"}], "page": {"next": "c2"}}"""
+            responseQueue += """{"data": [{"id": "w-2"}], "page": {}}"""
+
+            val workflows = RunApiClient().getRunWorkflows(client, "r-1").getOrThrow()
+
+            assertEquals("both pages", listOf("w-1", "w-2"), workflows.map { it.id })
+            assertTrue("second from the cursor", requests.last().uri.contains("page[cursor]=c2"))
+        }
+
+    fun testJobWithItsSteps() =
+        runBlocking<Unit> {
+            responseBody = """{"data": {"id": "j-1", "attributes": {"name": "build", "phase": "ended"}}}"""
+
+            val job = JobApiClient().getJob(client, "j-1").getOrThrow()
+
+            assertEquals("job", "j-1" to "build", job.id to job.attributes?.name)
+        }
+
+    fun testJobResourceUsage() =
+        runBlocking<Unit> {
+            responseBody = """{"data": {"attributes": {"resource_class": {"name": "large", "cpu_count": 4}}}}"""
+
+            val usage = JobApiClient().getJobResourceUsage(client, "j-1").getOrThrow()
+
+            assertEquals("resource class", "large", usage?.attributes?.resourceClass?.name)
+        }
+
+    fun testJobWithoutResourceUsageHasNone() =
+        runBlocking<Unit> {
+            responseStatus = 404
+
+            assertNull("none", JobApiClient().getJobResourceUsage(client, "j-1").getOrThrow())
+        }
+
     fun testJobTestsAreReadALineAtATime() =
         runBlocking<Unit> {
             responseBody = "{\"name\":\"a\",\"result\":\"success\"}\n\n{\"name\":\"b\",\"result\":\"failure\"}\n"
