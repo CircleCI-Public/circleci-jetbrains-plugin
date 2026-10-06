@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -169,21 +170,22 @@ class JobPanel(
         resourceUsageTab.load()
     }
 
+    // The job is read in the header only, so a poll recomposes that rather than the whole page.
     @Composable
     private fun Page() {
-        val job by jobState.collectAsState()
-        val loadError by loadErrorState.collectAsState()
         val tab by tab.collectAsState()
         Column(Modifier.fillMaxSize()) {
-            Header(job, loadError)
+            Header()
             val tabs =
-                JobTab.entries.map { entry ->
-                    TabData.Default(
-                        selected = entry == tab,
-                        content = { state -> SimpleTabContent(entry.title, state) },
-                        closable = false,
-                        onClick = { _tab.value = entry },
-                    )
+                remember(tab) {
+                    JobTab.entries.map { entry ->
+                        TabData.Default(
+                            selected = entry == tab,
+                            content = { state -> SimpleTabContent(entry.title, state) },
+                            closable = false,
+                            onClick = { _tab.value = entry },
+                        )
+                    }
                 }
             TabStrip(tabs, JewelTheme.defaultTabStyle, Modifier.fillMaxWidth())
             Divider(Orientation.Horizontal, Modifier.fillMaxWidth())
@@ -199,10 +201,9 @@ class JobPanel(
     }
 
     @Composable
-    private fun Header(
-        job: JobDetail?,
-        loadError: String?,
-    ) {
+    private fun Header() {
+        val job by jobState.collectAsState()
+        val loadError by loadErrorState.collectAsState()
         Column(
             Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
