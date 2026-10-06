@@ -4,7 +4,6 @@ import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
-import org.jetbrains.kotlin.gradle.plugin.getKotlinPluginVersion
 import java.util.Base64
 
 plugins {
@@ -48,19 +47,8 @@ dependencies {
         add("implementation", "org.apache.commons:commons-lang3:3.14.0")
         add("implementation", "org.apache.commons:commons-text:1.11.0")
     }
-    // Keeps every Kotlin artifact at the compiler's version. okio would otherwise pull in the
-    // 1.9.10 kotlin-stdlib-jdk7/jdk8 shims, which OWASP flags for Kotlin compiler CVEs.
-    implementation(platform("org.jetbrains.kotlin:kotlin-bom:${getKotlinPluginVersion()}"))
-
-    // HTTP Client
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-
     // JSON Parsing
     implementation("com.google.code.gson:gson:2.10.1")
-
-    // WebSocket
-    implementation("com.pusher:pusher-java-client:2.4.4")
 
     // Charts. Only the jar: the IDE provides Compose (see composeUI() below), and
     // KoalaPlot's material3 dependency is only used by chart types we don't draw.
