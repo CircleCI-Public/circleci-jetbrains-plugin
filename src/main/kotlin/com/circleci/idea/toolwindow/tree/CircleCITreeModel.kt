@@ -280,7 +280,7 @@ class CircleCITreeModel(
             { runListService.fetchWorkflows(node.run) },
         ) { (run, workflows), previous ->
             node.run = run
-            node.workflowsFinal = ended
+            node.workflowsFinal = childrenFinal(ended, workflows.map { it.status })
             val existing = existingChildren<WorkflowNode, String>(previous) { it.workflow.id }
             if (workflows.isEmpty()) {
                 node.add(
@@ -309,7 +309,7 @@ class CircleCITreeModel(
         // The workflow as it was listed before its jobs were fetched.
         val ended = !node.workflow.status.isActive
         loadInto(node, refresh, "jobs", { runListService.fetchJobs(node.workflow) }) { jobs, previous ->
-            node.jobsFinal = ended
+            node.jobsFinal = childrenFinal(ended, jobs.map { it.status })
             if (jobs.isEmpty()) {
                 node.add(EmptyNode("No jobs"))
             }
