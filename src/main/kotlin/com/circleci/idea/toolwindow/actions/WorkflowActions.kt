@@ -12,11 +12,13 @@ import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
+import java.awt.datatransfer.StringSelection
 
 /**
  * Base class for workflow actions.
@@ -312,6 +314,44 @@ class OpenWorkflowInBrowserAction : WorkflowAction(
 
         com.intellij.ide.BrowserUtil.browse(url)
     }
+}
+
+/**
+ * Action to copy a workflow's ID to the clipboard.
+ */
+class CopyWorkflowIdAction : WorkflowAction(
+    "Copy Workflow ID",
+    "Copy this workflow's ID to the clipboard",
+    AllIcons.Actions.Copy,
+) {
+    override fun actionPerformed(e: AnActionEvent) {
+        val workflowNode = getWorkflowNode(e) ?: return
+        CopyPasteManager.getInstance().setContents(StringSelection(workflowNode.workflow.id))
+    }
+}
+
+/**
+ * Action to copy a run's (pipeline's) ID to the clipboard.
+ */
+class CopyRunIdAction :
+    AnAction(
+        "Copy Run ID",
+        "Copy this run's pipeline ID to the clipboard",
+        AllIcons.Actions.Copy,
+    ),
+    DumbAware {
+    override fun actionPerformed(e: AnActionEvent) {
+        runNode(e)?.let { CopyPasteManager.getInstance().setContents(StringSelection(it.run.id)) }
+    }
+
+    override fun update(e: AnActionEvent) {
+        e.presentation.isEnabled = runNode(e) != null
+    }
+
+    private fun runNode(e: AnActionEvent): RunNode? =
+        e.project?.getService(CircleCIToolWindowService::class.java)?.getSelectedNode() as? RunNode
+
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
 }
 
 /**

@@ -45,7 +45,10 @@ import com.circleci.idea.toolwindow.actions.ApproveJobAction
 import com.circleci.idea.toolwindow.actions.ApproveWorkflowAction
 import com.circleci.idea.toolwindow.actions.CancelJobAction
 import com.circleci.idea.toolwindow.actions.CancelWorkflowAction
+import com.circleci.idea.toolwindow.actions.CopyJobIdAction
 import com.circleci.idea.toolwindow.actions.CopyJobNumberAction
+import com.circleci.idea.toolwindow.actions.CopyRunIdAction
+import com.circleci.idea.toolwindow.actions.CopyWorkflowIdAction
 import com.circleci.idea.toolwindow.actions.OpenJobDetailsAction
 import com.circleci.idea.toolwindow.actions.OpenJobInBrowserAction
 import com.circleci.idea.toolwindow.actions.OpenRunInBrowserAction
@@ -180,6 +183,7 @@ class RunTreeView(
                     addSeparator()
                     add(ApproveWorkflowAction())
                     addSeparator()
+                    add(CopyWorkflowIdAction())
                     add(OpenWorkflowInBrowserAction())
                 }
             is JobNode ->
@@ -191,10 +195,11 @@ class RunTreeView(
                     add(RerunJobWithSshAction())
                     add(CancelJobAction())
                     addSeparator()
+                    add(CopyJobIdAction())
                     add(CopyJobNumberAction())
                     add(OpenJobInBrowserAction())
                 }
-            is RunNode -> DefaultActionGroup(OpenRunInBrowserAction())
+            is RunNode -> DefaultActionGroup(CopyRunIdAction(), OpenRunInBrowserAction())
             else -> null
         }
 }

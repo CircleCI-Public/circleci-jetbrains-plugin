@@ -239,6 +239,20 @@ class CopyJobNumberAction : JobAction(
 }
 
 /**
+ * Action to copy a job's ID to the clipboard.
+ */
+class CopyJobIdAction : JobAction(
+    "Copy Job ID",
+    "Copy this job's ID to the clipboard",
+    AllIcons.Actions.Copy,
+) {
+    override fun actionPerformed(e: AnActionEvent) {
+        val jobNode = getJobNode(e) ?: return
+        CopyPasteManager.getInstance().setContents(StringSelection(jobNode.job.id))
+    }
+}
+
+/**
  * Action to open job in CircleCI web browser.
  */
 class OpenJobInBrowserAction : JobAction(
