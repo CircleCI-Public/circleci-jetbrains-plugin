@@ -99,7 +99,7 @@ class CircleCIConfigurable : Configurable {
             slowPollIntervalField,
         )
         formBuilder.addComponent(
-            JBLabel("<html><font color='gray'>When none is, or the IDE isn't in front</font></html>"),
+            JBLabel("<html><font color='gray'>When no runs are in progress, or the IDE isn't in front</font></html>"),
         )
 
         // Notifications section
