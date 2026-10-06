@@ -2,9 +2,12 @@ package com.circleci.idea.api.clients
 
 import com.circleci.idea.api.ApiResponse
 import com.circleci.idea.api.CircleCIApiClient
+import com.circleci.idea.api.models.V3List
 import com.circleci.idea.logging.CircleCILogger
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.google.gson.reflect.TypeToken
+import java.lang.reflect.Type
 import java.time.Instant
 import java.time.format.DateTimeParseException
 
@@ -36,17 +39,42 @@ abstract class CircleCIApiClientBase {
         body: Any? = null,
         parser: (JsonObject) -> T,
     ): Result<T> {
-        val response =
-            if (body != null) {
-                client.post(path, body)
-            } else {
-                client.get(path, params)
-            }
+        val response = if (body != null) client.post(path, body) else client.get(path, params)
+        return parsed(response) { json: JsonObject? -> parser(json ?: JsonObject()) }
+    }
 
-        return when (response) {
+    /**
+     * A GET, its response read straight into [type], without building a
+     * JSON tree of it first.
+     *
+     * @param parser Given the response read as [type], null if it had no body
+     */
+    protected suspend fun <W, T> getAs(
+        client: CircleCIApiClient,
+        path: String,
+        params: Map<String, String>,
+        type: Type,
+        parser: (W?) -> T,
+    ): Result<T> = parsed(client.get(path, params, type), parser)
+
+    /** [getAs], for a POST of [body]. */
+    protected suspend fun <W, T> postAs(
+        client: CircleCIApiClient,
+        path: String,
+        body: Any,
+        type: Type,
+        parser: (W?) -> T,
+    ): Result<T> = parsed(client.post(path, body, type), parser)
+
+    private fun <W, T> parsed(
+        response: ApiResponse,
+        parser: (W?) -> T,
+    ): Result<T> =
+        when (response) {
             is ApiResponse.Success -> {
                 try {
-                    Result.success(parser(response.data))
+                    @Suppress("UNCHECKED_CAST")
+                    Result.success(parser(response.body as W?))
                 } catch (e: Exception) {
                     logger.error("Failed to parse API response: ${e.message}", e)
                     Result.failure(Exception("Failed to parse response: ${e.message}"))
@@ -54,7 +82,6 @@ abstract class CircleCIApiClientBase {
             }
             else -> failure(response)
         }
-    }
 
     /**
      * Execute a POST request with no response body expected.
@@ -116,6 +143,10 @@ abstract class CircleCIApiClientBase {
         return Result.success(items)
     }
 
+    /** A V3 list's page; a blank cursor is none, the last page. */
+    protected fun <T> page(list: V3List<T>?): V3Page<T> =
+        V3Page(list?.data.orEmpty(), list?.page?.next?.takeIf { it.isNotEmpty() })
+
     /** A timestamp the API sent, or null if it sent none, or one that isn't one. */
     protected fun instant(value: String?): Instant? =
         value?.takeIf { it.isNotEmpty() }?.let {
@@ -133,8 +164,11 @@ abstract class CircleCIApiClientBase {
         return checkNotNull(client) { "API client not initialized" }
     }
 
-    private companion object {
+    protected companion object {
+        /** [T] as a [Type], for reading a response straight into it. */
+        inline fun <reified T> typeOf(): Type = object : TypeToken<T>() {}.type
+
         // A guard against a server that never stops handing out cursors.
-        const val MAX_PAGES = 20
+        private const val MAX_PAGES = 20
     }
 }

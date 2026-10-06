@@ -3,6 +3,7 @@ package com.circleci.idea.api
 import com.circleci.idea.logging.CircleCILogger
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.google.gson.JsonParseException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -14,6 +15,7 @@ import kotlinx.coroutines.sync.withLock
 import java.io.IOException
 import java.io.InputStream
 import java.io.Reader
+import java.lang.reflect.Type
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.HttpClient
@@ -58,11 +60,14 @@ class CircleCIApiClient(
 
     /**
      * Execute a GET request.
+     *
+     * @param type What a success's body is read as, straight from the response
      */
     suspend fun get(
         path: String,
         queryParams: Map<String, String> = emptyMap(),
-    ): ApiResponse = executeRequest(request(buildUrl(path, queryParams)).GET().build())
+        type: Type = JsonObject::class.java,
+    ): ApiResponse = executeRequest(request(buildUrl(path, queryParams)).GET().build(), type)
 
     /**
      * Execute a GET request for a raw (non-JSON) body, such as step output.
@@ -188,13 +193,16 @@ class CircleCIApiClient(
 
     /**
      * Execute a POST request.
+     *
+     * @param type What a success's body is read as, straight from the response
      */
     suspend fun post(
         path: String,
         body: Any? = null,
+        type: Type = JsonObject::class.java,
     ): ApiResponse {
         val json = if (body != null) gson.toJson(body) else "{}"
-        return executeRequest(request(buildUrl(path)).jsonBody().POST(BodyPublishers.ofString(json)).build())
+        return executeRequest(request(buildUrl(path)).jsonBody().POST(BodyPublishers.ofString(json)).build(), type)
     }
 
     /**
@@ -203,8 +211,10 @@ class CircleCIApiClient(
     suspend fun put(
         path: String,
         body: Any,
-    ): ApiResponse =
-        executeRequest(request(buildUrl(path)).jsonBody().PUT(BodyPublishers.ofString(gson.toJson(body))).build())
+    ): ApiResponse {
+        val request = request(buildUrl(path)).jsonBody().PUT(BodyPublishers.ofString(gson.toJson(body))).build()
+        return executeRequest(request, JsonObject::class.java)
+    }
 
     /**
      * Execute a DELETE request.
@@ -212,7 +222,7 @@ class CircleCIApiClient(
     suspend fun delete(
         path: String,
         queryParams: Map<String, String> = emptyMap(),
-    ): ApiResponse = executeRequest(request(buildUrl(path, queryParams)).DELETE().build())
+    ): ApiResponse = executeRequest(request(buildUrl(path, queryParams)).DELETE().build(), JsonObject::class.java)
 
     /**
      * Execute request with deduplication and rate limiting.
@@ -222,28 +232,35 @@ class CircleCIApiClient(
      * and sends its own if the first was cancelled. Other methods aren't
      * idempotent, so each one is sent.
      */
-    private suspend fun executeRequest(request: HttpRequest): ApiResponse {
+    private suspend fun executeRequest(
+        request: HttpRequest,
+        type: Type,
+    ): ApiResponse {
         if (request.method() != "GET") {
-            return send(request)
+            return send(request, type)
         }
 
-        val requestKey = request.uri().toString()
+        // By what it's read as too, as a duplicate shares the body read.
+        val requestKey = "${request.uri()} as ${type.typeName}"
         val pending = CompletableDeferred<ApiResponse?>()
         val inFlight = inFlightRequests.putIfAbsent(requestKey, pending)
         if (inFlight != null) {
-            logger.debug("Deduplicating in-flight request: GET $requestKey")
-            return inFlight.await() ?: send(request)
+            logger.debug("Deduplicating in-flight request: GET ${request.uri()}")
+            return inFlight.await() ?: send(request, type)
         }
 
         return try {
-            send(request).also { pending.complete(it) }
+            send(request, type).also { pending.complete(it) }
         } finally {
             pending.complete(null)
             inFlightRequests.remove(requestKey, pending)
         }
     }
 
-    private suspend fun send(request: HttpRequest): ApiResponse {
+    private suspend fun send(
+        request: HttpRequest,
+        type: Type,
+    ): ApiResponse {
         val startTime = System.currentTimeMillis()
 
         // Log API request
@@ -253,7 +270,7 @@ class CircleCIApiClient(
         rateLimiter.acquire()
 
         return try {
-            respond(request).read { response -> parseResponse(response, request, startTime) }
+            respond(request).read { response -> parseResponse(response, request, startTime, type) }
         } catch (e: IOException) {
             currentCoroutineContext().ensureActive()
             logger.logApiError(request.method(), request.uri().toString(), 0, e.message ?: "Network error")
@@ -268,6 +285,7 @@ class CircleCIApiClient(
         response: HttpResponse<InputStream>,
         request: HttpRequest,
         startTime: Long,
+        type: Type,
     ): ApiResponse {
         val code = response.statusCode()
         val duration = System.currentTimeMillis() - startTime
@@ -281,11 +299,10 @@ class CircleCIApiClient(
         return when {
             successful -> {
                 try {
-                    val json = gson.fromJson(response.body().reader(), JsonObject::class.java)
-                    ApiResponse.Success(json ?: JsonObject(), code)
-                } catch (e: Exception) {
+                    ApiResponse.Success(gson.fromJson<Any?>(response.body().reader(), type), code)
+                } catch (e: JsonParseException) {
                     logger.warn("Failed to parse JSON response: ${e.message}")
-                    ApiResponse.Success(JsonObject(), code)
+                    ApiResponse.Success(null, code)
                 }
             }
             code == 401 -> {
@@ -464,7 +481,12 @@ class RawResponse(
  * API response sealed class.
  */
 sealed class ApiResponse {
-    data class Success(val data: JsonObject, val code: Int) : ApiResponse()
+    /** @property body The body, as the type asked for; null when there was none, or it couldn't be read as that */
+    data class Success(val body: Any?, val code: Int) : ApiResponse() {
+        /** The body as JSON, for a request that asked for that; empty without one. */
+        val data: JsonObject
+            get() = body as? JsonObject ?: JsonObject()
+    }
 
     data class Error(val message: String, val code: Int) : ApiResponse()
 
