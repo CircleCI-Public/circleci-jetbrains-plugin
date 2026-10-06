@@ -32,7 +32,6 @@ import com.intellij.notification.NotificationType
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.fileEditor.FileEditorManager
-import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.progress.ProgressIndicator
@@ -71,7 +70,6 @@ import java.awt.datatransfer.StringSelection
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.nio.file.Path
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * A job's artifacts as a file tree: open one in the IDE, download a file or
@@ -96,6 +94,8 @@ class ArtifactsTab(
 
     // The files open in editors, by URL, to show again rather than read again. Touched on the EDT.
     private val opened = mutableMapOf<String, VirtualFile>()
+
+    private val fileIcons = FileIcons()
 
     /** List the job's artifacts. Call on the EDT. */
     fun load() {
@@ -217,7 +217,7 @@ class ArtifactsTab(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Icon(iconKey(entry.node), null, Modifier.size(ICON.dp))
+                Icon(fileIcons.of(entry.node), null, Modifier.size(ICON.dp))
                 Text(entry.node.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -392,20 +392,29 @@ private fun TreeGeneratorScope<ArtifactEntry>.addEntries(entries: List<ArtifactE
     }
 }
 
-/** A file's icon is its file type's, as the Project view shows it. */
-private fun iconKey(node: ArtifactNode): IconKey =
-    when (node) {
-        is ArtifactNode.Execution -> AllIconsKeys.Nodes.Module
-        is ArtifactNode.Directory -> AllIconsKeys.Nodes.Folder
-        is ArtifactNode.File -> fileIconKey(node.name)
-    }
+/**
+ * A file's icon is its file type's, as the Project view shows it. Each file
+ * type's is converted once, rather than for every row drawn, and kept with
+ * the job's page: an icon key holds the class of the plugin whose file type
+ * it is, which kept for the session would stop that plugin unloading.
+ */
+private class FileIcons {
+    // By file type name, read and written in composition, on the EDT.
+    private val byFileType = HashMap<String, IconKey>()
 
-private fun fileIconKey(name: String): IconKey =
-    fileTypeIconKeys.computeIfAbsent(FileTypeManager.getInstance().getFileTypeByFileName(name)) { type ->
-        val icon = type.icon ?: return@computeIfAbsent AllIconsKeys.FileTypes.Any_type
-        // Only icons loaded from a resource path convert; a plugin's file type may draw its own.
-        runCatching { IntelliJIconKey.fromPlatformIcon(icon) }.getOrDefault(AllIconsKeys.FileTypes.Any_type)
-    }
+    fun of(node: ArtifactNode): IconKey =
+        when (node) {
+            is ArtifactNode.Execution -> AllIconsKeys.Nodes.Module
+            is ArtifactNode.Directory -> AllIconsKeys.Nodes.Folder
+            is ArtifactNode.File -> ofFile(node.name)
+        }
 
-// Each file type's icon, converted once rather than for every row drawn.
-private val fileTypeIconKeys = ConcurrentHashMap<FileType, IconKey>()
+    private fun ofFile(name: String): IconKey {
+        val type = FileTypeManager.getInstance().getFileTypeByFileName(name)
+        return byFileType.getOrPut(type.name) {
+            val icon = type.icon ?: return@getOrPut AllIconsKeys.FileTypes.Any_type
+            // Only icons loaded from a resource path convert; a plugin's file type may draw its own.
+            runCatching { IntelliJIconKey.fromPlatformIcon(icon) }.getOrDefault(AllIconsKeys.FileTypes.Any_type)
+        }
+    }
+}
