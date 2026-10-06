@@ -6,7 +6,7 @@ import com.intellij.collaboration.auth.services.OAuthRequest
 import com.intellij.collaboration.auth.services.PkceUtils
 import com.intellij.util.Url
 import com.intellij.util.Urls
-import okhttp3.OkHttpClient
+import java.net.http.HttpClient
 import java.security.SecureRandom
 import java.util.Base64
 
@@ -25,7 +25,7 @@ class CircleCIOAuthRequest(
     callbackPort: Int,
     deviceId: String,
     os: String,
-    http: OkHttpClient,
+    http: HttpClient,
 ) : OAuthRequest<Credentials> {
     // RFC 7636 wants 43-128 characters; PkceUtils' own verifier is shorter.
     private val codeVerifier = randomToken()

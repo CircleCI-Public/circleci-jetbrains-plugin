@@ -1,9 +1,11 @@
 package com.circleci.idea.auth.oauth
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.jetbrains.ide.BuiltInServerManager
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.util.concurrent.TimeUnit
 
 /**
@@ -14,7 +16,7 @@ class CircleCIOAuthCallbackHandlerTest : BasePlatformTestCase() {
     private lateinit var circleci: FakeCircleCI
     private val service get() = CircleCIOAuthService.getInstance()
     private val port get() = BuiltInServerManager.getInstance().waitForStart().port
-    private val http = OkHttpClient()
+    private val http = HttpClient.newHttpClient()
 
     override fun setUp() {
         super.setUp()
@@ -31,6 +33,7 @@ class CircleCIOAuthCallbackHandlerTest : BasePlatformTestCase() {
                 )
             }
             circleci.close()
+            http.shutdownNow()
         } finally {
             super.tearDown()
         }
@@ -38,11 +41,11 @@ class CircleCIOAuthCallbackHandlerTest : BasePlatformTestCase() {
 
     private fun callback(query: String): Pair<Int, String> {
         val request =
-            Request.Builder()
-                .url("http://127.0.0.1:$port$CALLBACK?$query")
+            HttpRequest.newBuilder(URI("http://127.0.0.1:$port$CALLBACK?$query"))
                 .header("Referer", "https://app.circleci.com/")
                 .build()
-        return http.newCall(request).execute().use { it.code to it.body!!.string() }
+        val response = http.send(request, HttpResponse.BodyHandlers.ofString())
+        return response.statusCode() to response.body()
     }
 
     fun testLogsInFromCircleCIsConsentPage() {

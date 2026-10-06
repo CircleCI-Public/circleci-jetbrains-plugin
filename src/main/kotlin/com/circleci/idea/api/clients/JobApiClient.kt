@@ -111,7 +111,7 @@ class JobApiClient : CircleCIApiClientBase() {
         val params = stepParams(execution, stepNum)
         return client.getBytes("/api/v3/jobs/$jobId/stdout", params, headers, STDOUT_READ_BYTES).mapCatching {
             when {
-                it.isSuccessful -> StepOutputChunk(it.body, it.headers["X-Terminal"] == "true", more = it.truncated)
+                it.isSuccessful -> StepOutputChunk(it.body, it.header("X-Terminal") == "true", more = it.truncated)
                 // Not written yet, or nothing past the offset.
                 it.code == HTTP_NOT_FOUND || it.code == HTTP_RANGE_NOT_SATISFIABLE ->
                     StepOutputChunk(

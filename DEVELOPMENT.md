@@ -20,7 +20,6 @@ The plugin follows the standard JetBrains plugin architecture with these key com
 
 3. **API Client** (`api/` - to be implemented)
    - HTTP client for CircleCI API v2
-   - WebSocket client for real-time updates
    - Request/response models
 
 4. **Settings** (`settings/`)
@@ -184,7 +183,7 @@ project.service<CircleCIProjectService>()
 The API client will be implemented with these features:
 
 1. **HTTP Client**
-   - OkHttp for HTTP requests
+   - The JDK's `java.net.http.HttpClient`, shared through `CircleCIHttpClient`
    - Retry logic with exponential backoff
    - Request deduplication
    - Response caching
@@ -193,11 +192,6 @@ The API client will be implemented with these features:
    - Token-based authentication
    - Secure storage using PasswordSafe
    - Token validation
-
-3. **WebSocket Client**
-   - Pusher client for real-time updates
-   - Auto-reconnection
-   - Event-driven architecture
 
 ### API Models
 

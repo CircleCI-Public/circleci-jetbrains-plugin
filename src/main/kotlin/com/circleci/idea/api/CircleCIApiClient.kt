@@ -5,26 +5,24 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import okhttp3.Call
-import okhttp3.Callback
-import okhttp3.Headers
-import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.Interceptor
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
 import java.io.IOException
+import java.io.InputStream
 import java.io.Reader
+import java.net.URI
+import java.net.URLEncoder
+import java.net.http.HttpClient
+import java.net.http.HttpHeaders
+import java.net.http.HttpRequest
+import java.net.http.HttpRequest.BodyPublishers
+import java.net.http.HttpResponse
+import java.net.http.HttpResponse.BodyHandlers
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resumeWithException
 import kotlin.math.max
 import kotlin.math.min
 
@@ -43,9 +41,10 @@ class CircleCIApiClient(
     val baseUrl: String = "https://circleci.com",
     val token: String,
     private val userAgent: String = "CircleCI-IntelliJ-Plugin/1.0.0",
+    // One connection pool, shared with every other client
+    private val http: HttpClient = CircleCIHttpClient.getInstance().client,
 ) {
     private val gson = Gson()
-    private val mediaTypeJson = "application/json; charset=utf-8".toMediaType()
     private val logger = CircleCILogger.getInstance()
 
     // In-flight GETs by URL, each to be shared with identical ones; null if it didn't complete.
@@ -54,28 +53,13 @@ class CircleCIApiClient(
     // Rate limiter
     private val rateLimiter = RateLimiter(maxRequestsPerSecond = 50)
 
-    // One connection pool and dispatcher, shared with every other client
-    private val client =
-        sharedHttpClient.newBuilder()
-            .addInterceptor(AuthInterceptor(token, userAgent))
-            .build()
-
     /**
      * Execute a GET request.
      */
     suspend fun get(
         path: String,
         queryParams: Map<String, String> = emptyMap(),
-    ): ApiResponse {
-        val url = buildUrl(path, queryParams)
-        val request =
-            Request.Builder()
-                .url(url)
-                .get()
-                .build()
-
-        return executeRequest(request)
-    }
+    ): ApiResponse = executeRequest(request(buildUrl(path, queryParams)).GET().build())
 
     /**
      * Execute a GET request for a raw (non-JSON) body, such as step output.
@@ -91,28 +75,26 @@ class CircleCIApiClient(
         headers: Map<String, String> = emptyMap(),
         maxBytes: Long? = null,
     ): Result<RawResponse> {
-        val url = buildUrl(path, queryParams)
         val request =
-            Request.Builder()
-                .url(url)
+            request(buildUrl(path, queryParams))
                 .apply { headers.forEach { (name, value) -> header(name, value) } }
-                .get()
+                .GET()
                 .build()
 
-        logger.logApiRequest(request.method, request.url.toString())
+        logger.logApiRequest(request.method(), request.uri().toString())
         rateLimiter.acquire()
 
         return try {
             respond(request).use { response ->
-                if (response.code == 401) {
+                if (response.statusCode() == 401) {
                     Result.failure(Exception("Unauthorized: Invalid or expired token"))
                 } else {
-                    val (body, truncated) = readBody(response, maxBytes)
-                    Result.success(RawResponse(response.code, body, response.headers, truncated))
+                    val (body, truncated) = readBody(response.body(), maxBytes)
+                    Result.success(RawResponse(response.statusCode(), body, response.headers(), truncated))
                 }
             }
         } catch (e: IOException) {
-            logger.logApiError(request.method, request.url.toString(), 0, e.message ?: "Network error")
+            logger.logApiError(request.method(), request.uri().toString(), 0, e.message ?: "Network error")
             Result.failure(e)
         }
     }
@@ -126,20 +108,20 @@ class CircleCIApiClient(
         path: String,
         read: (code: Int, body: Reader) -> T,
     ): Result<T> {
-        val request = Request.Builder().url(buildUrl(path)).get().build()
-        logger.logApiRequest(request.method, request.url.toString())
+        val request = request(buildUrl(path)).GET().build()
+        logger.logApiRequest(request.method(), request.uri().toString())
         rateLimiter.acquire()
 
         return try {
             respond(request).use { response ->
-                if (response.code == 401) {
+                if (response.statusCode() == 401) {
                     Result.failure(Exception("Unauthorized: Invalid or expired token"))
                 } else {
-                    runCatching { read(response.code, response.body?.charStream() ?: Reader.nullReader()) }
+                    runCatching { read(response.statusCode(), response.body().reader()) }
                 }
             }
         } catch (e: IOException) {
-            logger.logApiError(request.method, request.url.toString(), 0, e.message ?: "Network error")
+            logger.logApiError(request.method(), request.uri().toString(), 0, e.message ?: "Network error")
             Result.failure(e)
         }
     }
@@ -152,21 +134,20 @@ class CircleCIApiClient(
         url: String,
         target: Path,
     ): Result<Long> {
-        val request = Request.Builder().url(buildUrl(url)).get().build()
-        logger.logApiRequest(request.method, request.url.toString())
+        val request = request(buildUrl(url)).GET().build()
+        logger.logApiRequest(request.method(), request.uri().toString())
         rateLimiter.acquire()
 
         return try {
             respond(request).use { response ->
-                if (!response.isSuccessful) {
-                    return Result.failure(IOException("HTTP ${response.code} downloading $url"))
+                if (response.statusCode() !in HTTP_SUCCESS) {
+                    return Result.failure(IOException("HTTP ${response.statusCode()} downloading $url"))
                 }
-                val body = response.body ?: return Result.success(0L)
                 Files.createDirectories(target.parent)
-                Files.newOutputStream(target).use { out -> Result.success(body.byteStream().copyTo(out)) }
+                Files.newOutputStream(target).use { out -> Result.success(response.body().copyTo(out)) }
             }
         } catch (e: IOException) {
-            logger.logApiError(request.method, request.url.toString(), 0, e.message ?: "Network error")
+            logger.logApiError(request.method(), request.uri().toString(), 0, e.message ?: "Network error")
             Result.failure(e)
         }
     }
@@ -175,34 +156,21 @@ class CircleCIApiClient(
      * [request]'s response, sent again while it's rate limited (429), up to
      * [MAX_RETRIES] times, after the longer of an exponential backoff and
      * the server's Retry-After. A wait longer than [MAX_RETRY_WAIT_SECONDS]
-     * gives up instead.
+     * gives up instead. Cancelling the coroutine cancels the request.
      */
-    private suspend fun respond(request: Request): Response {
+    private suspend fun respond(request: HttpRequest): HttpResponse<InputStream> {
         var retries = 0
         while (true) {
-            val response = client.newCall(request).await()
-            if (response.code != HTTP_TOO_MANY_REQUESTS || retries == MAX_RETRIES) return response
+            val response = http.sendAsync(request, BodyHandlers.ofInputStream()).await()
+            if (response.statusCode() != HTTP_TOO_MANY_REQUESTS || retries == MAX_RETRIES) return response
             val retryAfter = response.header("Retry-After")?.toLongOrNull() ?: 1
             val wait = max(1L shl retries, retryAfter)
             if (wait > MAX_RETRY_WAIT_SECONDS) return response
-            response.close()
-            logger.debug("Rate limited, retrying in ${wait}s: ${request.method} ${request.url}")
+            response.body().close()
+            logger.debug("Rate limited, retrying in ${wait}s: ${request.method()} ${request.uri()}")
             delay(wait * MS_PER_SECOND)
             retries++
         }
-    }
-
-    private fun readBody(
-        response: Response,
-        maxBytes: Long?,
-    ): Pair<ByteArray, Boolean> {
-        val body = response.body ?: return ByteArray(0) to false
-        if (maxBytes == null) return body.bytes() to false
-        val source = body.source()
-        // Ask for one byte more than the limit: getting it means there was more.
-        val complete = !source.request(maxBytes + 1)
-        val size = if (complete) source.buffer.size else maxBytes
-        return source.buffer.readByteArray(size) to !complete
     }
 
     /**
@@ -212,21 +180,8 @@ class CircleCIApiClient(
         path: String,
         body: Any? = null,
     ): ApiResponse {
-        val url = buildUrl(path)
-        val jsonBody =
-            if (body != null) {
-                gson.toJson(body).toRequestBody(mediaTypeJson)
-            } else {
-                "{}".toRequestBody(mediaTypeJson)
-            }
-
-        val request =
-            Request.Builder()
-                .url(url)
-                .post(jsonBody)
-                .build()
-
-        return executeRequest(request)
+        val json = if (body != null) gson.toJson(body) else "{}"
+        return executeRequest(request(buildUrl(path)).jsonBody().POST(BodyPublishers.ofString(json)).build())
     }
 
     /**
@@ -235,18 +190,8 @@ class CircleCIApiClient(
     suspend fun put(
         path: String,
         body: Any,
-    ): ApiResponse {
-        val url = buildUrl(path)
-        val jsonBody = gson.toJson(body).toRequestBody(mediaTypeJson)
-
-        val request =
-            Request.Builder()
-                .url(url)
-                .put(jsonBody)
-                .build()
-
-        return executeRequest(request)
-    }
+    ): ApiResponse =
+        executeRequest(request(buildUrl(path)).jsonBody().PUT(BodyPublishers.ofString(gson.toJson(body))).build())
 
     /**
      * Execute a DELETE request.
@@ -254,31 +199,22 @@ class CircleCIApiClient(
     suspend fun delete(
         path: String,
         queryParams: Map<String, String> = emptyMap(),
-    ): ApiResponse {
-        val url = buildUrl(path, queryParams)
-        val request =
-            Request.Builder()
-                .url(url)
-                .delete()
-                .build()
-
-        return executeRequest(request)
-    }
+    ): ApiResponse = executeRequest(request(buildUrl(path, queryParams)).DELETE().build())
 
     /**
      * Execute request with deduplication and rate limiting.
      *
-     * Concurrent identical GETs share the first one's response: an OkHttp
-     * call can only be executed once, so a duplicate waits on its result
-     * rather than executing the call again, and sends its own if the first
-     * was cancelled. Other methods aren't idempotent, so each one is sent.
+     * Concurrent identical GETs share the first one's response: a
+     * duplicate waits on its result rather than sending the request again,
+     * and sends its own if the first was cancelled. Other methods aren't
+     * idempotent, so each one is sent.
      */
-    private suspend fun executeRequest(request: Request): ApiResponse {
-        if (request.method != "GET") {
+    private suspend fun executeRequest(request: HttpRequest): ApiResponse {
+        if (request.method() != "GET") {
             return send(request)
         }
 
-        val requestKey = request.url.toString()
+        val requestKey = request.uri().toString()
         val pending = CompletableDeferred<ApiResponse?>()
         val inFlight = inFlightRequests.putIfAbsent(requestKey, pending)
         if (inFlight != null) {
@@ -294,11 +230,11 @@ class CircleCIApiClient(
         }
     }
 
-    private suspend fun send(request: Request): ApiResponse {
+    private suspend fun send(request: HttpRequest): ApiResponse {
         val startTime = System.currentTimeMillis()
 
         // Log API request
-        logger.logApiRequest(request.method, request.url.toString())
+        logger.logApiRequest(request.method(), request.uri().toString())
 
         // Apply rate limiting
         rateLimiter.acquire()
@@ -306,7 +242,7 @@ class CircleCIApiClient(
         return try {
             respond(request).use { response -> parseResponse(response, request, startTime) }
         } catch (e: IOException) {
-            logger.logApiError(request.method, request.url.toString(), 0, e.message ?: "Network error")
+            logger.logApiError(request.method(), request.uri().toString(), 0, e.message ?: "Network error")
             ApiResponse.Error(e.message ?: "Network error", 0)
         }
     }
@@ -315,23 +251,24 @@ class CircleCIApiClient(
      * Parse HTTP response into ApiResponse.
      */
     private fun parseResponse(
-        response: Response,
-        request: Request,
+        response: HttpResponse<InputStream>,
+        request: HttpRequest,
         startTime: Long,
     ): ApiResponse {
-        val code = response.code
+        val code = response.statusCode()
         val duration = System.currentTimeMillis() - startTime
+        val successful = code in HTTP_SUCCESS
 
         // Log response
-        logger.logApiResponse(request.method, request.url.toString(), code, duration)
+        logger.logApiResponse(request.method(), request.uri().toString(), code, duration)
 
         // A success is parsed as it's read; the rest are small.
-        val body = if (response.isSuccessful) "" else response.body?.string() ?: ""
+        val body = if (successful) "" else response.body().reader().readText()
         return when {
-            response.isSuccessful -> {
+            successful -> {
                 try {
-                    val json = gson.fromJson(response.body?.charStream(), JsonObject::class.java)
-                    ApiResponse.Success(json, code)
+                    val json = gson.fromJson(response.body().reader(), JsonObject::class.java)
+                    ApiResponse.Success(json ?: JsonObject(), code)
                 } catch (e: Exception) {
                     logger.warn("Failed to parse JSON response: ${e.message}")
                     ApiResponse.Success(JsonObject(), code)
@@ -355,7 +292,7 @@ class CircleCIApiClient(
                         logger.warn("Failed to parse error response JSON", e)
                         "Request failed: $body"
                     }
-                logger.logApiError(request.method, request.url.toString(), code, errorMessage)
+                logger.logApiError(request.method(), request.uri().toString(), code, errorMessage)
                 ApiResponse.Error(errorMessage, code)
             }
         }
@@ -372,18 +309,27 @@ class CircleCIApiClient(
         return title?.let { "${it.removeSuffix(".")}: $detail" } ?: detail
     }
 
+    /** A request to [url], authenticated, with the timeout for its response to start. */
+    private fun request(url: URI): HttpRequest.Builder =
+        HttpRequest.newBuilder(url)
+            .timeout(Duration.ofSeconds(TIMEOUT_SECONDS))
+            .header("Circle-Token", token)
+            .header("User-Agent", userAgent)
+            .header("Accept", "application/json")
+
     /**
      * Build full URL with base URL and query parameters.
      */
     private fun buildUrl(
         path: String,
         queryParams: Map<String, String> = emptyMap(),
-    ): String {
+    ): URI {
         val absolute = path.startsWith("https://") || path.startsWith("http://")
-        val builder = (if (absolute) path else "$baseUrl/${path.trimStart('/')}").toHttpUrl().newBuilder()
+        val url = if (absolute) path else "$baseUrl/${path.trimStart('/')}"
         // Encoded here, as filter values carry characters such as "/" in branch names.
-        queryParams.forEach { (key, value) -> builder.addQueryParameter(key, value) }
-        return builder.build().toString()
+        val query = queryParams.entries.joinToString("&") { (key, value) -> "${encode(key)}=${encode(value)}" }
+        val separator = if ('?' in url) "&" else "?"
+        return URI(escapeIllegal(if (query.isEmpty()) url else "$url$separator$query"))
     }
 
     private companion object {
@@ -391,56 +337,52 @@ class CircleCIApiClient(
         const val MAX_RETRIES = 3
         const val MAX_RETRY_WAIT_SECONDS = 60L
         const val MS_PER_SECOND = 1000L
+        const val TIMEOUT_SECONDS = 30L
+        val HTTP_SUCCESS = 200..299
 
-        val sharedHttpClient: OkHttpClient =
-            OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
-                .build()
+        // The characters a URI may hold as they are; '%' too, for what's already encoded.
+        const val URI_CHARACTERS = "-._~:/?#[]@!$&'()*+,;=%"
+
+        /** [text] as a query parameter's name or value: "a b/c" is "a%20b%2Fc". */
+        fun encode(text: String): String = URLEncoder.encode(text, Charsets.UTF_8).replace("+", "%20")
+
+        /** [url] with what a URI can't hold (a space in an artifact's path, say) percent-encoded. */
+        fun escapeIllegal(url: String): String =
+            buildString {
+                for (byte in url.toByteArray(Charsets.UTF_8)) {
+                    val c = (byte.toInt() and 0xFF).toChar()
+                    if (c < '\u0080' && (c.isLetterOrDigit() || c in URI_CHARACTERS)) {
+                        append(c)
+                    } else {
+                        append('%').append("%02X".format(byte.toInt() and 0xFF))
+                    }
+                }
+            }
     }
 }
 
-/** Execute the call, cancelling it if the coroutine is cancelled. */
-private suspend fun Call.await(): Response =
-    suspendCancellableCoroutine { continuation ->
-        continuation.invokeOnCancellation { cancel() }
-        enqueue(
-            object : Callback {
-                override fun onResponse(
-                    call: Call,
-                    response: Response,
-                ) {
-                    continuation.resume(response) { _, value, _ -> value.close() }
-                }
+/** [block]'s result with the response, its body closed after (which frees the connection). */
+private inline fun <T> HttpResponse<InputStream>.use(block: (HttpResponse<InputStream>) -> T): T =
+    body().use { block(this) }
 
-                override fun onFailure(
-                    call: Call,
-                    e: IOException,
-                ) {
-                    continuation.resumeWithException(e)
-                }
-            },
-        )
-    }
+private fun HttpResponse<*>.header(name: String): String? = headers().firstValue(name).orElse(null)
 
-/**
- * Authentication interceptor that adds Circle-Token header.
- */
-private class AuthInterceptor(
-    private val token: String,
-    private val userAgent: String,
-) : Interceptor {
-    override fun intercept(chain: Interceptor.Chain): Response {
-        val request =
-            chain.request().newBuilder()
-                .header("Circle-Token", token)
-                .header("User-Agent", userAgent)
-                .header("Accept", "application/json")
-                .build()
+private fun HttpRequest.Builder.jsonBody(): HttpRequest.Builder =
+    header(
+        "Content-Type",
+        "application/json; charset=utf-8",
+    )
 
-        return chain.proceed(request)
-    }
+/** At most [maxBytes] of [body] (all of it without a limit), and whether there was more. */
+private fun readBody(
+    body: InputStream,
+    maxBytes: Long?,
+): Pair<ByteArray, Boolean> {
+    if (maxBytes == null) return body.readBytes() to false
+    // Ask for one byte more than the limit: getting it means there was more.
+    val bytes = body.readNBytes(min(maxBytes + 1, Int.MAX_VALUE.toLong()).toInt())
+    val complete = bytes.size <= maxBytes
+    return (if (complete) bytes else bytes.copyOf(maxBytes.toInt())) to !complete
 }
 
 /**
@@ -481,12 +423,15 @@ private class RateLimiter(private val maxRequestsPerSecond: Int) {
 class RawResponse(
     val code: Int,
     val body: ByteArray,
-    val headers: Headers,
+    val headers: HttpHeaders,
     // The body was cut short at the caller's limit.
     val truncated: Boolean = false,
 ) {
     val isSuccessful: Boolean
         get() = code in HTTP_SUCCESS
+
+    /** The [name] header's first value, if it has one. */
+    fun header(name: String): String? = headers.firstValue(name).orElse(null)
 
     private companion object {
         val HTTP_SUCCESS = 200..299

@@ -95,7 +95,7 @@ class JobDataService(private val project: Project) {
 **Two-Layer Design:**
 
 1. **Low-Level Client (`CircleCIApiClient`):**
-   - HTTP client using OkHttp3
+   - The JDK's `java.net.http.HttpClient`, one for the plugin (`CircleCIHttpClient`), shut down as it unloads
    - Retry logic with exponential backoff
    - Rate limiting (token bucket)
    - Request deduplication

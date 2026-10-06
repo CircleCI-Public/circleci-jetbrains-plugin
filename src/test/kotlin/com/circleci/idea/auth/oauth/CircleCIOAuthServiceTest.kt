@@ -1,12 +1,12 @@
 package com.circleci.idea.auth.oauth
 
-import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.net.URI
+import java.net.http.HttpClient
 import java.security.MessageDigest
 import java.util.Base64
 import java.util.concurrent.ExecutionException
@@ -14,11 +14,13 @@ import java.util.concurrent.TimeUnit
 
 class CircleCIOAuthServiceTest {
     private val circleci = FakeCircleCI()
+    private val http = HttpClient.newHttpClient()
     private val service = CircleCIOAuthService()
     private var opened: String? = null
 
     init {
         service.browse = { opened = it }
+        service.http = http
     }
 
     @After
@@ -30,6 +32,7 @@ class CircleCIOAuthServiceTest {
             )
         }
         circleci.close()
+        http.shutdownNow()
     }
 
     private fun authorize() = service.authorize(circleci.url, callbackPort = PORT, deviceId = DEVICE, os = "darwin")
@@ -157,7 +160,7 @@ class CircleCIOAuthServiceTest {
 
     @Test
     fun discoveryFallsBackWhenTheHostIsUnreachable() {
-        val endpoints = OAuthEndpoints.discover("http://127.0.0.1:1", OkHttpClient())
+        val endpoints = OAuthEndpoints.discover("http://127.0.0.1:1", http)
 
         assertEquals(
             "fallback",

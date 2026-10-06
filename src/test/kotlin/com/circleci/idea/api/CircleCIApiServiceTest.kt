@@ -191,6 +191,21 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
             assertTrue("cancelled without waiting for the response, in ${cancelled}ms", cancelled < 2_000)
         }
 
+    // A thread still running once the plugin unloads keeps its classloader, and the plugin can't be updated.
+    fun testDisposedHttpClientLeavesNoThreadRunning() =
+        runBlocking<Unit> {
+            val before = Thread.getAllStackTraces().keys
+            val http = CircleCIHttpClient()
+            CircleCIApiClient(baseUrl = client.baseUrl, token = "token", http = http.client).get("/ping")
+            val started = Thread.getAllStackTraces().keys.filter { it !in before && it.name.startsWith("HttpClient-") }
+            assertFalse("the client started its threads", started.isEmpty())
+
+            http.dispose()
+            started.forEach { it.join(5_000) }
+
+            assertEquals("threads still running", emptyList<String>(), started.filter { it.isAlive }.map { it.name })
+        }
+
     fun testCurrentUserFailsWhenNoneReturned() =
         runBlocking<Unit> {
             responseBody = """{"data": []}"""

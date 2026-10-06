@@ -1,5 +1,6 @@
 package com.circleci.idea.auth.oauth
 
+import com.circleci.idea.api.CircleCIHttpClient
 import com.circleci.idea.settings.CircleCISettings
 import com.intellij.collaboration.auth.credentials.Credentials
 import com.intellij.collaboration.auth.services.OAuthRequest
@@ -11,11 +12,10 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.util.concurrency.annotations.RequiresBackgroundThread
-import okhttp3.OkHttpClient
 import org.jetbrains.ide.BuiltInServerManager
+import java.net.http.HttpClient
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
-import java.util.concurrent.TimeUnit
 
 /**
  * Logs in to CircleCI in the browser, as the IDE's GitHub plugin does for
@@ -28,11 +28,9 @@ import java.util.concurrent.TimeUnit
 class CircleCIOAuthService : OAuthServiceBase<Credentials>() {
     private val log = logger<CircleCIOAuthService>()
 
-    private val http =
-        OkHttpClient.Builder()
-            .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            .build()
+    /** The plugin's HTTP client; tests outside the IDE give their own. */
+    internal var http: HttpClient? = null
+    private val client: HttpClient get() = http ?: CircleCIHttpClient.getInstance().client
 
     /** Opens the authorize page; tests replace it. */
     internal var browse: (String) -> Unit = BrowserUtil::browse
@@ -59,11 +57,11 @@ class CircleCIOAuthService : OAuthServiceBase<Credentials>() {
         // A login already waiting keeps its request; OAuthServiceBase hands back its future.
         val request =
             pendingRequest ?: CircleCIOAuthRequest(
-                OAuthEndpoints.discover(hostUrl, http),
+                OAuthEndpoints.discover(hostUrl, client),
                 callbackPort,
                 deviceId,
                 os,
-                http,
+                client,
             )
         return authorize(request)
     }
@@ -131,8 +129,6 @@ class CircleCIOAuthService : OAuthServiceBase<Credentials>() {
     companion object {
         /** The REST service name: the callback is served under /api/circleci/oauth. */
         const val SERVICE_NAME = "circleci/oauth"
-
-        private const val TIMEOUT_SECONDS = 30L
 
         fun getInstance(): CircleCIOAuthService = service()
 
