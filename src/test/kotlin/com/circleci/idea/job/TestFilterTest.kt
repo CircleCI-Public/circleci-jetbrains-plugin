@@ -58,7 +58,7 @@ class TestFilterTest {
 
             {"classname":"github.com/org/repo","name":"TestBroken","result":"failure","run_time":1.5,"message":"boom"}
             """.trimIndent()
-        val tests = parseTestResultLines(body)
+        val tests = parseTestResultLines(body.reader())
 
         assertEquals("two lines, blank skipped", 2, tests.size)
         assertEquals("name", "TestBroken", tests[1].name)

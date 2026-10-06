@@ -10,6 +10,7 @@ import com.circleci.idea.api.models.V3Entity
 import com.circleci.idea.api.models.V3List
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.io.Reader
 
 /**
  * A read of a step's output: the new bytes, and whether the output has
@@ -140,18 +141,19 @@ class JobApiClient : CircleCIApiClientBase() {
 
     /**
      * A job's test results, via GET /api/v3/jobs/{id}/tests. The endpoint
-     * streams JSON Lines and takes no filters, so this reads them all.
+     * streams JSON Lines and takes no filters, so this reads them all, a
+     * line at a time as they arrive.
      */
     suspend fun getJobTests(
         client: CircleCIApiClient,
         jobId: String,
     ): Result<List<TestResultWire>> {
-        return client.getBytes("/api/v3/jobs/$jobId/tests").mapCatching { response ->
-            when {
-                response.isSuccessful -> parseTestResultLines(String(response.body, Charsets.UTF_8))
+        return client.getStreaming("/api/v3/jobs/$jobId/tests") { code, body ->
+            when (code) {
+                in HTTP_SUCCESS -> parseTestResultLines(body)
                 // A job that stored no test results has none to list.
-                response.code == HTTP_NOT_FOUND -> emptyList()
-                else -> error("Failed to read test results: HTTP ${response.code}")
+                HTTP_NOT_FOUND -> emptyList()
+                else -> error("Failed to read test results: HTTP $code")
             }
         }
     }
@@ -166,6 +168,7 @@ class JobApiClient : CircleCIApiClientBase() {
         )
 
     private companion object {
+        val HTTP_SUCCESS = 200..299
         const val HTTP_NOT_FOUND = 404
         const val HTTP_RANGE_NOT_SATISFIABLE = 416
 
@@ -177,11 +180,7 @@ class JobApiClient : CircleCIApiClientBase() {
 private val lineGson = Gson()
 
 /** Parse the JSON Lines body of GET /api/v3/jobs/{id}/tests, one result per line. */
-internal fun parseTestResultLines(body: String): List<TestResultWire> {
-    return body.lineSequence().filter { it.isNotBlank() }.map {
-        lineGson.fromJson(
-            it,
-            TestResultWire::class.java,
-        )
-    }.toList()
-}
+internal fun parseTestResultLines(body: Reader): List<TestResultWire> =
+    body.buffered().useLines { lines ->
+        lines.filter { it.isNotBlank() }.map { lineGson.fromJson(it, TestResultWire::class.java) }.toList()
+    }
