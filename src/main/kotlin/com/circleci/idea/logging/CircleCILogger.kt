@@ -146,7 +146,8 @@ class CircleCILogger private constructor() {
         throwable: Throwable?,
     ) {
         val formattedMessage = LogFormatter.formatForFile(level, message, context, throwable)
-        fileLogger.write(formattedMessage)
+        // Problems are written at once, in case the IDE goes down with them.
+        fileLogger.write(formattedMessage, flush = level == LogLevel.WARN || level == LogLevel.ERROR)
     }
 
     /**
