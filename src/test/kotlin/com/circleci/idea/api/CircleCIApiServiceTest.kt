@@ -35,6 +35,8 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.io.path.createTempDirectory
+import kotlin.io.path.exists
 import kotlin.system.measureTimeMillis
 
 /**
@@ -189,6 +191,28 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
             release.countDown()
 
             assertTrue("cancelled without waiting for the response, in ${cancelled}ms", cancelled < 2_000)
+        }
+
+    fun testCancellingADownloadStopsReadingAndLeavesNoFile() =
+        runBlocking<Unit> {
+            val release = CountDownLatch(1)
+            server.createContext("/artifact") { exchange ->
+                // Headers and part of the body, then nothing until released.
+                exchange.sendResponseHeaders(200, 0)
+                exchange.responseBody.write(ByteArray(1024))
+                exchange.responseBody.flush()
+                release.await(10, TimeUnit.SECONDS)
+                exchange.close()
+            }
+            val target = createTempDirectory("artifacts").resolve("big.bin")
+            val download = launch(Dispatchers.IO) { client.download("${client.baseUrl}/artifact", target) }
+            delay(500)
+
+            val cancelled = measureTimeMillis { download.cancelAndJoin() }
+            release.countDown()
+
+            assertTrue("cancelled without reading on, in ${cancelled}ms", cancelled < 2_000)
+            assertFalse("the part downloaded is gone", target.exists())
         }
 
     // A thread still running once the plugin unloads keeps its classloader, and the plugin can't be updated.
