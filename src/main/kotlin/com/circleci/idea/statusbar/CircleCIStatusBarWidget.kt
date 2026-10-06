@@ -60,8 +60,7 @@ class CircleCIStatusBarWidget(private val project: Project) : StatusBarWidget {
         // Observe projects data to get latest run status
         scope.launch {
             stateStore.projectsData.collectLatest { projectsDataState ->
-                // Find the latest workflow status across all projects
-                val latestStatus = findLatestWorkflowStatus(projectsDataState)
+                val latestStatus = findLatestRunStatus(projectsDataState)
                 presentation.updateRunStatus(
                     isLoading = projectsDataState.isRefreshing,
                     latestStatus = latestStatus,
@@ -71,14 +70,11 @@ class CircleCIStatusBarWidget(private val project: Project) : StatusBarWidget {
         }
     }
 
-    /**
-     * Find the latest workflow status across all projects.
-     */
-    private fun findLatestWorkflowStatus(projectsDataState: com.circleci.idea.state.ProjectsDataState): RunStatus? {
+    /** The status of the newest run listed, across all projects. */
+    private fun findLatestRunStatus(projectsDataState: com.circleci.idea.state.ProjectsDataState): RunStatus? {
         return projectsDataState.data.values
             .asSequence()
             .flatMap { it.runs }
-            .flatMap { it.workflows }
             .maxByOrNull { it.createdAt ?: Instant.MIN }
             ?.status
     }
