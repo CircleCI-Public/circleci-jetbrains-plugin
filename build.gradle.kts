@@ -146,6 +146,13 @@ tasks {
         }
     }
 
+    runIde {
+        // Load the plugin only from the sandbox's plugins directory, not from there and again through
+        // plugin.path: the IDE can't unload a plugin it has two copies of, so the sandbox couldn't test
+        // unloading it, by disabling it or by reloading it as its .jar changes.
+        jvmArgumentProviders += CommandLineArgumentProvider { listOf("-Dplugin.path=") }
+    }
+
     test {
         // Exclude E2E tests that require running IDE with robot-server
         // Run these separately with: task ui:test

@@ -35,6 +35,8 @@ class CircleCILogger private constructor() {
                 maxFiles = 5,
             )
         context = LogContext.create()
+        // Loads the settings, which sets the persisted log level. Outside the IDE there are none.
+        runCatching { CircleCISettings.getInstance() }
 
         // Log initialization
         info("CircleCI plugin initialized")
@@ -42,20 +44,6 @@ class CircleCILogger private constructor() {
         info("IDE version: ${context.ideVersion}")
         info("Platform: ${context.platform}")
         info("Log file: ${fileLogger.getCurrentLogFilePath()}")
-    }
-
-    /**
-     * Get current log level from settings.
-     */
-    private fun getCurrentLogLevel(): LogLevel {
-        return try {
-            val settings = CircleCISettings.getInstance()
-            LogLevel.fromString(settings.logLevel)
-        } catch (e: Exception) {
-            // Settings not available, default to INFO level
-            ideLogger.debug("Failed to get log level from settings, using INFO", e)
-            LogLevel.INFO
-        }
     }
 
     /**
@@ -106,10 +94,8 @@ class CircleCILogger private constructor() {
         message: String,
         throwable: Throwable? = null,
     ) {
-        val currentLevel = getCurrentLogLevel()
-
         // Check if we should log this level
-        if (!level.shouldLog(currentLevel)) {
+        if (!level.shouldLog(Companion.level)) {
             return
         }
 
@@ -287,6 +273,14 @@ class CircleCILogger private constructor() {
     companion object {
         @Volatile
         private var instance: CircleCILogger? = null
+
+        /**
+         * The level to log at, which [CircleCISettings] sets as its log level is loaded or changed.
+         * Logging doesn't look the settings up: as the plugin unloads, the IDE caches a lookup of
+         * a service already unregistered against its class, which keeps the plugin's classes loaded.
+         */
+        @Volatile
+        var level: LogLevel = LogLevel.INFO
 
         /**
          * Get singleton instance of logger.

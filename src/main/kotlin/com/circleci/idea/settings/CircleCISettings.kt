@@ -1,5 +1,7 @@
 package com.circleci.idea.settings
 
+import com.circleci.idea.logging.CircleCILogger
+import com.circleci.idea.logging.LogLevel
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
@@ -18,6 +20,10 @@ class CircleCISettings : PersistentStateComponent<CircleCISettings> {
     var hostUrl: String = "https://circleci.com"
     var notificationsEnabled: Boolean = true
     var logLevel: String = "info"
+        set(value) {
+            field = value
+            CircleCILogger.level = LogLevel.fromString(value)
+        }
     var sshKeyPath: String = "" // Path to SSH private key (auto-detected if empty)
 
     // Auto-refresh settings
