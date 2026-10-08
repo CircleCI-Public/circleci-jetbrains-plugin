@@ -65,6 +65,17 @@ dependencies {
     testImplementation("org.mockito:mockito-core:5.8.0")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.1")
 
+    // Compose UI tests (createComposeRule), at the versions the IDE built against bundles: those of
+    // intellij.libraries.compose.foundation.desktop.junit at the build's tag in intellij-community
+    // (idea/262.8665.258). Move them with intellijIdea() below. Only the test jars: Compose, Skiko,
+    // coroutines and the rest come from the IDE, as at runtime.
+    testImplementation("org.jetbrains.compose.ui:ui-test-junit4-desktop:1.11.0") { isTransitive = false }
+    testImplementation("org.jetbrains.compose.ui:ui-test-desktop:1.11.0") { isTransitive = false }
+    // Their test dispatcher, from the IDE's fork of coroutines (intellij.libraries.kotlinx.coroutines.test).
+    testImplementation("org.jetbrains.intellij.deps.kotlinx:kotlinx-coroutines-test-jvm:1.10.2-intellij-1") {
+        isTransitive = false
+    }
+
     // UI Testing - Remote Robot for E2E tests
     testImplementation("com.intellij.remoterobot:remote-robot:0.11.23")
     testImplementation("com.intellij.remoterobot:remote-fixtures:0.11.23")

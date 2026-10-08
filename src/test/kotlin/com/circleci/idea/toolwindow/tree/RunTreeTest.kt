@@ -1,5 +1,7 @@
 package com.circleci.idea.toolwindow.tree
 
+import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.runtime.snapshots.SnapshotStateObserver
 import com.circleci.idea.run.RunStatus
 import com.circleci.idea.state.Run
 import com.circleci.idea.state.Workflow
@@ -71,6 +73,45 @@ class RunTreeTest {
         }
         walk(tree.roots)
         return lines
+    }
+
+    /**
+     * How many times [draw] runs: once, then again each time something it
+     * read changes, as a row of the tree redraws. A row is drawn from the
+     * same node as it changes, so redraws only if it's told the node changed.
+     */
+    private fun draws(
+        node: CircleCITreeNode,
+        draw: () -> Unit,
+        change: () -> Unit,
+    ): Int {
+        var draws = 0
+        val observer = SnapshotStateObserver { it() }
+
+        fun observe() {
+            observer.observeReads(node, { observe() }) {
+                draws++
+                draw()
+            }
+        }
+        observer.start()
+        try {
+            observe()
+            change()
+            Snapshot.sendApplyNotifications()
+        } finally {
+            observer.stop()
+        }
+        return draws
+    }
+
+    @Test
+    fun testTheLoadMoreRowRedrawsWhenItsPageFails() {
+        val node = LoadMoreNode()
+
+        val draws = draws(node, { node.getDisplayText() }) { node.error = "boom" }
+
+        assertEquals("drawn, then drawn again with the error", 2, draws)
     }
 
     @Test
