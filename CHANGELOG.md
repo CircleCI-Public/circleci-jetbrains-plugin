@@ -5,6 +5,14 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0] - 2026-10-08
+
+### What's Changed
+* Redraw the run tree's rows as a refresh changes their status by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/97
+
+
+**Full Changelog**: https://github.com/CircleCI-Public/circleci-jetbrains-plugin/compare/v1.13.0...v1.14.0
+
 ## [1.13.0] - 2026-10-07
 
 ### What's Changed
