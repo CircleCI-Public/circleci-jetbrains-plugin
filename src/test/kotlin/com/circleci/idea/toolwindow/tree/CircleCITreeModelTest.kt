@@ -1,6 +1,9 @@
 package com.circleci.idea.toolwindow.tree
 
 import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.runComposeUiTest
 import com.circleci.idea.auth.CircleCIAuthService
 import com.circleci.idea.run.RunScope
 import com.circleci.idea.settings.CircleCISettings
@@ -17,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import org.jetbrains.jewel.bridge.theme.SwingBridgeTheme
 import java.net.InetSocketAddress
 import java.net.URLDecoder
 import java.util.concurrent.ConcurrentHashMap
@@ -218,6 +222,38 @@ class CircleCITreeModelTest : BasePlatformTestCase() {
         message: String,
         expected: List<String>,
     ) = assertEquals(message, expected, onEdt(::shown))
+
+    @OptIn(ExperimentalTestApi::class)
+    fun testARunsRowShowsTheStatusAPollFinds() =
+        runComposeUiTest {
+            runs = listOf(run("r-1", "started"))
+            runBlocking { load() }
+            setContent { SwingBridgeTheme { RunTreeView(project, model).View() } }
+            onNodeWithContentDescription("running").assertExists()
+
+            runs = listOf(run("r-1", "ended", "failed"))
+            runBlocking { poll() }
+
+            onNodeWithContentDescription("failed").assertExists()
+        }
+
+    @OptIn(ExperimentalTestApi::class)
+    fun testAWorkflowsRowShowsTheStatusAPollFinds() =
+        runComposeUiTest {
+            runs = listOf(run("r-1", "ended", "succeeded"))
+            workflows["r-1"] = listOf(workflow("w-1", "started"))
+            runBlocking {
+                load()
+                open("run:r-1")
+            }
+            setContent { SwingBridgeTheme { RunTreeView(project, model).View() } }
+            onNodeWithContentDescription("running").assertExists()
+
+            workflows["r-1"] = listOf(workflow("w-1", "ended", "failed"))
+            runBlocking { poll() }
+
+            onNodeWithContentDescription("failed").assertExists()
+        }
 
     fun testEndedRunsWorkflowsAreFetchedAgainUntilTheyHaveEndedToo() =
         runBlocking<Unit> {

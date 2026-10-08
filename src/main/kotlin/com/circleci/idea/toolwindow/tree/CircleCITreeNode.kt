@@ -1,5 +1,8 @@
 package com.circleci.idea.toolwindow.tree
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.circleci.idea.run.RunStatus
 import com.circleci.idea.state.Job
 import com.circleci.idea.state.Run
@@ -52,10 +55,14 @@ class RootNode : CircleCITreeNode(null) {
  * @property showProject Whether the label names the run's project, for lists spanning projects
  */
 class RunNode(run: Run, val showProject: Boolean = false) : CircleCITreeNode(run) {
-    // Replaced when loading workflows resolves details the run listing lacked.
-    var run: Run = run
+    private var runState by mutableStateOf(run)
+
+    // Replaced when a refresh finds the run still listed, or loading workflows resolves details the
+    // listing lacked. Snapshot state, so the tree's row for it, given the same node, redraws.
+    var run: Run
+        get() = runState
         set(value) {
-            field = value
+            runState = value
             userObject = value
         }
 
@@ -106,10 +113,13 @@ class RunNode(run: Run, val showProject: Boolean = false) : CircleCITreeNode(run
  * Node representing a workflow.
  */
 class WorkflowNode(workflow: Workflow) : CircleCITreeNode(workflow) {
+    private var workflowState by mutableStateOf(workflow)
+
     // Replaced when a refresh finds the workflow still listed.
-    var workflow: Workflow = workflow
+    var workflow: Workflow
+        get() = workflowState
         set(value) {
-            field = value
+            workflowState = value
             userObject = value
         }
 
@@ -147,7 +157,7 @@ class JobNode(val job: Job) : CircleCITreeNode(job) {
  */
 class LoadMoreNode : CircleCITreeNode(null) {
     /** Why its page last failed to load, if it did; clicking the row tries again. */
-    var error: String? = null
+    var error: String? by mutableStateOf(null)
 
     override fun getDisplayText(): String =
         error?.let { "Couldn't load more runs: $it. Click to retry" } ?: "Loading more runs..."
