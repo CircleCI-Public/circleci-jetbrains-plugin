@@ -53,6 +53,26 @@ internal fun findNode(
     return children(root).firstNotNullOfOrNull { findNode(it, key) }
 }
 
+/** The row [key] is drawn on, counting only the rows showing: those under nodes [open] all the way up. */
+internal fun rowOf(
+    root: CircleCITreeNode,
+    key: Any,
+    open: Set<Any>,
+): Int? {
+    var row = 0
+
+    fun find(node: CircleCITreeNode): Int? {
+        for (child in children(node)) {
+            val childKey = keyOf(child)
+            if (childKey == key) return row
+            row++
+            if (childKey in open) find(child)?.let { return it }
+        }
+        return null
+    }
+    return find(root)
+}
+
 /**
  * The open nodes, among those showing, whose children have yet to load:
  * opened for the first time, or rebuilt by a reload while open.

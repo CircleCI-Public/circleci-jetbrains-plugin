@@ -138,6 +138,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
             com.circleci.idea.toolwindow.actions.ProjectChooserAction(),
             com.circleci.idea.toolwindow.actions.RefreshAction(scope),
             com.circleci.idea.toolwindow.actions.ToggleAutoRefreshAction(),
+            com.circleci.idea.toolwindow.actions.LocateCurrentRunAction(treeModel),
             com.circleci.idea.toolwindow.actions.CollapseAllAction(treeModel),
         )
 
