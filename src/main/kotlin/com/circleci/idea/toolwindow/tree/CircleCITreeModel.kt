@@ -122,6 +122,38 @@ class CircleCITreeModel(
         if (run != null) treeState.selectedKeys = setOf(keyOf(run))
     }
 
+    /**
+     * Select the newest run listed of the commit [revision] (a full SHA),
+     * scrolling to it if it's out of view. False when none of the runs listed
+     * is of it.
+     */
+    fun locateRun(revision: String): Boolean {
+        val run =
+            children(root).filterIsInstance<RunNode>().firstOrNull { isOfCommit(it.run.revision, revision) }
+                ?: return false
+        val key = keyOf(run)
+        treeState.selectedKeys = setOf(key)
+        val row = rowOf(root, key, treeState.openNodes) ?: return true
+        val layout = scroll.layoutInfo
+        val inView =
+            layout.visibleItemsInfo.any {
+                it.index == row && it.offset >= layout.viewportStartOffset &&
+                    it.offset + it.size <= layout.viewportEndOffset
+            }
+        if (!inView) {
+            scope.launch { scroll.animateScrollToItem(row) }
+        }
+        return true
+    }
+
+    /** Whether a run's revision is of the commit [revision]: runs give only the first 12 characters of theirs. */
+    private fun isOfCommit(
+        runRevision: String?,
+        revision: String,
+    ): Boolean =
+        runRevision != null && runRevision.length >= MIN_REVISION_LENGTH &&
+            revision.startsWith(runRevision, ignoreCase = true)
+
     /** The run row [node] is under, or is. */
     private fun runOf(node: CircleCITreeNode): CircleCITreeNode? =
         generateSequence(node) { it.parent as? CircleCITreeNode }.firstOrNull { it.parent === root }
@@ -554,3 +586,6 @@ class CircleCITreeModel(
         return true
     }
 }
+
+// Short of which a run's revision could be of too many commits to say which.
+private const val MIN_REVISION_LENGTH = 7
