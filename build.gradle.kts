@@ -40,13 +40,6 @@ repositories {
 }
 
 dependencies {
-    constraints {
-        add("implementation", "com.fasterxml.jackson:jackson-bom:2.16.1")
-
-        // org.owasp.dependencycheck needs these versions. Other plugins pull in older versions..
-        add("implementation", "org.apache.commons:commons-lang3:3.14.0")
-        add("implementation", "org.apache.commons:commons-text:1.11.0")
-    }
     // JSON Parsing
     implementation("com.google.code.gson:gson:2.10.1")
 
@@ -61,9 +54,6 @@ dependencies {
 
     // Testing - IntelliJ Platform tests use JUnit 4
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.opentest4j:opentest4j:1.3.0") // Required by BasePlatformTestCase
-    testImplementation("org.mockito:mockito-core:5.8.0")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.1")
 
     // Compose UI tests (createComposeRule), at the versions the IDE built against bundles: those of
     // intellij.libraries.compose.foundation.desktop.junit at the build's tag in intellij-community
@@ -100,8 +90,6 @@ dependencies {
         // The OAuth login flow (the service base, callback handler and PKCE) the GitHub plugin uses.
         bundledModule("intellij.platform.collaborationTools.auth")
         bundledModule("intellij.platform.collaborationTools.auth.base")
-        // ProgressStripe, the thin loading bar along the top of a list.
-        bundledModule("intellij.platform.vcs.impl")
         // FilterComponent, the drop-down the filters are drawn with.
         bundledModule("intellij.platform.vcs.log.impl")
         // Optional at runtime (see git-support.xml); compiled against for its repository-change events.
