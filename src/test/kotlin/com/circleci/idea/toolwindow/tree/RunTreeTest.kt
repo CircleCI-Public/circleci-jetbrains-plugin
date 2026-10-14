@@ -143,6 +143,15 @@ class RunTreeTest {
     }
 
     @Test
+    fun testRowsCountOnlyWhatShows() {
+        val root = tree()
+        assertEquals("the run below a closed one", 1, rowOf(root, "run:b", emptySet()))
+        assertEquals("the run below an open one's workflow", 2, rowOf(root, "run:b", setOf("run:a")))
+        assertEquals("a workflow of an open run", 1, rowOf(root, "workflow:w", setOf("run:a")))
+        assertNull("a workflow of a closed run", rowOf(root, "workflow:w", emptySet()))
+    }
+
+    @Test
     fun testLoadsOnlyOpenNodesWithNothingLoaded() {
         val root = tree()
         val runA = root.getChildAt(0) as RunNode

@@ -119,7 +119,11 @@ class CircleCITreeModelTest : BasePlatformTestCase() {
         id: String,
         phase: String,
         outcome: String? = null,
-    ) = """{"id": "$id", "attributes": {"number": 1, "phase": "$phase", "outcome": ${quoted(outcome)}}}"""
+        revision: String? = null,
+    ) = """
+        {"id": "$id", "attributes": {"number": 1, "phase": "$phase", "outcome": ${quoted(outcome)}},
+         "references": {"event": {"attributes": {"vcs": {"revision": ${quoted(revision)}}}}}}
+    """
 
     private fun workflow(
         id: String,
@@ -501,6 +505,35 @@ class CircleCITreeModelTest : BasePlatformTestCase() {
             assertEquals("nothing open", emptySet<Any>(), onEdt { model.treeState.openNodes })
             assertEquals("the job's run selected", setOf<Any>("run:r-1"), onEdt { model.treeState.selectedKeys })
             assertFalse("nothing left to collapse", onEdt { model.canCollapse() })
+        }
+
+    fun testLocatesTheNewestRunOfACommit() =
+        runBlocking<Unit> {
+            // Runs give only the first 12 characters of the commit's SHA.
+            runs =
+                listOf(
+                    run("r-1", "ended", "succeeded", revision = "bbbbbbbbbbbb"),
+                    run("r-2", "ended", "succeeded", revision = "aaaaaaaaaaaa"),
+                    run("r-3", "ended", "failed", revision = "aaaaaaaaaaaa"),
+                )
+            load()
+
+            assertTrue("found", onEdt { model.locateRun("A".repeat(40)) })
+            assertEquals(
+                "the newest of its runs selected",
+                setOf<Any>("run:r-2"),
+                onEdt { model.treeState.selectedKeys },
+            )
+        }
+
+    fun testLocatingACommitWithNoRunListedLeavesTheSelection() =
+        runBlocking<Unit> {
+            runs = listOf(run("r-1", "ended", "succeeded", revision = "bbbbbbbbbbbb"))
+            load()
+            onEdt { model.treeState.selectedKeys = setOf("run:r-1") }
+
+            assertFalse("not found", onEdt { model.locateRun("a".repeat(40)) })
+            assertEquals("still selected", setOf<Any>("run:r-1"), onEdt { model.treeState.selectedKeys })
         }
 
     fun testNoRunsSaysSo() =

@@ -39,15 +39,18 @@ class GitBranchService(private val project: Project) {
      */
     fun getCurrentBranchForRuns(repositoryPath: String?): String? = currentBranch(repositoryPath, record = true)
 
+    /**
+     * The commit checked out in the repository at [repositoryPath], or in the
+     * first repository when it's null or matches none. Null with no repository,
+     * or none committed to yet.
+     */
+    fun getCurrentRevision(repositoryPath: String? = null): String? = repository(repositoryPath)?.currentRevision
+
     private fun currentBranch(
         repositoryPath: String?,
         record: Boolean,
     ): String? {
-        val repositories = repositories()
-        val repository =
-            repositories.firstOrNull { repositoryPath != null && it.root.path == repositoryPath }
-                ?: repositories.firstOrNull()
-                ?: return null
+        val repository = repository(repositoryPath) ?: return null
         val branch = repository.currentBranchName
         if (record) {
             branchesByRoot[repository.root.path] = branch ?: DETACHED
@@ -85,6 +88,12 @@ class GitBranchService(private val project: Project) {
         if (CircleCIStateStore.getInstance(project).filters.value.scope == RunScope.CURRENT_BRANCH) {
             project.getService(CircleCIToolWindowService::class.java).reloadTree()
         }
+    }
+
+    private fun repository(repositoryPath: String?): Repository? {
+        val repositories = repositories()
+        return repositories.firstOrNull { repositoryPath != null && it.root.path == repositoryPath }
+            ?: repositories.firstOrNull()
     }
 
     private fun repositories(): Collection<Repository> = VcsRepositoryManager.getInstance(project).getRepositories()
