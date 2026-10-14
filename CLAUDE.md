@@ -28,6 +28,10 @@ task lint       # Check code quality
 task test       # Verify tests pass
 ```
 
+## Code style
+
+Avoid creating interfaces unless there is a real need for multiple implementations.
+
 ## Key Info
 
 - **Language**: Kotlin
@@ -60,7 +64,8 @@ See `DEVELOPMENT.md` (UI Components).
 ## Tests
 
 Prefer integration tests against a real local HTTP server to unit tests
-with mocks, and don't use Mockito. See `DEVELOPMENT.md` (Testing Strategy).
+with mocks, and don't use Mockito. Share one fake per external dependency
+across tests, such as `FakeCircleCI`. See `DEVELOPMENT.md` (Testing Strategy).
 
 ## State Management
 
