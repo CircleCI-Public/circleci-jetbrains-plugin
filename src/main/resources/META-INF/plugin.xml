@@ -40,8 +40,6 @@
         <!-- The OAuth login flow the GitHub plugin logs in with -->
         <module name="intellij.platform.collaborationTools.auth"/>
         <module name="intellij.platform.collaborationTools.auth.base"/>
-        <!-- ProgressStripe, the run list's loading bar -->
-        <module name="intellij.platform.vcs.impl"/>
         <!-- FilterComponent, for the filters that always have a value -->
         <module name="intellij.platform.vcs.log.impl"/>
         <!-- Compose and Jewel, for the resource usage charts -->
