@@ -5,6 +5,16 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0] - 2026-10-14
+
+### What's Changed
+* Drop dependencies nothing uses by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/103
+* Add Collapse All to the run tree's title bar by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/102
+* Select the run of the commit checked out from the run tree's title bar by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/104
+
+
+**Full Changelog**: https://github.com/CircleCI-Public/circleci-jetbrains-plugin/compare/v1.15.0...v1.16.0
+
 ## [1.15.0] - 2026-10-14
 
 ### What's Changed
