@@ -112,6 +112,20 @@ class CircleCITreeModel(
     /** The node selected in the tree, if it's still there. */
     fun selectedNode(): CircleCITreeNode? = treeState.selectedKeys.firstOrNull()?.let { findNode(root, it) }
 
+    /** Whether any of the tree is open, for there to be anything to collapse. */
+    fun canCollapse(): Boolean = treeState.openNodes.isNotEmpty()
+
+    /** Close everything, down to the runs; a selection inside a run moves up to the run, which still shows. */
+    fun collapseAll() {
+        val run = selectedNode()?.let(::runOf)
+        treeState.openNodes = emptySet()
+        if (run != null) treeState.selectedKeys = setOf(keyOf(run))
+    }
+
+    /** The run row [node] is under, or is. */
+    private fun runOf(node: CircleCITreeNode): CircleCITreeNode? =
+        generateSequence(node) { it.parent as? CircleCITreeNode }.firstOrNull { it.parent === root }
+
     /**
      * Re-fetch every loaded level of the tree in place. A run list whose last
      * load failed is retried.
