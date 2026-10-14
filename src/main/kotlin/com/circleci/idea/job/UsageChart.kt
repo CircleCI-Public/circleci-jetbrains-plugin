@@ -114,7 +114,7 @@ internal fun UsageChart(
                 hover.value = if (exited) null else Hover(scale(position).x, hover.value?.position ?: position)
             },
         ) {
-            Lines(points, colors)
+            Lines(points, colors, yMax)
             if (ceiling > 0) Limit(ceiling, format(ceiling), labelStyle)
             Crosshair(series, colors, snapped)
         }
@@ -140,11 +140,16 @@ private fun YLabel(
     Text(text, style = style, modifier = Modifier.padding(end = 4.dp))
 }
 
-/** One line per execution; a lone execution's is filled down to zero. */
+/**
+ * One line per execution; a lone execution's is filled down to zero. The
+ * fill's gradient spans the whole plot, up to [yMax], so it starts fading at
+ * the line's peak.
+ */
 @Composable
 private fun XYGraphScope<Double, Double>.Lines(
     lines: List<List<Point<Double, Double>>>,
     colors: List<Color>,
+    yMax: Double,
 ) {
     val single = lines.size == 1
     lines.forEachIndexed { index, points ->
@@ -152,7 +157,9 @@ private fun XYGraphScope<Double, Double>.Lines(
         val color = colors[index]
         val stroke = LineStyle(SolidColor(color), if (single) 2.dp else 1.5.dp)
         if (single) {
-            val fill = AreaStyle(Brush.verticalGradient(listOf(color.copy(alpha = FILL_TOP), color.copy(alpha = 0f))))
+            val peak = (1 - points.maxOf { it.y } / yMax).toFloat().coerceIn(0f, 1f)
+            val fill =
+                AreaStyle(Brush.verticalGradient(peak to color.copy(alpha = FILL_TOP), 1f to color.copy(alpha = 0f)))
             AreaPlot(
                 data = points,
                 areaBaseline = AreaBaseline.HorizontalLine(0.0),
