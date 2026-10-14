@@ -131,9 +131,7 @@ class CircleCIToolWindowContent(private val project: Project) : Disposable {
 
     /**
      * Actions for the tool window's title bar: the project whose runs to list,
-     * then refreshing, as the Pull Requests list keeps its refresh there; then
-     * finding the current commit's run and collapsing the tree, in the order
-     * the Project view has its crosshair and Collapse All.
+     * then refreshing, as the Pull Requests list keeps its refresh there.
      */
     fun titleActions(): List<AnAction> =
         listOf(
