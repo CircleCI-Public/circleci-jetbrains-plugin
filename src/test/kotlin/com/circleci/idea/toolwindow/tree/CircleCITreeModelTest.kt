@@ -486,6 +486,23 @@ class CircleCITreeModelTest : BasePlatformTestCase() {
             assertEquals("the new run's not opened", 0, workflowFetches("r-3"))
         }
 
+    fun testCollapseAllClosesEverythingAndSelectsTheRunASelectionWasUnder() =
+        runBlocking<Unit> {
+            runs = listOf(run("r-1", "ended", "succeeded"), run("r-2", "ended", "succeeded"))
+            workflows["r-1"] = listOf(workflow("w-1", "ended", "succeeded"))
+            jobs["w-1"] = listOf(job("j-1", "ended", "succeeded"))
+            load()
+            open("run:r-1")
+            open("workflow:w-1")
+            onEdt { model.treeState.selectedKeys = setOf("job:j-1") }
+
+            onEdt { model.collapseAll() }
+
+            assertEquals("nothing open", emptySet<Any>(), onEdt { model.treeState.openNodes })
+            assertEquals("the job's run selected", setOf<Any>("run:r-1"), onEdt { model.treeState.selectedKeys })
+            assertFalse("nothing left to collapse", onEdt { model.canCollapse() })
+        }
+
     fun testNoRunsSaysSo() =
         runBlocking<Unit> {
             load()
