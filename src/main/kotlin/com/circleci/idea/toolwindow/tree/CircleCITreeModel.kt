@@ -19,8 +19,12 @@ import com.intellij.openapi.project.Project
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -70,6 +74,15 @@ class CircleCITreeModel(
 
     /** What's open and selected in the tree, by [keyOf]. */
     val treeState = TreeState(SelectableLazyListState(scroll))
+
+    private val _scrollRequests =
+        MutableSharedFlow<Int>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /**
+     * Rows to scroll to, animated by the view: animating needs the
+     * composition's frame clock, which [scope] doesn't have.
+     */
+    val scrollRequests: SharedFlow<Int> = _scrollRequests.asSharedFlow()
 
     // Loads and refreshes in flight, for the loading stripe.
     private var activeLoads = 0
@@ -141,7 +154,7 @@ class CircleCITreeModel(
                     it.offset + it.size <= layout.viewportEndOffset
             }
         if (!inView) {
-            scope.launch { scroll.animateScrollToItem(row) }
+            _scrollRequests.tryEmit(row)
         }
         return true
     }

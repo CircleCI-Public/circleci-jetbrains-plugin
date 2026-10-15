@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -97,6 +98,8 @@ class RunTreeView(
     fun View() {
         val structure by model.structure.collectAsState()
         val loading by model.loading.collectAsState()
+        // Run in the composition, whose frame clock the animation needs.
+        LaunchedEffect(model) { model.scrollRequests.collect { model.scroll.animateScrollToItem(it) } }
         Box(Modifier.fillMaxSize()) {
             // The run list empties while it first loads; a run or workflow shows its own loading row.
             if (model.root.childCount == 0) {
