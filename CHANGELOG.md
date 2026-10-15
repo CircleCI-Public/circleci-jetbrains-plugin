@@ -5,6 +5,14 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.0] - 2026-10-15
+
+### What's Changed
+* Colour the CircleCI icon the grey of the IDE's own icons by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/107
+
+
+**Full Changelog**: https://github.com/CircleCI-Public/circleci-jetbrains-plugin/compare/v1.16.0...v1.17.0
+
 ## [1.16.0] - 2026-10-14
 
 ### What's Changed
