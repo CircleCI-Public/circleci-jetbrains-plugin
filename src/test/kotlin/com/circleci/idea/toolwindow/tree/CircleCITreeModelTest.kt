@@ -294,7 +294,12 @@ class CircleCITreeModelTest : BasePlatformTestCase() {
             open("workflow:w-1")
             assertShown(
                 "the job running",
-                listOf("run:r-1 RUNNING", "  workflow:w-1 SUCCESS", "    job:j-1 RUNNING", "  workflow:w-2 RUNNING"),
+                listOf(
+                    "run:r-1 RUNNING",
+                    "  workflow:w-1 SUCCESS",
+                    "    job:w-1/j-1 RUNNING",
+                    "  workflow:w-2 RUNNING",
+                ),
             )
 
             poll()
@@ -305,7 +310,12 @@ class CircleCITreeModelTest : BasePlatformTestCase() {
             assertEquals("fetched again", 3, jobFetches("w-1"))
             assertShown(
                 "the job ended",
-                listOf("run:r-1 RUNNING", "  workflow:w-1 SUCCESS", "    job:j-1 SUCCESS", "  workflow:w-2 RUNNING"),
+                listOf(
+                    "run:r-1 RUNNING",
+                    "  workflow:w-1 SUCCESS",
+                    "    job:w-1/j-1 SUCCESS",
+                    "  workflow:w-2 RUNNING",
+                ),
             )
 
             poll()
@@ -330,7 +340,7 @@ class CircleCITreeModelTest : BasePlatformTestCase() {
             poll()
             assertShown(
                 "the job ended",
-                listOf("run:r-1 SUCCESS", "  workflow:w-1 SUCCESS", "    job:j-1 SUCCESS"),
+                listOf("run:r-1 SUCCESS", "  workflow:w-1 SUCCESS", "    job:w-1/j-1 SUCCESS"),
             )
 
             poll()
@@ -498,7 +508,7 @@ class CircleCITreeModelTest : BasePlatformTestCase() {
             load()
             open("run:r-1")
             open("workflow:w-1")
-            onEdt { model.treeState.selectedKeys = setOf("job:j-1") }
+            onEdt { model.treeState.selectedKeys = setOf("job:w-1/j-1") }
 
             onEdt { model.collapseAll() }
 

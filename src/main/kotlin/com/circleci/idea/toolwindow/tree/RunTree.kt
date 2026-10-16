@@ -13,7 +13,7 @@ import org.jetbrains.jewel.foundation.lazy.tree.buildTree
  */
 
 /**
- * A node's key in the tree: its run, workflow or job, or for a message
+ * A node's key in the tree: its run, workflow or job (in its workflow), or for a message
  * (loading, empty, error, more to load) its place under its parent.
  */
 internal fun keyOf(node: CircleCITreeNode): String =
@@ -21,7 +21,8 @@ internal fun keyOf(node: CircleCITreeNode): String =
         is RootNode -> "root"
         is RunNode -> "run:${node.run.id}"
         is WorkflowNode -> "workflow:${node.workflow.id}"
-        is JobNode -> "job:${node.job.id}"
+        // A rerun's workflow reuses the ids of the jobs it didn't run again.
+        is JobNode -> "job:${node.job.workflowId}/${node.job.id}"
         else -> messageKey(node)
     }
 
