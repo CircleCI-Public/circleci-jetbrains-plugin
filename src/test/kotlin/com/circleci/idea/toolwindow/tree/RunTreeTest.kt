@@ -3,6 +3,7 @@ package com.circleci.idea.toolwindow.tree
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.snapshots.SnapshotStateObserver
 import com.circleci.idea.run.RunStatus
+import com.circleci.idea.state.Job
 import com.circleci.idea.state.Run
 import com.circleci.idea.state.Workflow
 import org.jetbrains.jewel.foundation.lazy.tree.Tree
@@ -42,6 +43,21 @@ class RunTreeTest {
             runNumber = 3102,
             projectSlug = "gh/org/repo",
         )
+
+    private fun job(
+        id: String,
+        workflowId: String,
+    ) = Job(
+        id = id,
+        number = 1,
+        name = "test",
+        type = "build",
+        status = RunStatus.SUCCESS,
+        startedAt = null,
+        endedAt = null,
+        workflowId = workflowId,
+        projectSlug = "gh/org/repo",
+    )
 
     /** Root → run a (loaded: a workflow, itself unloaded), run b (unloaded), load more. */
     private fun tree(): RootNode {
@@ -123,6 +139,23 @@ class RunTreeTest {
         assertEquals("a workflow by its id", "workflow:w", keyOf(run.getChildAt(0) as CircleCITreeNode))
         assertEquals("a message by its place", "root/2", keyOf(root.getChildAt(2) as CircleCITreeNode))
         assertEquals("a rebuilt run keys as before", "run:a", keyOf(RunNode(run("a"))))
+    }
+
+    @Test
+    fun testAJobKeysApartInEachWorkflowThatRanIt() {
+        val run = RunNode(run("a"))
+        val original = WorkflowNode(workflow("w-1")).also { it.add(JobNode(job("j", "w-1"))) }
+        // Rerunning from failed copies the jobs that passed, ids and all.
+        val rerun = WorkflowNode(workflow("w-2")).also { it.add(JobNode(job("j", "w-2"))) }
+        run.add(original)
+        run.add(rerun)
+        val root = RootNode().also { it.add(run) }
+
+        assertEquals(
+            "each workflow's copy of the job has its own row",
+            listOf("run:a", "  workflow:w-1", "    job:w-1/j", "  workflow:w-2", "    job:w-2/j"),
+            render(runTree(root)),
+        )
     }
 
     @Test
