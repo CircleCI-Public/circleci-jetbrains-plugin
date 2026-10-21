@@ -1,6 +1,6 @@
 module github.com/CircleCI-Public/circleci-jetbrains-plugin
 
-go 1.27.1
+go 1.27.3
 
 require (
 	github.com/alecthomas/kong v1.16.1
