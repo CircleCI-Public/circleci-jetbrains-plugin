@@ -5,6 +5,14 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.0] - 2026-10-21
+
+### What's Changed
+* Upgrade to Go 1.27.3 for releases by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/114
+
+
+**Full Changelog**: https://github.com/CircleCI-Public/circleci-jetbrains-plugin/compare/v1.19.0...v1.20.0
+
 ## [1.19.0] - 2026-10-16
 
 ### What's Changed
