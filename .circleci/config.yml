@@ -1,14 +1,17 @@
 version: 2.1
 
+functions:
+  setup-go: github.com/circleci-functions/setup-go@v0.6.0
+
 executors:
   jdk:
     docker:
       - image: cimg/openjdk:21.0
     resource_class: xlarge.gen2
 
-  go:
+  base:
     docker:
-      - image: cimg/go:1.27
+      - image: cimg/base:current
 
 commands:
   with-gradle-cache:
@@ -56,6 +59,18 @@ commands:
           key: gradle-build-cache-v4-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-<< parameters.checksum >>-{{ epoch | round "72h" }}
           paths:
             - ~/.gradle/caches/build-cache-1
+
+  install-go:
+    steps:
+      - setup-go:
+          with:
+            version-file: go.mod
+
+  setup:
+    steps:
+      - checkout
+      - install-go
+      - install-task
 
   install-task:
     steps:
@@ -155,24 +170,22 @@ jobs:
           destination: analysis-reports
 
   release-test:
-    executor: go
+    executor: base
 
     steps:
-      - checkout
-      - install-task
+      - setup
       - run:
           name: Test the release program
           command: task ci:release:test
 
   # Publishes the signed plugin from build-and-test, or updates the release PR (see RELEASE.md).
   release:
-    executor: go
+    executor: base
 
     steps:
-      - checkout
+      - setup
       - attach_workspace:
           at: .
-      - install-task
       - run:
           name: Release
           command: task ci:release
