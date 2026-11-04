@@ -8,9 +8,9 @@ import java.util.Base64
 
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "2.4.20"
+    id("org.jetbrains.kotlin.jvm") version "2.4.21"
     // Compiles the resource usage charts' @Composable functions.
-    id("org.jetbrains.kotlin.plugin.compose") version "2.4.20"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.21"
     id("org.jetbrains.intellij.platform") version "2.19.0"
     id("org.jetbrains.kotlinx.kover") version "0.9.11"
     // Reads this version's notes from CHANGELOG.md, for the Marketplace's change notes.
@@ -41,14 +41,14 @@ repositories {
 
 dependencies {
     // JSON Parsing
-    implementation("com.google.code.gson:gson:2.10.1")
+    implementation("com.google.code.gson:gson:2.15.0")
 
     // Charts. Only the jar: the IDE provides Compose (see composeUI() below), and
     // KoalaPlot's material3 dependency is only used by chart types we don't draw.
     implementation("io.github.koalaplot:koalaplot-core-desktop:0.12.1") { isTransitive = false }
 
     // Checks a context's expression restrictions as they're typed.
-    implementation("com.circleci:expr:1.0.26-21f79fc")
+    implementation("com.circleci:expr:1.0.54-df01dbf")
 
     // Note: Kotlin stdlib and coroutines are provided by IntelliJ Platform
 
