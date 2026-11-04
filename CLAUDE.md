@@ -37,7 +37,7 @@ Avoid creating interfaces unless there is a real need for multiple implementatio
 - **Language**: Kotlin
 - **Tests**: JUnit 4 (not 5) - signature: `assertEquals(message, expected, actual)`
 - **Style**: ktlint (auto-fix with `task format`)
-- **Platform**: IntelliJ IDEA 2026.1+ (`sinceBuild` 261), built against 2026.2
+- **Platform**: IntelliJ IDEA, built against 2026.2; the builds it loads on are `ideaVersion` in `build.gradle.kts`
 - **LSP**: IntelliJ native LSP API (`com.intellij.modules.lsp`, `LspIntegrationProvider`); not available in open-source IDE builds
 - **Excluded Test**: CircleCIStateStoreTest (requires IDE environment)
 

@@ -1,6 +1,7 @@
 import org.gradle.process.CommandLineArgumentProvider
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
@@ -186,7 +187,7 @@ intellijPlatform {
 
         ideaVersion {
             sinceBuild = "261"
-            untilBuild = "262.*"
+            untilBuild = "263.*"
         }
     }
 
@@ -207,6 +208,14 @@ intellijPlatform {
     }
 
     pluginVerification {
+        // Not INTERNAL_API_USAGES: 2026.3 made the GitHub plugin's GHAccountManager internal, and has no
+        // public way to read the account's token, which the language server needs to fetch private orbs
+        // itself (IJPL-257880). The verifier can't ignore one internal API usage alone.
+        failureLevel =
+            listOf(
+                VerifyPluginTask.FailureLevel.COMPATIBILITY_PROBLEMS,
+                VerifyPluginTask.FailureLevel.OVERRIDE_ONLY_API_USAGES,
+            )
         ides {
             recommended()
         }
