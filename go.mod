@@ -3,7 +3,7 @@ module github.com/CircleCI-Public/circleci-jetbrains-plugin
 go 1.27.3
 
 require (
-	github.com/alecthomas/kong v1.16.1
+	github.com/alecthomas/kong v1.17.0
 	gotest.tools/v3 v3.5.2
 )
 
