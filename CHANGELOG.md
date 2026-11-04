@@ -5,6 +5,15 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.0] - 2026-11-04
+
+### What's Changed
+* Let the plugin load on IntelliJ IDEA 2026.3 by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/116
+* Bump Kotlin, Gson, expr, Gradle and kong by @pete-woods in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/117
+
+
+**Full Changelog**: https://github.com/CircleCI-Public/circleci-jetbrains-plugin/compare/v1.20.0...v1.21.0
+
 ## [1.20.0] - 2026-10-21
 
 ### What's Changed
