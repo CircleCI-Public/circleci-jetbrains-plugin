@@ -1,5 +1,7 @@
 package com.circleci.idea
 
+import com.circleci.idea.github.GitHubAccountFileFetcher
+import com.circleci.idea.lsp.GitHubFileFetcher
 import com.circleci.idea.ssh.SshConnector
 import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.extensions.PluginId
@@ -25,5 +27,16 @@ class PluginDescriptorTest : BasePlatformTestCase() {
         assertTrue("SSH plugin present", PluginManagerCore.isLoaded(PluginId.getId("intellij.ssh.plugin")))
         assertTrue("Terminal present", PluginManagerCore.isLoaded(PluginId.getId("org.jetbrains.plugins.terminal")))
         assertNotNull("ssh-terminal-support.xml registers the connector", SshConnector.getInstance())
+    }
+
+    // Holds while the tests run in an IDE from before 2026.3, which added requests made as an account.
+    fun testGitHubFileFetcherRegisteredButUnavailableBefore2026Dot3() {
+        val fetcher =
+            GitHubFileFetcher.EP_NAME.extensionList
+                .filterIsInstance<GitHubAccountFileFetcher>()
+                .singleOrNull()
+
+        assertNotNull("github-support.xml registers the fetcher", fetcher)
+        assertFalse("fetcher available", fetcher!!.isAvailable())
     }
 }
