@@ -56,9 +56,9 @@
     <depends optional="true" config-file="github-support.xml">org.jetbrains.plugins.github</depends>
 
     <extensionPoints>
-        <!-- The GitHub token the language server fetches private orbs with -->
-        <extensionPoint qualifiedName="com.circleci.idea.gitHubTokenSource"
-                        interface="com.circleci.idea.lsp.GitHubTokenSource"
+        <!-- Fetches the private orbs on GitHub the language server can't -->
+        <extensionPoint qualifiedName="com.circleci.idea.gitHubFileFetcher"
+                        interface="com.circleci.idea.lsp.GitHubFileFetcher"
                         dynamic="true"/>
     </extensionPoints>
 

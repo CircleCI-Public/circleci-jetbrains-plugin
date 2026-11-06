@@ -7,9 +7,11 @@ import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.IconLoader
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.platform.lsp.api.Lsp4jClient
 import com.intellij.platform.lsp.api.LspClient
 import com.intellij.platform.lsp.api.LspIntegrationProvider
 import com.intellij.platform.lsp.api.LspServerListener
+import com.intellij.platform.lsp.api.LspServerNotificationsHandler
 import com.intellij.platform.lsp.api.ProjectWideLspClientDescriptor
 import com.intellij.platform.lsp.api.lsWidget.LspClientWidgetItem
 import org.eclipse.lsp4j.InitializeResult
@@ -77,6 +79,15 @@ class CircleCILanguageServerDescriptor(project: Project) :
             }
         }
     }
+
+    // Without the option, the server doesn't ask for files on GitHub, as older clients don't answer.
+    override fun createInitializationOptions(): Any =
+        LanguageServerGitHubFiles.getInstance(
+            project,
+        ).initializationOptions()
+
+    override fun createLsp4jClient(handler: LspServerNotificationsHandler): Lsp4jClient =
+        CircleCILsp4jClient(handler, LanguageServerGitHubFiles.getInstance(project))
 
     // The server takes the token and host as commands, once it's initialized.
     override val lspServerListener: LspServerListener =

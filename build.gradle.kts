@@ -1,7 +1,6 @@
 import org.gradle.process.CommandLineArgumentProvider
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
-import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
@@ -100,8 +99,8 @@ dependencies {
         bundledPlugin("intellij.ssh.plugin")
         bundledPlugin("org.jetbrains.plugins.terminal")
         bundledModule("intellij.libraries.jediterm.core")
-        // Optional at runtime (see github-support.xml): the GitHub account the language server's
-        // GitHub token comes from.
+        // Optional at runtime (see github-support.xml): the GitHub account private orbs on
+        // GitHub are fetched as.
         bundledPlugin("org.jetbrains.plugins.github")
         // Compose and Jewel, which the resource usage charts are drawn with.
         composeUI()
@@ -208,14 +207,6 @@ intellijPlatform {
     }
 
     pluginVerification {
-        // Not INTERNAL_API_USAGES: 2026.3 made the GitHub plugin's GHAccountManager internal, and has no
-        // public way to read the account's token, which the language server needs to fetch private orbs
-        // itself (IJPL-257880). The verifier can't ignore one internal API usage alone.
-        failureLevel =
-            listOf(
-                VerifyPluginTask.FailureLevel.COMPATIBILITY_PROBLEMS,
-                VerifyPluginTask.FailureLevel.OVERRIDE_ONLY_API_USAGES,
-            )
         ides {
             recommended()
         }
