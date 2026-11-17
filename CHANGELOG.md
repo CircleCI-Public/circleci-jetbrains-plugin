@@ -5,6 +5,18 @@ All notable changes to the CircleCI JetBrains Plugin will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.0] - 2026-11-17
+
+### What's Changed
+* Install the JDK with the setup-java function by @stiyyagura0901 in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/121
+* fix: read the v3 held phase as on hold by @shawon-crosen in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/123
+
+### New Contributors
+* @stiyyagura0901 made their first contribution in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/121
+* @shawon-crosen made their first contribution in https://github.com/CircleCI-Public/circleci-jetbrains-plugin/pull/123
+
+**Full Changelog**: https://github.com/CircleCI-Public/circleci-jetbrains-plugin/compare/v1.22.0...v1.23.0
+
 ## [1.22.0] - 2026-11-06
 
 ### What's Changed
