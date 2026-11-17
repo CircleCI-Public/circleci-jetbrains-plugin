@@ -61,7 +61,7 @@ enum class RunStatus(val token: String, val label: String) {
             return when (phase) {
                 "created" -> CREATED
                 "queued" -> QUEUED
-                "on_hold" -> ON_HOLD
+                "held" -> ON_HOLD
                 "started" ->
                     when (currentOutcome) {
                         "failed" -> FAILING
