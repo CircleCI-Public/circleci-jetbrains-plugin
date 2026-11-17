@@ -23,7 +23,7 @@ plugins {
 }
 
 group = "com.circleci"
-version = "1.22.0"
+version = "1.23.0"
 
 repositories {
     mavenCentral()
