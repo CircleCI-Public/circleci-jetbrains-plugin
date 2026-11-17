@@ -1,6 +1,8 @@
 package com.circleci.idea.run
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Duration
 import java.time.Instant
@@ -54,6 +56,8 @@ class RunQueriesTest {
     fun testStatusDerivation() {
         assertEquals("created", RunStatus.CREATED, RunStatus.fromV3("created", null, null))
         assertEquals("queued", RunStatus.QUEUED, RunStatus.fromV3("queued", null, null))
+        assertEquals("held", RunStatus.ON_HOLD, RunStatus.fromV3("held", null, null))
+        assertEquals("on_hold is not a phase", RunStatus.UNKNOWN, RunStatus.fromV3("on_hold", null, null))
         assertEquals("running", RunStatus.RUNNING, RunStatus.fromV3("started", null, null))
         assertEquals("failing", RunStatus.FAILING, RunStatus.fromV3("started", null, "failed"))
         assertEquals("erroring", RunStatus.ERRORING, RunStatus.fromV3("started", null, "errored"))
@@ -72,6 +76,15 @@ class RunQueriesTest {
         assertEquals("canceled", RunStatus.CANCELED, RunStatus.fromV3("ended", "canceled", null))
         assertEquals("not run", RunStatus.NOT_RUN, RunStatus.fromV3("ended", null, "not_run"))
         assertEquals("unknown phase", RunStatus.UNKNOWN, RunStatus.fromV3("mystery", null, null))
+    }
+
+    @Test
+    fun testHeldRunIsActiveAndCancelableButNotRerunnable() {
+        val held = RunStatus.fromV3("held", null, null)
+        assertTrue("held is active", held.isActive)
+        assertTrue("held can be canceled", held.isCancelable)
+        assertFalse("held can't be rerun", held.isRerunnable)
+        assertFalse("held isn't a failure", held.isFailure)
     }
 
     @Test

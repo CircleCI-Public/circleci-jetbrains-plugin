@@ -130,9 +130,11 @@ object RunMapper {
      * A job's status, corrected for the jobs list endpoint's optimistic phase:
      * it reports "started" as soon as the workflow dispatches a job, while the
      * job is still waiting for an executor. Only started_at says it really
-     * began, so a started job without one is shown as queued. An approval job
-     * never has a started_at: a started one is waiting on someone to approve
-     * it, and a queued one is still waiting on the jobs it requires.
+     * began, so a started job without one is shown as queued. A waiting
+     * approval job is "started" in older API data, "queued" with a started_at
+     * in today's API, and will report "held" once the held phase ships. A
+     * queued approval job without a started_at is still waiting on the jobs
+     * it requires, so it stays queued.
      */
     internal fun jobStatus(
         type: String?,
@@ -141,7 +143,7 @@ object RunMapper {
         currentOutcome: String?,
         startedAt: Instant?,
     ): RunStatus {
-        if (type == "approval" && phase == "started") {
+        if (type == "approval" && awaitsApprover(phase, startedAt)) {
             return RunStatus.ON_HOLD
         }
         if (phase == "started" && startedAt == null) {
@@ -149,6 +151,11 @@ object RunMapper {
         }
         return RunStatus.fromV3(phase, outcome, currentOutcome)
     }
+
+    private fun awaitsApprover(
+        phase: String?,
+        startedAt: Instant?,
+    ): Boolean = phase == "started" || (phase == "queued" && startedAt != null)
 
     /** "org/repo" from a repository URL such as https://github.com/org/repo(.git). */
     internal fun repositoryName(url: String?): String? {

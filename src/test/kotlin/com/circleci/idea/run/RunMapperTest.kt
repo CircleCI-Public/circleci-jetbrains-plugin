@@ -104,7 +104,9 @@ class RunMapperTest {
               {"id": "j4", "attributes": {"name": "hold", "type": "approval", "phase": "started"}},
               {"id": "j5", "attributes": {"name": "hold-deploy", "type": "approval", "phase": "queued"}},
               {"id": "j6", "attributes": {"number": 23741, "name": "all-tests", "type": "no-op", "phase": "ended", "outcome": "succeeded",
-                "started_at": "2026-10-01T14:36:00.010Z", "ended_at": "2026-10-01T14:36:00.020Z"}}
+                "started_at": "2026-10-01T14:36:00.010Z", "ended_at": "2026-10-01T14:36:00.020Z"}},
+              {"id": "j7", "attributes": {"name": "hold-today", "type": "approval", "phase": "queued",
+                "started_at": "2026-10-01T14:33:49.633Z"}}
             ]}
             """.trimIndent()
         val jobs: V3List<JobWire> = gson.fromJson(jobsJson, object : TypeToken<V3List<JobWire>>() {}.type)
@@ -119,12 +121,40 @@ class RunMapperTest {
         assertEquals("blocked approval job is queued", RunStatus.QUEUED, mapped[4].status)
         assertFalse("blocked approval job doesn't await approval yet", mapped[4].awaitsApproval)
         assertEquals("no-op job", RunStatus.SUCCESS, mapped[5].status)
+        assertEquals("reachable approval job queued with started_at is on hold", RunStatus.ON_HOLD, mapped[6].status)
+        assertTrue("reachable approval job queued with started_at awaits approval", mapped[6].awaitsApproval)
         assertTrue("build job is a build", mapped[0].isBuild)
         assertFalse("approval job isn't a build", mapped[3].isBuild)
         assertFalse("no-op job isn't a build", mapped[5].isBuild)
         assertEquals("job slug", run.projectSlug, mapped[0].projectSlug)
         assertEquals("job workflow", workflow.id, mapped[0].workflowId)
     }
+
+    @Test
+    fun testHeldPhaseReadsAsOnHold() {
+        val run = RunMapper.toRun(gson.fromJson(heldRunJson, RunWire::class.java))!!
+        assertEquals("held run is on hold", RunStatus.ON_HOLD, run.status)
+
+        val workflowJson = """{"id": "w1", "attributes": {"name": "deploy", "phase": "held"}}"""
+        val workflow = RunMapper.toWorkflow(gson.fromJson(workflowJson, WorkflowWire::class.java), run)!!
+        assertEquals("held workflow is on hold", RunStatus.ON_HOLD, workflow.status)
+
+        val jobsJson =
+            """
+            {"data": [
+              {"id": "j1", "attributes": {"name": "hold", "type": "approval", "phase": "held"}},
+              {"id": "j2", "attributes": {"name": "build", "type": "build", "phase": "held"}}
+            ]}
+            """.trimIndent()
+        val jobs: V3List<JobWire> = gson.fromJson(jobsJson, object : TypeToken<V3List<JobWire>>() {}.type)
+        val mapped = jobs.data!!.map { RunMapper.toJob(it, workflow)!! }
+        assertEquals("held approval job is on hold", RunStatus.ON_HOLD, mapped[0].status)
+        assertTrue("held approval job awaits approval", mapped[0].awaitsApproval)
+        assertEquals("held job is on hold", RunStatus.ON_HOLD, mapped[1].status)
+    }
+
+    private val heldRunJson =
+        """{"id": "r-held", "attributes": {"number": 7, "phase": "held"}, "references": {"project": {"id": "p3"}}}"""
 
     @Test
     fun testRepositoryName() {
