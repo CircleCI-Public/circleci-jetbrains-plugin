@@ -2,11 +2,13 @@ version: 2.1
 
 functions:
   setup-go: github.com/circleci-functions/setup-go@v0.6.0
+  setup-java: github.com/circleci-functions/setup-java@v0.3.0
 
 executors:
+  # The JDK is installed by the install-java command
   jdk:
     docker:
-      - image: cimg/openjdk:21.0
+      - image: cimg/base:current
     resource_class: xlarge.gen2
 
   base:
@@ -72,6 +74,13 @@ commands:
       - install-go
       - install-task
 
+  install-java:
+    steps:
+      - setup-java:
+          with:
+            distribution: temurin
+            java-version: "21"
+
   install-task:
     steps:
       - run:
@@ -87,12 +96,17 @@ jobs:
 
     steps:
       - checkout
-      # The libraries Skia's Linux native links against, for the tests that draw Compose.
+      - install-java
+      # The libraries Skia's Linux native links against, for the tests that draw Compose, and the
+      # ones the IDE's bundled JBR loads for fonts and AWT, which cimg/openjdk had and cimg/base
+      # doesn't.
       - run:
-          name: Install Skia's libraries
+          name: Install native libraries
           command: |
             sudo apt-get update -qq
-            sudo apt-get install -y -qq --no-install-recommends libgl1 libegl1 libx11-6
+            sudo apt-get install -y -qq --no-install-recommends \
+              libgl1 libegl1 libx11-6 \
+              libfreetype6 libfontconfig1 libxext6 libxrender1 libxtst6 libxi6
       - with-gradle-cache:
           steps:
             # Build and test plugin (includes detekt and ktlint)
@@ -141,6 +155,7 @@ jobs:
 
     steps:
       - checkout
+      - install-java
       - with-gradle-cache:
           steps:
             # Refreshed daily. Unlike the Gradle caches it falls back to the latest, because without
