@@ -71,8 +71,6 @@ class RunApiClient : CircleCIApiClientBase() {
         val params =
             buildMap {
                 put("filter[user_id]", "me")
-                // Do not send filter[phase]=held yet: the API rejects it with a 400
-                // until circleci/query#1986 is deployed.
                 phase?.let { put("filter[phase]", it) }
                 currentOutcome?.let { put("filter[current_outcome]", it) }
                 from?.let { put("filter[from]", rfc3339(it)) }

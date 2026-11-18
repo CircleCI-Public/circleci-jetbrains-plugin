@@ -34,8 +34,7 @@ enum class RunStatusFilter(
     FAILING("failing", "Failing", "started", "failed"),
     NOT_RUN("not_run", "Not run", "ended", "not_run"),
 
-    // An on-hold filter can use the phase "held" once circleci/query#1986 is
-    // deployed. Until then the API answers filter[phase]=held with a 400.
+    ON_HOLD("on_hold", "On hold", "held", null),
     QUEUED("queued", "Queued", "queued", null),
     RUNNING("running", "Running", "started", null),
     SUCCESS("success", "Success", "ended", "succeeded"),

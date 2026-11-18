@@ -77,7 +77,7 @@ object RunMapper {
         val attributes = wire.attributes
         val startedAt = parseInstant(attributes?.startedAt)
         val status =
-            jobStatus(attributes?.type, attributes?.phase, attributes?.outcome, attributes?.currentOutcome, startedAt)
+            jobStatus(attributes?.phase, attributes?.outcome, attributes?.currentOutcome, startedAt)
         return Job(
             id = id,
             number = attributes?.number,
@@ -103,7 +103,7 @@ object RunMapper {
             id = id,
             name = attributes?.name ?: id,
             type = attributes?.type,
-            status = jobStatus(attributes?.type, attributes?.phase, attributes?.outcome, null, startedAt),
+            status = jobStatus(attributes?.phase, attributes?.outcome, null, startedAt),
             startedAt = startedAt,
             endedAt = parseInstant(attributes?.endedAt),
             executions = executions,
@@ -130,32 +130,22 @@ object RunMapper {
      * A job's status, corrected for the jobs list endpoint's optimistic phase:
      * it reports "started" as soon as the workflow dispatches a job, while the
      * job is still waiting for an executor. Only started_at says it really
-     * began, so a started job without one is shown as queued. A waiting
-     * approval job is "started" in older API data, "queued" with a started_at
-     * in today's API, and will report "held" once the held phase ships. A
-     * queued approval job without a started_at is still waiting on the jobs
-     * it requires, so it stays queued.
+     * began, so a started job without one is shown as queued. Every other
+     * phase maps through [RunStatus.fromV3]. A waiting approval job reports
+     * "held", which reads as on hold; a queued approval job is still waiting
+     * on the jobs it requires.
      */
     internal fun jobStatus(
-        type: String?,
         phase: String?,
         outcome: String?,
         currentOutcome: String?,
         startedAt: Instant?,
     ): RunStatus {
-        if (type == "approval" && awaitsApprover(phase, startedAt)) {
-            return RunStatus.ON_HOLD
-        }
         if (phase == "started" && startedAt == null) {
             return RunStatus.QUEUED
         }
         return RunStatus.fromV3(phase, outcome, currentOutcome)
     }
-
-    private fun awaitsApprover(
-        phase: String?,
-        startedAt: Instant?,
-    ): Boolean = phase == "started" || (phase == "queued" && startedAt != null)
 
     /** "org/repo" from a repository URL such as https://github.com/org/repo(.git). */
     internal fun repositoryName(url: String?): String? {
