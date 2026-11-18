@@ -20,6 +20,11 @@ class RunQueriesTest {
             RunQueries.filterExpression(null, RunStatusFilter.FAILED),
         )
         assertEquals(
+            "on hold",
+            "pipeline.status == \"on_hold\"",
+            RunQueries.filterExpression(null, RunStatusFilter.ON_HOLD),
+        )
+        assertEquals(
             "both",
             "pipeline.git.branch == \"feat/x\" and pipeline.status == \"not_run\"",
             RunQueries.filterExpression("feat/x", RunStatusFilter.NOT_RUN),

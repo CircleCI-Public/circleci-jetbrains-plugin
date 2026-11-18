@@ -17,6 +17,7 @@ import com.circleci.idea.api.models.NamedEntity
 import com.circleci.idea.api.models.RestrictionType
 import com.circleci.idea.project.models.Organization
 import com.circleci.idea.project.models.ProjectInfo
+import com.circleci.idea.run.RunStatusFilter
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.intellij.testFramework.LoggedErrorProcessor
@@ -165,6 +166,16 @@ class CircleCIApiServiceTest : BasePlatformTestCase() {
 
             assertEquals("runs", listOf("r-1" to 7L), page.items.map { it.id to it.attributes?.number })
             assertEquals("next page", "c2", page.nextCursor)
+        }
+
+    fun testMyRunsOnHoldSendsTheHeldPhase() =
+        runBlocking<Unit> {
+            responseBody = """{"data": [], "page": {}}"""
+            val onHold = RunStatusFilter.ON_HOLD
+
+            RunApiClient().listMyRuns(client, onHold.phase, onHold.currentOutcome, null, null, limit = 20).getOrThrow()
+
+            assertTrue("held phase", requests.last().uri.contains("filter[phase]=held"))
         }
 
     fun testRunWorkflowsFollowTheirPages() =
